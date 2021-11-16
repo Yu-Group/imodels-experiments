@@ -29,7 +29,7 @@ DATASETS_REGRESSION = [
     ('friedman1', 'friedman1', 'synthetic'),
     ('friedman2', 'friedman2', 'synthetic'),
     ('friedman3', 'friedman3', 'synthetic'),
-
+    ('abalone', '183', 'openml'),
     ("diabetes-regr", "diabetes", 'sklearn'),
     ("california-housing", "california_housing", 'sklearn'),
     ("satellite-image", "294_satellite_image", 'pmlb'),
