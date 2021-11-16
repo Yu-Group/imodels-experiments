@@ -6,19 +6,26 @@ import numpy as np
 import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-
+from os.path import dirname
 from experiments.util import remove_x_axis_duplicates, merge_overlapping_curves
 
 import os.path
 from os.path import join as oj
 dvu.set_style()
 mpl.rcParams['figure.dpi'] = 250
-DIR_FILE = os.path.dirname(os.path.realpath(__file__))  # directory of this file
-print(DIR_FILE)
-DIR_FIGS = oj(DIR_FILE, 'figs')
+
+cb2 = '#66ccff'
+cb = '#1f77b4'
+cr = '#cc0000'
+cp = '#cc3399'
+cy = '#d8b365'
+cg = '#5ab4ac'
+
+DIR_FIGS = oj(dirname(dirname(os.path.realpath(__file__))), 'figs')
 
 
 def savefig(fname):
+    os.makedirs(DIR_FIGS, exist_ok=True)
     plt.tight_layout()
     plt.savefig(oj(DIR_FIGS, fname + '.pdf'))
 
