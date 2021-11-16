@@ -16,12 +16,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier
 from tqdm import tqdm
 
-from experiments.config.datasets import DATASETS_CLASSIFICATION, DATASETS_REGRESSION
+from experiments.config.saps.datasets import DATASETS_CLASSIFICATION, DATASETS_REGRESSION
 # from experiments.config.util import get_estimators_for_dataset, get_ensembles_for_dataset
 from experiments.config.saps.models import ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION
-from imodels.util.data_util import get_clean_dataset
 from experiments.util import Model, get_complexity, get_results_path_from_args
 from experiments.validate import compute_meta_auc, get_best_accuracy
+from imodels.util.data_util import get_clean_dataset
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
@@ -76,6 +76,8 @@ def compare_estimators(estimators: List[Model],
 
             if hasattr(est, 'rules_'):
                 rules[d[0]].append(est.rules_)
+            elif hasattr(est, 'trees_') and hasattr(est, 'weighted_model_'):
+                rules[d[0]].append((est.trees_, est.weighted_model_))
             elif hasattr(est, 'trees_'):
                 rules[d[0]].append(est.trees_)
             else:
@@ -218,8 +220,7 @@ if __name__ == '__main__':
             args.classification_or_regression = 'regression'
         else:
             raise ValueError('Either args.classification_or_regression or args.dataset must be properly set!')
-            
-            
+
     # basic setup
     if args.classification_or_regression == 'classification':
         datasets = DATASETS_CLASSIFICATION

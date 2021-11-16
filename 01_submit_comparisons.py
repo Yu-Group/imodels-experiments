@@ -1,5 +1,5 @@
 from slurmpy import Slurm
-from experiments.config.datasets import DATASETS_CLASSIFICATION, DATASETS_REGRESSION
+from experiments.config.saps.datasets import DATASETS_CLASSIFICATION, DATASETS_REGRESSION
 DATASETS_ALL = DATASETS_CLASSIFICATION + DATASETS_REGRESSION
 
 partition = 'high'

@@ -8,7 +8,7 @@ from os.path import join as oj
 import numpy as np
 import pandas as pd
 
-from experiments.config.datasets import DATASETS_CLASSIFICATION, DATASETS_REGRESSION
+from experiments.config.saps.datasets import DATASETS_CLASSIFICATION, DATASETS_REGRESSION
 from experiments.util import get_results_path_from_args
 from experiments.validate import compute_meta_auc
 

@@ -40,3 +40,4 @@ experiments/data/
 experiments/results
 experiments/*.txt
 data
+**.pkl
