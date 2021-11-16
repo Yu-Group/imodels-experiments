@@ -233,23 +233,26 @@ if __name__ == '__main__':
 
     # filter based on args
     if args.dataset:
-        datasets = list(filter(lambda x: args.dataset.lower() in x[0].lower(), datasets))
+        datasets = list(filter(lambda x: args.dataset.lower() == x[0].lower(), datasets)) # strict
+        # datasets = list(filter(lambda x: args.dataset.lower() in x[0].lower(), datasets)) # flexible
     if args.model:
-        ests = list(filter(lambda x: args.model.lower() in x[0].name.lower(), ests))
+#         ests = list(filter(lambda x: args.model.lower() in x[0].name.lower(), ests))
+        ests = list(filter(lambda x: args.model.lower() == x[0].name.lower(), ests))        
 
     """
     if args.ensemble:
         ests = get_ensembles_for_dataset(args.dataset, test=args.test)
     else:
         ests = get_estimators_for_dataset(args.dataset, test=args.test)
-    """
+    
     if args.parallel_id is not None and len(args.parallel_id) > 1:
         ests = [est[args.parallel_id[0]:args.parallel_id[1] + 1] for est in ests]
     elif args.parallel_id is not None:
         ests = [[est[args.parallel_id[0]]] for est in ests]
+    """
 
     if len(ests) == 0:
-        raise ValueError('No valid estimators!')
+        raise ValueError('No valid estimators', 'dset', args.dataset, 'models', args.model)
     if len(datasets) == 0:
         raise ValueError('No valid datasets!')
     if args.verbose:

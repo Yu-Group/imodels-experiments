@@ -41,3 +41,4 @@ experiments/results
 experiments/*.txt
 data
 **.pkl
+**egg*
