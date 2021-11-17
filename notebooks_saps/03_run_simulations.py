@@ -1,0 +1,91 @@
+import os
+import pickle as pkl
+from os.path import join as oj
+
+import dvu
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from math import ceil
+from tqdm import tqdm
+import numpy as np
+import matplotlib.patches as patches
+import sys
+from math import log
+from simulations_util import *
+from collections import defaultdict
+import pickle as pkl
+
+sys.path.append('..')
+
+# change working directory to project root
+if os.getcwd().split('/')[-1] == 'notebooks':
+    os.chdir('../..')
+
+from experiments.viz import *
+from experiments import viz
+
+out_dir = 'results/sum_of_squares'
+prop_cycle = plt.rcParams['axes.prop_cycle']
+colors = prop_cycle.by_key()['color']
+
+
+
+# choose params
+n_train = [100, 250, 500, 750, 1000] #,1500,2000,2500]
+n_test = 500
+d = 50
+beta = 1
+sigma = 0.1
+sparsity = [10, 20]
+n_avg = 5
+
+# keys end up being saps, cart, rf
+scores = defaultdict(list)
+error_bar = defaultdict(list)
+
+
+# This cell's code is used to fit and predict for on linear model varying across
+# the number of training samples/sparsity 
+for s_num, s in enumerate(sparsity):
+    print('s_num', s_num)
+    scores_s = defaultdict(list)
+    error_bar_s = defaultdict(list)
+    fname = oj('results/sum_of_squares', f'scores_{s_num}.pkl')
+
+    if os.path.exists(fname):
+        continue
+    
+    for n in tqdm(n_train):
+        scores_s_n = defaultdict(list)
+        for j in range(n_avg):
+            #Create data to fit models 
+            X_train = sample_uniform_X(n,d)
+            X_honest = sample_uniform_X(n,d)
+            X_test = sample_uniform_X(n_test,d)
+            y_train = sum_of_squares(X_train,s,beta,sigma)
+            y_honest = sum_of_squares(X_honest,s,beta,sigma)
+            y_test = sum_of_squares(X_test,s,beta,0) #zero noise since we want to measure ||\hat{f} - f||_2
+            
+            # fit and predict for all versions of CART
+            saps_mse, cart_mse = train_all_models(X_train, y_train, X_honest, y_honest, X_test, y_test)
+            scores_s_n['SAPS'].append(saps_mse)
+            scores_s_n['CART'].append(cart_mse)
+            
+            rf = RandomForestRegressor(n_estimators=100, max_features=0.33)
+            rf.fit(X_train,y_train)
+            rf_preds = rf.predict(X_test)
+            scores_s_n['RF'].append(mean_squared_error(y_test,rf_preds))
+            
+
+        for k in scores_s_n:
+            scores_s[k].append(np.mean(scores_s_n[k]))
+            error_bar_s[k].append(np.std(scores_s_n[k]))
+    
+    #save results
+    for k in scores_s:
+        scores[k].append(scores_s[k])
+        error_bar[k].append(error_bar_s[k])
+        
+    os.makedirs(out_dir, exist_ok=True)
+    with open(fname, 'wb') as f:
+        pkl.dump((scores, error_bar), f)

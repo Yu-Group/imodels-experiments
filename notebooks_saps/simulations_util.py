@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import sys
+from math import log
+import math
 
 def sample_uniform_X(n,d):
     X = np.random.uniform(0,1.0,(n,d))
@@ -84,7 +86,7 @@ def train_all_models(X_train,y_train,X_saps,y_saps,X_test,y_test):
     return saps_CART, cart
 
 def log_list(t):
-    return [log(x,math.e) for x in t]
+    return np.log(np.array(t)) # np.array[log(x,math.e) for x in t]
 
 def get_best_fit_line(x,y):
     m, b = np.polyfit(x, y, 1)

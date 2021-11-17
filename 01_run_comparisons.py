@@ -80,6 +80,8 @@ def compare_estimators(estimators: List[Model],
                 rules[d[0]].append((est.trees_, est.weighted_model_))
             elif hasattr(est, 'trees_'):
                 rules[d[0]].append(est.trees_)
+            elif hasattr(est, 'tree_'):
+                rules[d[0]].append(est.tree_)
             else:
                 rules[d[0]].append('')
 
