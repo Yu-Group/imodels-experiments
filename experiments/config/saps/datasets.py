@@ -31,7 +31,7 @@ DATASETS_REGRESSION = [
     ('friedman3', 'friedman3', 'synthetic'),
     ('abalone', '183', 'openml'),
     ("diabetes-regr", "diabetes", 'sklearn'),
-    ("california-housing", "california_housing", 'sklearn'),
+    ("california-housing", "california_housing", 'sklearn'), # this replaced boston-housing due to ethical issues
     ("satellite-image", "294_satellite_image", 'pmlb'),
     ("echo-months", "1199_BNG_echoMonths", 'pmlb'),
     ("breast-tumor", "1201_BNG_breastTumor", 'pmlb'), # this one is v big (100k examples)
