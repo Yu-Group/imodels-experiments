@@ -38,7 +38,7 @@ d = 50
 beta = 1
 sigma = 0.1
 sparsity = [10, 20]
-n_avg = 5
+n_avg = 4
 seed = 1
 
 # keys end up being saps, cart, rf
