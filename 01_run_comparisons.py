@@ -246,11 +246,6 @@ if __name__ == '__main__':
         ests = get_ensembles_for_dataset(args.dataset, test=args.test)
     else:
         ests = get_estimators_for_dataset(args.dataset, test=args.test)
-    
-    if args.parallel_id is not None and len(args.parallel_id) > 1:
-        ests = [est[args.parallel_id[0]:args.parallel_id[1] + 1] for est in ests]
-    elif args.parallel_id is not None:
-        ests = [[est[args.parallel_id[0]]] for est in ests]
     """
 
     if len(ests) == 0:
