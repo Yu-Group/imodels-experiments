@@ -14,6 +14,7 @@ from math import log
 from simulations_util import *
 from collections import defaultdict
 import pickle as pkl
+from numpy.random import uniform
 
 sys.path.append('..')
 
@@ -31,18 +32,19 @@ colors = prop_cycle.by_key()['color']
 
 
 # choose params
-n_train = [100, 250, 500, 750, 1000] #,1500,2000,2500]
+n_train = [100, 250, 500, 750, 1000, 1500] #,1500,2000,2500]
 n_test = 500
 d = 50
 beta = 1
 sigma = 0.1
 sparsity = [10, 20]
 n_avg = 5
+seed = 1
 
 # keys end up being saps, cart, rf
 scores = defaultdict(list)
 error_bar = defaultdict(list)
-
+np.random.seed(seed)
 
 # This cell's code is used to fit and predict for on linear model varying across
 # the number of training samples/sparsity 
@@ -58,23 +60,18 @@ for s_num, s in enumerate(sparsity):
     for n in tqdm(n_train):
         scores_s_n = defaultdict(list)
         for j in range(n_avg):
-            #Create data to fit models 
-            X_train = sample_uniform_X(n,d)
-            X_honest = sample_uniform_X(n,d)
-            X_test = sample_uniform_X(n_test,d)
-            y_train = sum_of_squares(X_train,s,beta,sigma)
-            y_honest = sum_of_squares(X_honest,s,beta,sigma)
-            y_test = sum_of_squares(X_test,s,beta,0) #zero noise since we want to measure ||\hat{f} - f||_2
+            X_train = uniform(low=0, high=1.0, size=(n, d))
+            X_test = uniform(low=0, high=1.0, size=(n_test, d))
+            y_train = sum_of_squares(X_train, s, beta, sigma)
+            y_test = sum_of_squares(X_test, s, beta, 0)
             
-            # fit and predict for all versions of CART
-            saps_mse, cart_mse = train_all_models(X_train, y_train, X_honest, y_honest, X_test, y_test)
-            scores_s_n['SAPS'].append(saps_mse)
-            scores_s_n['CART'].append(cart_mse)
-            
-            rf = RandomForestRegressor(n_estimators=100, max_features=0.33)
-            rf.fit(X_train,y_train)
-            rf_preds = rf.predict(X_test)
-            scores_s_n['RF'].append(mean_squared_error(y_test,rf_preds))
+
+            for k, m in zip(['SAPS', 'CART', 'RF'], [SaplingSumRegressor(),
+                                                     DecisionTreeRegressor(min_samples_leaf=5),
+                                                     RandomForestRegressor(n_estimators=100, max_features=0.33)]):
+                m.fit(X_train, y_train)
+                preds = m.predict(X_test)
+                scores_s_n[k].append(mean_squared_error(y_test, preds))
             
 
         for k in scores_s_n:
