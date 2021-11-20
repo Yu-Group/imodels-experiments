@@ -1,3 +1,5 @@
+![](docs/logo_saps.png)
+
 # Experiments
 
 This directory contains files pertaining to experimental rule-based / interpretable models.
