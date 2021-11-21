@@ -2,11 +2,12 @@ import os
 import pickle as pkl
 import warnings
 from functools import partial
-from os.path import join as oj
 from os.path import dirname
+from os.path import join as oj
 from typing import Any, Dict, Tuple
 
 import numpy as np
+from imodels.util.tree import compute_tree_complexity
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 
@@ -146,7 +147,7 @@ def get_complexity(estimator: BaseEstimator) -> float:
         for tree in estimator.estimators_:
             if type(tree) is np.ndarray:
                 tree = tree[0]
-            complexity += (2 ** tree.get_depth()) * tree.get_depth()
+            complexity += compute_tree_complexity(tree)  # (2 ** tree.get_depth()) * tree.get_depth()
         return complexity
     else:
         return estimator.complexity_

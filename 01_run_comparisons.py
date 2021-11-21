@@ -9,11 +9,12 @@ from typing import Callable, List, Tuple
 
 import numpy as np
 import pandas as pd
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
+    RandomForestRegressor
 from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score, f1_score, recall_score, \
     precision_score, r2_score, explained_variance_score, mean_squared_error
 from sklearn.model_selection import train_test_split
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from tqdm import tqdm
 
 from experiments.config.saps.datasets import DATASETS_CLASSIFICATION, DATASETS_REGRESSION
@@ -68,7 +69,8 @@ def compare_estimators(estimators: List[Model],
             # print(est.criterion)
 
             start = time.time()
-            if type(est) in [RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier]:
+            if type(est) in [RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
+                             RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor]:
                 est.fit(X_train, y_train)
             else:
                 est.fit(X_train, y_train, feature_names=feat_names)
@@ -82,6 +84,8 @@ def compare_estimators(estimators: List[Model],
                 rules[d[0]].append(est.trees_)
             elif hasattr(est, 'tree_'):
                 rules[d[0]].append(est.tree_)
+            elif hasattr(est, 'estimators_'):
+                rules[d[0]].append(est.estimators_)
             else:
                 rules[d[0]].append('')
 
