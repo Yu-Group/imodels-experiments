@@ -191,7 +191,7 @@ def get_metrics(classification_or_regression: str = 'classification'):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    # often-chaning args
+    # often-changing args
     parser.add_argument('--classification_or_regression', type=str, default=None)
     parser.add_argument('--model', type=str, default=None)  # , default='c4')
     parser.add_argument('--dataset', type=str, default=None)  # default='reci')
