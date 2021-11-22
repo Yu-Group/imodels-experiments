@@ -1,4 +1,4 @@
-from experiments.util import DATASET_PATH
+from util import DATASET_PATH
 from os.path import join as oj
 
 DATASETS = [

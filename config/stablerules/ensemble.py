@@ -1,9 +1,9 @@
 import numpy as np
 import imodels
 
-from experiments.config.datasets import RULEFIT_KWARGS, FPL_KWARGS, BRL_KWARGS
+from config import RULEFIT_KWARGS, FPL_KWARGS, BRL_KWARGS
 from experiments.models.stablelinear import StableLinearClassifier as stbl
-from experiments.util import Model, get_best_model_under_complexity
+from util import Model, get_best_model_under_complexity
 
 
 def get_weak_learner_inst_list(complexity_limits, easy: bool = False):

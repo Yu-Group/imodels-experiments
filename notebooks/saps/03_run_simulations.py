@@ -1,16 +1,6 @@
 import os
-import pickle as pkl
-from os.path import join as oj
 
-import dvu
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from math import ceil
 from tqdm import tqdm
-import numpy as np
-import matplotlib.patches as patches
-import sys
-from math import log
 from simulations_util import *
 from collections import defaultdict
 import pickle as pkl
@@ -22,8 +12,7 @@ sys.path.append('..')
 if os.getcwd().split('/')[-1] == 'notebooks':
     os.chdir('../..')
 
-from experiments.viz import *
-from experiments import viz
+from viz import *
 
 out_dir = 'results/sum_of_squares'
 prop_cycle = plt.rcParams['axes.prop_cycle']

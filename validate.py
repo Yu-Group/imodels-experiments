@@ -6,7 +6,7 @@ import pandas as pd
 from scipy.interpolate import interp1d
 from sklearn.metrics import accuracy_score
 
-from experiments.util import remove_x_axis_duplicates
+from util import remove_x_axis_duplicates
 
 
 def compute_meta_auc(result_data: pd.DataFrame,

@@ -11,7 +11,7 @@ from imodels.util.tree import compute_tree_complexity
 from sklearn.base import BaseEstimator
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
 
-DATASET_PATH = oj(dirname(dirname(os.path.realpath(__file__))), 'data')
+DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
 
 class Model:

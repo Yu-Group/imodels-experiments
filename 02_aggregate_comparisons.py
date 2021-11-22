@@ -3,14 +3,12 @@ import glob
 import os.path
 import pickle as pkl
 import warnings
-from os.path import join as oj
+from os.path import join as oj, dirname
 
 import numpy as np
 import pandas as pd
 
-from experiments.config.saps.datasets import DATASETS_CLASSIFICATION, DATASETS_REGRESSION
-from experiments.util import get_results_path_from_args
-from experiments.validate import compute_meta_auc
+from validate import compute_meta_auc
 
 
 def combine_comparisons(path: str):
@@ -64,14 +62,18 @@ def combine_comparisons(path: str):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--low_data', action='store_true')
-    parser.add_argument('--results_path', type=str,
-                        default=oj(os.path.dirname(os.path.realpath(__file__)), 'results'))
-    parser.add_argument('--splitting_strategy', type=str, default="train-test")
-    args = parser.parse_args()
+    # parser.add_argument('--low_data', action='store_true')
+    # parser.add_argument('--results_path', type=str,
+    #                     default=oj(os.path.dirname(os.path.realpath(__file__)), 'results'))
+    # parser.add_argument('--splitting_strategy', type=str, default="train-test")
+    # args = parser.parse_args()
 
-    datasets = DATASETS_CLASSIFICATION + DATASETS_REGRESSION
-    
+    results_dir = oj(dirname(os.path.realpath(__file__)), 'results', 'reg_data')
+    datasets = [fname for fname in os.listdir(results_dir)
+                if not '.' in fname
+                and not 'icon' in fname.lower()
+                and os.path.isdir(oj(results_dir, fname))]
+
     for dataset in datasets:
-        path = get_results_path_from_args(args, dataset[0])
+        path = oj(results_dir, dataset, 'train-test')  # get_results_path_from_args(args, dataset)
         combine_comparisons(path)

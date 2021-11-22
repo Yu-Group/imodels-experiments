@@ -17,11 +17,12 @@ from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from tqdm import tqdm
 
-from experiments.config.saps.datasets import DATASETS_CLASSIFICATION, DATASETS_REGRESSION
+# from config.saps.datasets import
 # from experiments.config.util import get_estimators_for_dataset, get_ensembles_for_dataset
-from experiments.config.saps.models import ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION
-from experiments.util import Model, get_complexity, get_results_path_from_args
-from experiments.validate import compute_meta_auc, get_best_accuracy
+# from config.saps.models import
+import config
+from util import Model, get_complexity, get_results_path_from_args
+from validate import compute_meta_auc, get_best_accuracy
 from imodels.util.data_util import get_clean_dataset
 
 warnings.filterwarnings("ignore", message="Bins whose width")
@@ -76,18 +77,8 @@ def compare_estimators(estimators: List[Model],
                 est.fit(X_train, y_train, feature_names=feat_names)
             end = time.time()
 
-            if hasattr(est, 'rules_'):
-                rules[d[0]].append(est.rules_)
-            elif hasattr(est, 'trees_') and hasattr(est, 'weighted_model_'):
-                rules[d[0]].append((est.trees_, est.weighted_model_))
-            elif hasattr(est, 'trees_'):
-                rules[d[0]].append(est.trees_)
-            elif hasattr(est, 'tree_'):
-                rules[d[0]].append(est.tree_)
-            elif hasattr(est, 'estimators_'):
-                rules[d[0]].append(est.estimators_)
-            else:
-                rules[d[0]].append('')
+            # things to save
+            rules[d[0]].append(vars(est))
 
             # loop over metrics
             suffixes = ['_train', '_test']
@@ -204,6 +195,7 @@ if __name__ == '__main__':
     parser.add_argument('--classification_or_regression', type=str, default=None)
     parser.add_argument('--model', type=str, default=None)  # , default='c4')
     parser.add_argument('--dataset', type=str, default=None)  # default='reci')
+    parser.add_argument('--config', type=str, default='shrinkage')
 
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)
@@ -217,6 +209,8 @@ if __name__ == '__main__':
                         default=oj(os.path.dirname(os.path.realpath(__file__)), 'results'))
     args = parser.parse_args()
     assert args.splitting_strategy in ['train-test', 'train-tune-test']
+    DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
+    ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(args.config)
 
     print('dset', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
     if args.classification_or_regression is None:

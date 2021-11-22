@@ -1,6 +1,6 @@
 import numpy as np
 from numpy import concatenate as cat
-from experiments.util import Model
+from util import Model
 from imodels import GreedyTreeClassifier, GreedyTreeRegressor, C45TreeClassifier, SaplingSumClassifier
 from imodels import RuleFitClassifier, RuleFitRegressor, SaplingSumRegressor
 

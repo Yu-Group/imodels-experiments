@@ -7,7 +7,7 @@ from sklearn.ensemble import (
     GradientBoostingClassifier, GradientBoostingRegressor
 )
 
-from experiments.util import Model
+from util import Model
 
 RANDOM_FOREST_DEFAULT_KWARGS = {'random_state': 0}
 ESTIMATORS_CLASSIFICATION = (

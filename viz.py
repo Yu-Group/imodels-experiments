@@ -7,7 +7,7 @@ import pandas as pd
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 from os.path import dirname
-from experiments.util import remove_x_axis_duplicates, merge_overlapping_curves
+from util import remove_x_axis_duplicates, merge_overlapping_curves
 
 import os.path
 from os.path import join as oj

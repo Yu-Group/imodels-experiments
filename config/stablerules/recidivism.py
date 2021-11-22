@@ -2,16 +2,16 @@ from functools import partial
 
 import numpy as np
 from imodels import (
-    SkopeRulesClassifier as skope, RuleFitClassifier as rfit, FPLassoClassifier as fpl, 
-    FPSkopeClassifier as fps, BayesianRuleListClassifier as brl, BoostedRulesClassifier as brs
+    SkopeRulesClassifier as skope, RuleFitClassifier as rfit, FPLassoClassifier as fpl,
+    BayesianRuleListClassifier as brl, BoostedRulesClassifier as brs
 )
 from sklearn.ensemble import RandomForestClassifier as rf, GradientBoostingClassifier as gb
 from sklearn.tree import DecisionTreeClassifier
 
-from experiments.config.datasets import RULEFIT_KWARGS, BRL_KWARGS, FPL_KWARGS
+from config import RULEFIT_KWARGS, BRL_KWARGS, FPL_KWARGS
 from experiments.models.stablelinear import StableLinearClassifier as stbl
-from experiments.util import Model
-from experiments.util import get_best_model_under_complexity
+from util import Model
+from util import get_best_model_under_complexity
 
 
 RECIDIVISM_ESTIMATORS = []

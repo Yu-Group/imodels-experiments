@@ -1,7 +1,7 @@
-from experiments.config.stablerules.readmission import READMISSION_ESTIMATORS, READMISSION_TEST_ESTIMATORS, get_ensembles_for_readmission
-from experiments.config.stablerules.credit import CREDIT_ESTIMATORS, CREDIT_TEST_ESTIMATORS, get_ensembles_for_credit
-from experiments.config.stablerules.recidivism import RECIDIVISM_ESTIMATORS, RECIDIVISM_TEST_ESTIMATORS, get_ensembles_for_recidivism
-from experiments.config.stablerules.juvenile import JUVENILE_ESTIMATORS, JUVENILE_TEST_ESTIMATORS, get_ensembles_for_juvenile
+from config.stablerules.readmission import READMISSION_ESTIMATORS, READMISSION_TEST_ESTIMATORS, get_ensembles_for_readmission
+from config.stablerules.credit import CREDIT_ESTIMATORS, CREDIT_TEST_ESTIMATORS, get_ensembles_for_credit
+from config.stablerules.recidivism import RECIDIVISM_ESTIMATORS, RECIDIVISM_TEST_ESTIMATORS, get_ensembles_for_recidivism
+from config.stablerules.juvenile import JUVENILE_ESTIMATORS, JUVENILE_TEST_ESTIMATORS, get_ensembles_for_juvenile
 
 
 def get_estimators_for_dataset(dataset: str, test: bool = False):
