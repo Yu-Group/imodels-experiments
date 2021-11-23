@@ -9,6 +9,7 @@ from typing import Callable, List, Tuple
 
 import numpy as np
 import pandas as pd
+from imodels.util.data_util import get_clean_dataset
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
     RandomForestRegressor
 from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score, f1_score, recall_score, \
@@ -23,7 +24,6 @@ from tqdm import tqdm
 import config
 from util import Model, get_complexity, get_results_path_from_args
 from validate import compute_meta_auc, get_best_accuracy
-from imodels.util.data_util import get_clean_dataset
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
@@ -54,7 +54,7 @@ def compare_estimators(estimators: List[Model],
             print("\tdataset", d[0], 'ests', estimators)
         X, y, feat_names = get_clean_dataset(d[1], data_source=d[2])
         if args.low_data:
-            test_size = X.shape[0] - 1000
+            test_size = 0.90  # X.shape[0] - X.shape[0] * 0.1
         else:
             test_size = 0.2
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=args.split_seed)
@@ -89,7 +89,9 @@ def compare_estimators(estimators: List[Model],
             metric_results = {}
             for suffix, (X_, y_) in zip(suffixes, datas):
 
-                y_pred = est.predict(X_)
+                y_pred = est.predict(X_)  # note the .esimator_ here is weird
+                # y_pred = est.estimator_.predict(X_)  # note the .esimator_ here is weird
+                # print('best param', est.reg_param)
                 if args.classification_or_regression == 'classification':
                     y_pred_proba = est.predict_proba(X_)[:, 1]
                 for i, (met_name, met) in enumerate(metrics):
@@ -233,11 +235,11 @@ if __name__ == '__main__':
 
     # filter based on args
     if args.dataset:
-        datasets = list(filter(lambda x: args.dataset.lower() == x[0].lower(), datasets)) # strict
+        datasets = list(filter(lambda x: args.dataset.lower() == x[0].lower(), datasets))  # strict
         # datasets = list(filter(lambda x: args.dataset.lower() in x[0].lower(), datasets)) # flexible
     if args.model:
-#         ests = list(filter(lambda x: args.model.lower() in x[0].name.lower(), ests))
-        ests = list(filter(lambda x: args.model.lower() == x[0].name.lower(), ests))        
+        #         ests = list(filter(lambda x: args.model.lower() in x[0].name.lower(), ests))
+        ests = list(filter(lambda x: args.model.lower() == x[0].name.lower(), ests))
 
     """
     if args.ensemble:

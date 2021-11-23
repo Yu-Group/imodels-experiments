@@ -68,12 +68,13 @@ if __name__ == "__main__":
     # parser.add_argument('--splitting_strategy', type=str, default="train-test")
     # args = parser.parse_args()
 
-    results_dir = oj(dirname(os.path.realpath(__file__)), 'results', 'reg_data')
-    datasets = [fname for fname in os.listdir(results_dir)
-                if not '.' in fname
-                and not 'icon' in fname.lower()
-                and os.path.isdir(oj(results_dir, fname))]
+    for data_type in ['reg_data', 'low_data']:
+        results_dir = oj(dirname(os.path.realpath(__file__)), 'results', data_type)
+        datasets = [fname for fname in os.listdir(results_dir)
+                    if not '.' in fname
+                    and not 'icon' in fname.lower()
+                    and os.path.isdir(oj(results_dir, fname))]
 
-    for dataset in datasets:
-        path = oj(results_dir, dataset, 'train-test')  # get_results_path_from_args(args, dataset)
-        combine_comparisons(path)
+        for dataset in datasets:
+            path = oj(results_dir, dataset, 'train-test')  # get_results_path_from_args(args, dataset)
+            combine_comparisons(path)
