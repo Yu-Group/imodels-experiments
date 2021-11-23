@@ -27,7 +27,7 @@ DIR_FIGS = oj(dirname(os.path.realpath(__file__)), 'figs')
 def savefig(fname):
     os.makedirs(DIR_FIGS, exist_ok=True)
     plt.tight_layout()
-    print(oj(DIR_FIGS, fname + '.pdf'))
+    # print(oj(DIR_FIGS, fname + '.pdf'))
     plt.savefig(oj(DIR_FIGS, fname + '.pdf'))
 
 

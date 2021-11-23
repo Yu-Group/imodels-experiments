@@ -62,7 +62,7 @@ def make_comparison_grid(metric='rocauc', num_dsets=7, datasets=[],
                 args = np.argsort(x)
                 shrunk = 'shrunk' in name.lower()
                 alpha = 1.0 if shrunk else 0.35
-                lw = 1.5 if shrunk else 3
+                lw = 2 if shrunk else 2
                 ls = '--' if shrunk else '-'
                 label = name.replace('_', ' ').replace('C45', 'C4.5').replace('Random Forest', 'RF').replace('Gradient Boosting', 'GB')\
                     if not shrunk else None
@@ -70,11 +70,9 @@ def make_comparison_grid(metric='rocauc', num_dsets=7, datasets=[],
                 #                 print(g.keys())
                 x = x[args].values  # args #
                 y = g[f'{dset_name}_{metric}_test'][args].values
-                # print('x', x)
-                # print('y', y)
-                plt.plot(np.log10(x), y, **kwargs,)  # , zorder=-5)
-                #             plt.plot(g[f'{dset_name}_complexity'][args], g[f'{dset_name}_{metric}_train'][args], '.--', **kwargs,
-                #                      label=name + ' (Train)')
+                plt.plot(np.log10(x), y, **kwargs,)
+                # plt.xscale('log')
+                # plt.plot(x, y, **kwargs, )
                 plt.xlabel('Log Number of rules')
                 # plt.xlim((0, 20))
                 plt.ylabel(
