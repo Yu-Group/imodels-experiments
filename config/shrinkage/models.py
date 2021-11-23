@@ -1,8 +1,8 @@
-import numpy as np
+from functools import partial
+
 from imodels import (
     GreedyTreeClassifier, GreedyTreeRegressor, ShrunkTreeCV,
 )
-from functools import partial
 from sklearn.ensemble import (
     RandomForestClassifier, RandomForestRegressor,
     GradientBoostingClassifier, GradientBoostingRegressor,
@@ -18,7 +18,7 @@ ESTIMATORS_CLASSIFICATION = (
     [Model('ShrunkCART', partial(ShrunkTreeCV, estimator=DecisionTreeClassifier(max_depth=n)), 'max_depth', n)
      for n in [1, 2, 3, 5, 7, 10]],
     [Model('Random_Forest', RandomForestClassifier, 'n_estimators', n, other_params=RANDOM_FOREST_DEFAULT_KWARGS)
-     for n in [10, 50, 100]],
+     for n in [3, 10, 25, 50]],
     [Model('Gradient_Boosting', GradientBoostingClassifier, 'n_estimators', n,
            other_params=RANDOM_FOREST_DEFAULT_KWARGS)
      for n in [10, 50, 100]],
@@ -30,11 +30,15 @@ ESTIMATORS_REGRESSION = (
      for n in [1, 2, 3, 5, 7, 10, 15, 20, 25]],
     [Model('CART_(MAE)', GreedyTreeRegressor, 'max_depth', n, other_params={'criterion': 'absolute_error'})
      for n in [1, 2, 3, 5, 7, 10]],
-    [Model('ShrunkCART', partial(ShrunkTreeCV, estimator_=DecisionTreeRegressor(max_depth=n),
-                                 reg_param_list=[0.1, 1, 10, 50, 100, 500, 1000]))
+    [Model('ShrunkCART', partial(ShrunkTreeCV, estimator_=DecisionTreeRegressor(max_depth=n)))
      for n in [1, 2, 3, 5, 7, 8, 10, 15, 20, 25]],
-    [Model('Random_Forest', RandomForestRegressor, 'n_estimators', n, other_params=RANDOM_FOREST_DEFAULT_KWARGS)
-     for n in [10, 50, 100]],
+    [Model('Random_Forest', RandomForestRegressor, other_params={'n_estimators': n})
+     for n in [3, 10, 25, 50]],
+    [Model('Shrunk_Random_Forest',
+           partial(ShrunkTreeCV, estimator_=RandomForestRegressor(n_estimators=n)))
+     for n in [3, 10, 25, 50]],
     [Model('Gradient_Boosting', GradientBoostingRegressor, 'n_estimators', n, other_params=RANDOM_FOREST_DEFAULT_KWARGS)
+     for n in [10, 50, 100]],
+    [Model('Shrunk_Gradient_Boosting', partial(ShrunkTreeCV, estimator_=GradientBoostingRegressor(max_depth=n)))
      for n in [10, 50, 100]],
 )
