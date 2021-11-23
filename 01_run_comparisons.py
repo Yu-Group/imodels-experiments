@@ -142,12 +142,15 @@ def run_comparison(path: str,
         met_df = df.iloc[:, 1:].loc[:, [met_name in col
                                         for col in df.iloc[:, 1:].columns]]
         df[colname] = met_df.mean(axis=1)
+
+    """
     if args.parallel_id is None:
         try:
             meta_auc_df = compute_meta_auc(df)
         except ValueError as e:
             warnings.warn(f'bad complexity range')
             meta_auc_df = None
+    """
 
     # meta_auc_df = pd.DataFrame([])
     # if parallel_id is None:
@@ -165,8 +168,10 @@ def run_comparison(path: str,
         'df': df,
         'rule_df': rule_df,
     }
+    """
     if args.parallel_id is None:
         output_dict['meta_auc_df'] = meta_auc_df
+    """
     pkl.dump(output_dict, open(model_comparison_file, 'wb'))
 
 
