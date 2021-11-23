@@ -1,15 +1,13 @@
 import argparse
+import numpy as np
 import os
+import pandas as pd
 import pickle as pkl
 import time
 import warnings
 from collections import defaultdict
-from os.path import join as oj
-from typing import Callable, List, Tuple
-
-import numpy as np
-import pandas as pd
 from imodels.util.data_util import get_clean_dataset
+from os.path import join as oj
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
     RandomForestRegressor
 from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score, f1_score, recall_score, \
@@ -17,6 +15,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_sco
 from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from tqdm import tqdm
+from typing import Callable, List, Tuple
 
 # from config.saps.datasets import
 # from experiments.config.util import get_estimators_for_dataset, get_ensembles_for_dataset
@@ -211,6 +210,10 @@ if __name__ == '__main__':
     parser.add_argument('--verbose', action='store_true', default=True)
     parser.add_argument('--parallel_id', nargs='+', type=int, default=None)
     parser.add_argument('--split_seed', type=int, default=0)
+    parser.add_argument('--regression', action='store_true',
+                        help='whether to use regression (sets classification_or_regression)')
+    parser.add_argument('--classification', action='store_true',
+                        help='whether to use classification (sets classification_or_regression)')
     parser.add_argument('--ensemble', action='store_true', default=False)
     parser.add_argument('--results_path', type=str,
                         default=oj(os.path.dirname(os.path.realpath(__file__)), 'results'))
@@ -220,6 +223,10 @@ if __name__ == '__main__':
     ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(args.config)
 
     print('dset', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
+    if args.classification:
+        args.classification_or_regression = 'classification'
+    elif args.regression:
+        args.classification_or_regression = 'regression'
     if args.classification_or_regression is None:
         if args.dataset in [d[0] for d in DATASETS_CLASSIFICATION]:
             args.classification_or_regression = 'classification'
