@@ -54,7 +54,7 @@ def compare_estimators(estimators: List[Model],
             print("\tdataset", d[0], 'ests', estimators)
         X, y, feat_names = get_clean_dataset(d[1], data_source=d[2])
         if args.low_data:
-            test_size = X.shape[0] - 1000
+            test_size = 0.8
         else:
             test_size = 0.2
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=args.split_seed)
@@ -258,6 +258,7 @@ if __name__ == '__main__':
 
     for dataset in tqdm(datasets):
         path = get_results_path_from_args(args, dataset[0])
+        print(path)
         for est in ests:
             np.random.seed(1)
             run_comparison(path,
