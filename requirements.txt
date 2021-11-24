@@ -1,8 +1,11 @@
+imodels
 numpy
 pandas
 scipy
 scikit-learn
-imodels
-matplotlib
-tqdm
+dvu
 jupyter
+matplotlib
+slurmpy
+tqdm
+pmlb
