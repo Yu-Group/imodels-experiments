@@ -7,11 +7,8 @@ from os.path import join as oj
 from typing import Any, Dict, Tuple
 
 import numpy as np
-from sklearn.base import BaseEstimator
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
-    RandomForestRegressor
-
 from imodels.util.tree import compute_tree_complexity
+from sklearn.base import BaseEstimator
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
@@ -19,7 +16,7 @@ DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 class Model:
     def __init__(self,
                  name: str, cls,
-                 vary_param: str, vary_param_val: Any,
+                 vary_param: str = None, vary_param_val: Any = None,
                  fixed_param: str = None, fixed_param_val: Any = None,
                  other_params: Dict[str, Any] = {}):
         self.name = name
@@ -28,7 +25,9 @@ class Model:
         self.fixed_param_val = fixed_param_val
         self.vary_param = vary_param
         self.vary_param_val = vary_param_val
-        self.kwargs = {self.vary_param: self.vary_param_val}
+        self.kwargs = {}
+        if self.vary_param is not None:
+            self.kwargs[self.vary_param] = self.vary_param_val
         if self.fixed_param is not None:
             self.kwargs[self.fixed_param] = self.fixed_param_val
         self.kwargs = {**self.kwargs, **other_params}
@@ -144,16 +143,29 @@ def merge_overlapping_curves(test_mul_curves, y_col):
 def get_complexity(estimator: BaseEstimator) -> float:
     """Get complexity for any given estimator
     """
-    if isinstance(estimator, (
-    RandomForestClassifier, GradientBoostingClassifier, RandomForestRegressor, GradientBoostingRegressor)):
-        complexity = 0
-        for tree in estimator.estimators_:
-            if type(tree) is np.ndarray:
-                tree = tree[0]
-            complexity += compute_tree_complexity(tree.tree_)  # (2 ** tree.get_depth()) * tree.get_depth()
-        return complexity
-    else:
+    if hasattr(estimator, 'complexity_'):
         return estimator.complexity_
+    else:
+        # sklearn ensembles have estimator.estimators_
+        # RandomForestClassifier, GradientBoostingClassifier, RandomForestRegressor, GradientBoostingRegressor
+        estimators = None
+        if hasattr(estimator, 'estimators_'):
+            estimators = estimator.estimators_
+        elif hasattr(estimator, 'estimator_'):  # ShrunkTreeCV
+            if hasattr(estimator.estimator_, 'estimators_'):  # ensemble passed
+                estimators = estimator.estimator_.estimators_
+            elif hasattr(estimator.estimator_, 'tree_'):  # tree passed
+                estimators = [estimator.estimator_]
+
+        if estimators is None:
+            raise Warning('Dont know how to compute complexity for ' + str(estimator))
+
+        complexity = 0
+        for tree in estimators:
+            if isinstance(tree, np.ndarray):
+                tree = tree[0]
+            complexity += compute_tree_complexity(tree.tree_)
+        return complexity
 
 
 def get_results_path_from_args(args, dataset):

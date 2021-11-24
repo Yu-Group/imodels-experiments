@@ -2,8 +2,8 @@ imodels
 numpy
 pandas
 scipy
+scikit-learn
 dvu
-gdown
 jupyter
 matplotlib
 slurmpy
