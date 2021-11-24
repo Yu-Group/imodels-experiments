@@ -272,7 +272,6 @@ if __name__ == '__main__':
 
     for dataset in tqdm(datasets):
         path = get_results_path_from_args(args, dataset[0])
-        print(path)
         for est in ests:
             np.random.seed(1)
             run_comparison(path,
