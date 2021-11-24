@@ -1,0 +1,11 @@
+imodels
+numpy
+pandas
+scipy
+dvu
+gdown
+jupyter
+matplotlib
+slurmpy
+tqdm
+pmlb
