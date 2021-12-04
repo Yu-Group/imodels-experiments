@@ -9,6 +9,7 @@ from typing import Any, Dict, Tuple
 import numpy as np
 from imodels.util.tree import compute_tree_complexity
 from sklearn.base import BaseEstimator
+from sklearn import model_selection
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
@@ -35,17 +36,17 @@ class Model:
     def __repr__(self):
         return self.name
 
-
-def get_comparison_result(path: str, estimator_name: str, dataset: str, prefix='val', low_data=False) -> Dict[str, Any]:
-    path += 'low_data/' if low_data else 'reg_data/'
-    path += f'{dataset}/'
-    if prefix == 'test':
-        result_file = path + 'test/' + f'{estimator_name}_test_comparisons.pkl'
-    elif prefix == 'cv':
-        result_file = path + 'cv/' + f'{estimator_name}_comparisons.pkl'
-    else:
-        result_file = path + 'val/' + f'{estimator_name}_comparisons.pkl'
-    return pkl.load(open(result_file, 'rb'))
+def get_results_path_from_args(args, dataset):
+    """Gets path of directory in which model result pkls will be stored.
+    Path structure:
+        results/(saps|stablerules|shrinkage)/{dataset}/{splitting strategy}
+    """
+    path = args.results_path
+    path = oj(path, args.config)
+    path = oj(path, dataset) 
+    path = oj(path, args.splitting_strategy)
+    os.makedirs(path, exist_ok=True)
+    return path
 
 
 def get_best_model_under_complexity(c: int, model_name: str,
@@ -168,13 +169,24 @@ def get_complexity(estimator: BaseEstimator) -> float:
         return complexity
 
 
-def get_results_path_from_args(args, dataset):
-    path = args.results_path
-    if args.low_data:
-        path = oj(path, 'low_data', dataset)
-    else:
-        path = oj(path, 'reg_data', dataset)
+def apply_splitting_strategy(X: np.ndarray,
+                             y: np.ndarray,
+                             splitting_strategy: str,
+                             split_seed: str) -> Tuple[np.ndarray]:
 
-    path = oj(path, args.splitting_strategy)
-    os.makedirs(path, exist_ok=True)
-    return path
+    if splitting_strategy in {'train-test-lowdata', 'train-tune-test-lowdata'}:
+        test_size = 0.90  # X.shape[0] - X.shape[0] * 0.1
+    else:
+        test_size = 0.2
+
+    X_train, X_test, y_train, y_test = model_selection.train_test_split(
+        X, y, test_size=test_size, random_state=split_seed)
+    X_tune = None
+    y_tune = None
+
+    if splitting_strategy in {'train-tune-test', 'train-tune-test-lowdata'}:
+
+        X_train, X_tune, y_train, y_tune = model_selection.train_test_split(
+            X_train, y_train, test_size=0.2, random_state=split_seed)
+
+    return X_train, X_tune, X_test, y_train, y_tune, y_test
