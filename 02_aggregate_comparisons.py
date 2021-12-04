@@ -19,11 +19,12 @@ def combine_comparisons(path: str):
         path to directory containing pkl files to combine
     """
     all_files = glob.glob(oj(path, '*'))
-    model_files = [f for f in all_files
-                   if '_comparisons' in f]
+    model_files = [f for f in all_files if '_comparisons' in f]
+
     if len(model_files) == 0:
         print('No files found at ', path)
         return
+
     print('\tprocessing path', path)
     results_sorted = [pkl.load(open(f, 'rb')) for f in model_files]
 
@@ -68,13 +69,8 @@ if __name__ == "__main__":
     # parser.add_argument('--splitting_strategy', type=str, default="train-test")
     # args = parser.parse_args()
 
-    for data_type in ['reg_data', 'low_data']:
-        results_dir = oj(dirname(os.path.realpath(__file__)), 'results', data_type)
-        datasets = [fname for fname in os.listdir(results_dir)
-                    if not '.' in fname
-                    and not 'icon' in fname.lower()
-                    and os.path.isdir(oj(results_dir, fname))]
+    results_root = oj(os.path.dirname(os.path.realpath(__file__)), 'results')
 
-        for dataset in datasets:
-            path = oj(results_dir, dataset, 'train-test')  # get_results_path_from_args(args, dataset)
-            combine_comparisons(path)
+    # results/(saps|stablerules|shrinkage)/{dataset}/{splitting strategy}
+    for result_path in glob.glob(f'{results_root}/*/*/*'):
+        combine_comparisons(result_path)

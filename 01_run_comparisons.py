@@ -17,11 +17,9 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from tqdm import tqdm
 from typing import Callable, List, Tuple
 
-# from config.saps.datasets import
-# from experiments.config.util import get_estimators_for_dataset, get_ensembles_for_dataset
-# from config.saps.models import
 import config
-from util import Model, get_complexity, get_results_path_from_args
+import util
+from util import Model
 from validate import compute_meta_auc, get_best_accuracy
 
 warnings.filterwarnings("ignore", message="Bins whose width")
@@ -52,15 +50,10 @@ def compare_estimators(estimators: List[Model],
         if args.verbose:
             print("\tdataset", d[0], 'ests', estimators)
         X, y, feat_names = get_clean_dataset(d[1], data_source=d[2])
-        if args.low_data:
-            test_size = 0.90  # X.shape[0] - X.shape[0] * 0.1
-        else:
-            test_size = 0.2
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=test_size, random_state=args.split_seed)
 
-        if args.splitting_strategy == 'train-tune-test':
-            X_train, X_tune, y_train, y_tune = train_test_split(X_train, y_train,
-                                                                test_size=0.2, random_state=args.split_seed)
+        # implement provided splitting strategy
+        X_train, X_tune, X_test, y_train, y_tune, y_test = (
+            util.apply_splitting_strategy(X, y, args.splitting_strategy, args.split_seed))
 
         # loop over estimators
         for model in tqdm(estimators, leave=False):
@@ -68,9 +61,12 @@ def compare_estimators(estimators: List[Model],
             est = model.cls(**model.kwargs)
             # print(est.criterion)
 
+            sklearn_baselines = {
+                RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier, 
+                RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor}
+
             start = time.time()
-            if type(est) in [RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
-                             RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor]:
+            if type(est) in sklearn_baselines:
                 est.fit(X_train, y_train)
             else:
                 est.fit(X_train, y_train, feature_names=feat_names)
@@ -82,9 +78,11 @@ def compare_estimators(estimators: List[Model],
             # loop over metrics
             suffixes = ['_train', '_test']
             datas = [(X_train, y_train), (X_test, y_test)]
-            if args.splitting_strategy == 'train-tune-test':
+
+            if args.splitting_strategy in {'train-tune-test', 'train-tune-test-lowdata'}:
                 suffixes.append('_tune')
                 datas.append([X_tune, y_tune])
+
             metric_results = {}
             for suffix, (X_, y_) in zip(suffixes, datas):
 
@@ -100,7 +98,7 @@ def compare_estimators(estimators: List[Model],
                             metric_results[met_name + suffix] = met(y_, y_pred)
                         else:
                             metric_results[met_name + suffix] = met(y_, y_pred_proba)
-            metric_results['complexity'] = get_complexity(est)
+            metric_results['complexity'] = util.get_complexity(est)
             metric_results['time'] = end - start
 
             for met_name, met_val in metric_results.items():
@@ -206,7 +204,6 @@ if __name__ == '__main__':
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)
     parser.add_argument('--splitting_strategy', type=str, default="train-test")
-    parser.add_argument('--low_data', action='store_true', help='whether to subsample the data')
     parser.add_argument('--verbose', action='store_true', default=True)
     parser.add_argument('--parallel_id', nargs='+', type=int, default=None)
     parser.add_argument('--split_seed', type=int, default=0)
@@ -218,7 +215,10 @@ if __name__ == '__main__':
     parser.add_argument('--results_path', type=str,
                         default=oj(os.path.dirname(os.path.realpath(__file__)), 'results'))
     args = parser.parse_args()
-    assert args.splitting_strategy in ['train-test', 'train-tune-test']
+
+    assert args.splitting_strategy in {
+        'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata'}
+    
     DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
     ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(args.config)
 
@@ -271,12 +271,12 @@ if __name__ == '__main__':
         print('saving to', args.results_path)
 
     for dataset in tqdm(datasets):
-        path = get_results_path_from_args(args, dataset[0])
+        path = util.get_results_path_from_args(args, dataset[0])
         for est in ests:
             np.random.seed(1)
-            run_comparison(path,
-                           [dataset],
-                           metrics,
-                           est,
-                           args)
+            run_comparison(path=path,
+                           datasets=[dataset],
+                           metrics=metrics,
+                           estimators=est,
+                           args=args)
     print('completed all experiments successfully!')
