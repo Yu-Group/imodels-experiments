@@ -1,5 +1,6 @@
-<h1 align="center"> imodels🔍 experiments</h1>
-<p align="center"> Scripts for easily comparing different experimental aspects of the <a href="https://github.com/csinva/imodels">imodels package.</a>
+<p align="center">
+	<img align="center" width=40% src="https://yu-group.github.io/imodels-experiments/logo_experiments.svg?sanitize=True"> </img> 	 <br/>
+	Scripts for easily comparing different experimental aspects of the <a href="https://github.com/csinva/imodels">imodels package.</a>
 </p>
 
 
