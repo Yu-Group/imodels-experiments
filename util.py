@@ -1,15 +1,17 @@
 import os
 import pickle as pkl
 import warnings
+from collections import OrderedDict
 from functools import partial
-from os.path import dirname
-from os.path import join as oj
-from typing import Any, Dict, Tuple
+from os.path import dirname, join as oj
+from typing import Any, Dict, Tuple, Sequence
 
 import numpy as np
 from imodels.util.tree import compute_tree_complexity
-from sklearn.base import BaseEstimator
+from numpy.lib.ufunclike import fix
 from sklearn import model_selection
+from sklearn.base import BaseEstimator
+
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
@@ -35,6 +37,64 @@ class Model:
 
     def __repr__(self):
         return self.name
+
+
+class Model2:
+    """Config object representing a model to be fit in the pipeline.
+
+    Similar to Model but more generalizable since explicity passed vary_param
+    and fixed_param are replaced with kwargs. Assumes first parameter of
+    kwargs is the principal source of complexity variation.
+    """
+
+    def __init__(self,
+                 name: str,
+                 cls: BaseEstimator,
+                 kwargs: OrderedDict):
+        self.name = name
+        self.cls = cls
+        self.kwargs = kwargs
+
+        self.vary_param = list(kwargs.keys())[0]
+        self.vary_param_val = kwargs[self.vary_param]
+
+        fixed_kwargs = kwargs.copy()
+        fixed_kwargs.pop(self.vary_param)
+        self.fixed_kwargs = fixed_kwargs
+
+    def __repr__(self):
+        return self.name
+
+
+class Dataset:
+    def __init__(self,
+                 id: str,
+                 source: str,
+                 name: str = None,
+                 disc_columns: Sequence = None):
+        """Initialize a dataset.
+
+        Parameters
+        ----------
+        id: str
+            csv_file path or dataset id if data_source is specified
+        data_source: str
+            options: 'imodels', 'pmlb', 'sklearn', 'openml', 'synthetic'
+            boolean - whether dataset is a pmlb dataset name
+        name: str, optional
+            name to use for the dataset, default is id
+        disc_columns: array-like of integers, optional
+            indices of continuous columns to be discretized
+
+        """
+        self.id = id
+        self.source = source
+        self.name = name if name is not None else id
+        self.disc_columns = disc_columns
+
+    def __repr__(self):
+        return self.name
+
 
 def get_results_path_from_args(args, dataset):
     """Gets path of directory in which model result pkls will be stored.
