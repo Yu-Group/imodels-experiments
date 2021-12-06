@@ -22,7 +22,7 @@ def test_install():
                    '--model', 'cart', '--config', 'test',
                    '--results_path', test_dir])
         assert os.path.isdir(join(test_dir, 'test', 'heart', 'train-test'))
-        assert os.path.isfile(join(test_dir, 'test', 'heart', 'train-test', 'CART_comparisons.pkl'))
+        assert os.path.isfile(join(test_dir, 'test', 'heart', 'train-test', 'seed0', 'CART_comparisons.pkl'))
     except sh.ErrorReturnCode as e:
         print(e)
         pytest.fail(e)
