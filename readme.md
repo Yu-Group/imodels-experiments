@@ -27,3 +27,7 @@ Follow these steps to benchmark a new model:
     - example command: `python 01_run_comparisons.py --config saps --classification_or_regression regression`
 4. run `02_aggregate_comparisons.py` (which just combines the output of `01_run_comparisons.py` into a `combined.pkl` file across datasets) for plotting
 5. look at the results in notebooks
+
+### Dependencies
+
+`pip install -r requirements.txt`
