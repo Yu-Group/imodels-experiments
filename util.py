@@ -172,7 +172,7 @@ def get_complexity(estimator: BaseEstimator) -> float:
 def apply_splitting_strategy(X: np.ndarray,
                              y: np.ndarray,
                              splitting_strategy: str,
-                             split_seed: str) -> Tuple[np.ndarray]:
+                             split_seed: str) -> Tuple[Any, Any, Any, Any, Any, Any]:
 
     if splitting_strategy in {'train-test-lowdata', 'train-tune-test-lowdata'}:
         test_size = 0.90  # X.shape[0] - X.shape[0] * 0.1
