@@ -101,7 +101,7 @@ def compare_estimators(estimators: List[Model],
             metric_results['time'] = end - start
 
             for met_name, met_val in metric_results.items():
-                colname = d[0] + '_' + met_name
+                colname = met_name
                 results[colname].append(met_val)
     return results, rules
 
@@ -130,11 +130,9 @@ def run_comparison(path: str,
     df = pd.DataFrame.from_dict(results)
     df['split_seed'] = args.split_seed
     df['estimator'] = estimators_list
-    # df.index = estimators_list
-    rule_df = pd.DataFrame.from_dict(rules)
-    rule_df['split_seed'] = args.split_seed
-    rule_df['estimator'] = estimators_list
-    # rule_df.index = estimators_list
+    df_rules = pd.DataFrame.from_dict(rules)
+    df_rules['split_seed'] = args.split_seed
+    df_rules['estimator'] = estimators_list
 
     """
     # note: this is only actually a mean when using multiple cv folds
@@ -153,7 +151,7 @@ def run_comparison(path: str,
 
         # actual values
         'df': df,
-        'rule_df': rule_df,
+        'df_rules': df_rules,
     }
     pkl.dump(output_dict, open(model_comparison_file, 'wb'))
 
