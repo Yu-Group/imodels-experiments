@@ -13,3 +13,6 @@ pmlb
 # testing
 pytest
 sh
+
+# parallelization
+slurmpy

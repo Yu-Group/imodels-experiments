@@ -1,26 +1,26 @@
 import argparse
-import numpy as np
 import os
-import pandas as pd
 import pickle as pkl
 import time
 import warnings
 from collections import defaultdict
-from imodels.util.data_util import get_clean_dataset
 from os.path import join as oj
+from typing import Callable, List, Tuple
+
+import numpy as np
+import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
     RandomForestRegressor
 from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score, f1_score, recall_score, \
     precision_score, r2_score, explained_variance_score, mean_squared_error
-from sklearn.model_selection import train_test_split
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from tqdm import tqdm
-from typing import Callable, List, Tuple
 
 import config
 import util
+from imodels.util.data_util import get_clean_dataset
 from util import Model
-from validate import compute_meta_auc, get_best_accuracy
+from validate import get_best_accuracy
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
@@ -62,7 +62,7 @@ def compare_estimators(estimators: List[Model],
             # print(est.criterion)
 
             sklearn_baselines = {
-                RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier, 
+                RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
                 RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor}
 
             start = time.time()
@@ -86,8 +86,7 @@ def compare_estimators(estimators: List[Model],
             metric_results = {}
             for suffix, (X_, y_) in zip(suffixes, datas):
 
-                y_pred = est.predict(X_)  # note the .esimator_ here is weird
-                # y_pred = est.estimator_.predict(X_)  # note the .esimator_ here is weird
+                y_pred = est.predict(X_)
                 # print('best param', est.reg_param)
                 if args.classification_or_regression == 'classification':
                     y_pred_proba = est.predict_proba(X_)[:, 1]
@@ -129,46 +128,33 @@ def run_comparison(path: str,
     estimators_list = [e.name for e in estimators]
     metrics_list = [m[0] for m in metrics]
     df = pd.DataFrame.from_dict(results)
-    df.index = estimators_list
+    df['split_seed'] = args.split_seed
+    df['estimator'] = estimators_list
+    # df.index = estimators_list
     rule_df = pd.DataFrame.from_dict(rules)
-    rule_df.index = estimators_list
+    rule_df['split_seed'] = args.split_seed
+    rule_df['estimator'] = estimators_list
+    # rule_df.index = estimators_list
 
+    """
     # note: this is only actually a mean when using multiple cv folds
     for met_name, met in metrics:
         colname = f'mean_{met_name}'
         met_df = df.iloc[:, 1:].loc[:, [met_name in col
                                         for col in df.iloc[:, 1:].columns]]
         df[colname] = met_df.mean(axis=1)
-
     """
-    if args.parallel_id is None:
-        try:
-            meta_auc_df = compute_meta_auc(df)
-        except ValueError as e:
-            warnings.warn(f'bad complexity range')
-            meta_auc_df = None
-    """
-
-    # meta_auc_df = pd.DataFrame([])
-    # if parallel_id is None:
-    #     for curr_df, prefix in level_dfs:
-    #         try:
-    #             curr_meta_auc_df = compute_meta_auc(curr_df, prefix)
-    #             meta_auc_df = pd.concat((meta_auc_df, curr_meta_auc_df), axis=1)
-    #         except ValueError as e:
-    #             warnings.warn(f'bad complexity range for {prefix} datasets')
 
     output_dict = {
+        # metadata
         'estimators': estimators_list,
         'comparison_datasets': datasets,
         'metrics': metrics_list,
+
+        # actual values
         'df': df,
         'rule_df': rule_df,
     }
-    """
-    if args.parallel_id is None:
-        output_dict['meta_auc_df'] = meta_auc_df
-    """
     pkl.dump(output_dict, open(model_comparison_file, 'wb'))
 
 
@@ -218,7 +204,7 @@ if __name__ == '__main__':
 
     assert args.splitting_strategy in {
         'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata'}
-    
+
     DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
     ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(args.config)
 

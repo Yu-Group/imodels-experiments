@@ -1,5 +1,4 @@
 import os
-import pickle as pkl
 import warnings
 from functools import partial
 from os.path import dirname
@@ -7,9 +6,10 @@ from os.path import join as oj
 from typing import Any, Dict, Tuple
 
 import numpy as np
-from imodels.util.tree import compute_tree_complexity
-from sklearn.base import BaseEstimator
 from sklearn import model_selection
+from sklearn.base import BaseEstimator
+
+from imodels.util.tree import compute_tree_complexity
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
@@ -36,6 +36,7 @@ class Model:
     def __repr__(self):
         return self.name
 
+
 def get_results_path_from_args(args, dataset):
     """Gets path of directory in which model result pkls will be stored.
     Path structure:
@@ -43,8 +44,9 @@ def get_results_path_from_args(args, dataset):
     """
     path = args.results_path
     path = oj(path, args.config)
-    path = oj(path, dataset) 
+    path = oj(path, dataset)
     path = oj(path, args.splitting_strategy)
+    path = oj(path, 'seed' + str(args.split_seed))
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -173,7 +175,6 @@ def apply_splitting_strategy(X: np.ndarray,
                              y: np.ndarray,
                              splitting_strategy: str,
                              split_seed: str) -> Tuple[Any, Any, Any, Any, Any, Any]:
-
     if splitting_strategy in {'train-test-lowdata', 'train-tune-test-lowdata'}:
         test_size = 0.90  # X.shape[0] - X.shape[0] * 0.1
     else:
@@ -185,7 +186,6 @@ def apply_splitting_strategy(X: np.ndarray,
     y_tune = None
 
     if splitting_strategy in {'train-tune-test', 'train-tune-test-lowdata'}:
-
         X_train, X_tune, y_train, y_tune = model_selection.train_test_split(
             X_train, y_train, test_size=0.2, random_state=split_seed)
 
