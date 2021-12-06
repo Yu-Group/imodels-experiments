@@ -5,149 +5,202 @@ import pandas as pd
 import pickle as pkl
 import time
 import warnings
-from collections import defaultdict
-from imodels.util.data_util import get_clean_dataset
+from collections import OrderedDict, defaultdict
 from os.path import join as oj
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
-    RandomForestRegressor
-from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score, f1_score, recall_score, \
-    precision_score, r2_score, explained_variance_score, mean_squared_error
-from sklearn.model_selection import train_test_split
+
+from imodels.discretization import ExtraBasicDiscretizer
+from imodels.util import data_util
+from sklearn import metrics, model_selection
+from sklearn.base import BaseEstimator
+from sklearn.ensemble import (
+    RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, RandomForestRegressor)
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from tqdm import tqdm
-from typing import Callable, List, Tuple
+from typing import Sequence, Callable
 
 import config
 import util
-from util import Model
-from validate import compute_meta_auc, get_best_accuracy
+import validate
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
 
-def compare_estimators(estimators: List[Model],
-                       datasets: List[Tuple],
-                       metrics: List[Tuple[str, Callable]],
-                       args, ) -> Tuple[dict, dict]:
-    """Calculates results given estimators, datasets, and metrics.
-    Called in run_comparison
+def compute_metrics(metrics: OrderedDict[str, Callable],
+                    estimator: BaseEstimator,
+                    suffix: str,
+                    est_time: int,
+                    X_eval,
+                    y_eval):
+    results = {}
+    y_pred = estimator.predict(X_eval)
+    if args.classification_or_regression == 'classification':
+        y_pred_proba = estimator.predict_proba(X_eval)[:, 1]
+
+    for met_name, met in metrics.items():
+        if met is not None:
+            if args.classification_or_regression == 'regression' \
+                    or met_name in ['accuracy', 'f1', 'precision', 'recall']:
+                results[met_name + suffix] = met(y_eval, y_pred)
+            else:
+                results[met_name + suffix] = met(y_eval, y_pred_proba)
+
+        if suffix != '_test':
+            results['vars' + suffix] = (vars(estimator))
+            results['complexity' + suffix] = util.get_complexity(estimator)
+            results['time' + suffix] = est_time
+
+    return results
+
+
+def compare_estimators(estimators: Sequence[util.Model],
+                       dataset: util.Dataset,
+                       metrics: OrderedDict[str, Callable],
+                       args) -> dict:
+    """Runs models on dataset and returns evaluation metrics,
+    learned rules, and fitted estimator attributes in dictionaries.
     """
     if type(estimators) != list:
-        raise Exception("First argument needs to be a list of Models")
-    if type(metrics) != list:
-        raise Exception("Argument metrics needs to be a list containing ('name', callable) pairs")
+        raise ValueError("First argument needs to be a list of Models")
+    if type(metrics) != OrderedDict:
+        raise ValueError("Argument metrics needs to be an OrderedDict[str, Callable]")
+    if type(dataset) != util.Dataset:
+        raise ValueError("Argument dataset needs to be a util.Dataset object")
 
-    # initialize results with metadata
-    results = defaultdict(lambda: [])
+    # Initialize results dicts with estimator params as index
+    est_metrics = defaultdict(lambda: [])
     for e in estimators:
-        results[e.vary_param].append(e.vary_param_val)
-        if e.fixed_param is not None:
-            results[e.fixed_param].append(e.fixed_param_val)
-    rules = results.copy()
+        est_metrics[e.vary_param].append(e.vary_param_val)
+        if e.kwargs:
+            est_metrics['other_kwargs'].append(e.fixed_kwargs)
+    # est_attributes = est_metrics.copy()
 
-    # loop over datasets
-    for d in datasets:
-        if args.verbose:
-            print("\tdataset", d[0], 'ests', estimators)
-        X, y, feat_names = get_clean_dataset(d[1], data_source=d[2])
+    if args.verbose:
+        print("\tdataset", dataset.name, 'ests', estimators)
+    X, y, feature_names = data_util.get_clean_dataset(dataset.id, data_source=dataset.source)
 
-        # implement provided splitting strategy
-        X_train, X_tune, X_test, y_train, y_tune, y_test = (
-            util.apply_splitting_strategy(X, y, args.splitting_strategy, args.split_seed))
+    # For stablerules we discretize to facilitate rule matching
+    if args.config == 'stablerules':
+        disc_column_names = np.array(feature_names)[dataset.disc_columns]
+        eb_discretizer = ExtraBasicDiscretizer(
+            dcols=disc_column_names, n_bins=8, strategy='uniform')
+        disc_df = eb_discretizer.fit_transform(pd.DataFrame(X, columns=feature_names))
+        X, feature_names = disc_df.values.astype(int), disc_df.columns.values
 
-        # loop over estimators
-        for model in tqdm(estimators, leave=False):
-            # print('kwargs', model.kwargs)
-            est = model.cls(**model.kwargs)
-            # print(est.criterion)
+    # Separate test set before doing any validation
+    if args.splitting_strategy in {'train-test-lowdata', 'train-tune-test-lowdata'}:
+        test_size = 0.9
+    else:
+        test_size = 0.2
+    X_train, X_test, y_train, y_test = model_selection.train_test_split(
+        X, y, test_size=test_size, random_state=args.split_seed)
 
-            sklearn_baselines = {
-                RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier, 
-                RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor}
+    # Sklearn estimators require a slightly different .fit call
+    sklearn_baselines = {
+        RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
+        RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor}
 
-            start = time.time()
-            if type(est) in sklearn_baselines:
-                est.fit(X_train, y_train)
-            else:
-                est.fit(X_train, y_train, feature_names=feat_names)
-            end = time.time()
+    def fit_estimator(estimator: BaseEstimator, X, y) -> tuple[BaseEstimator, float]:
+        start = time.time()
+        if type(estimator) in sklearn_baselines:
+            estimator.fit(X, y)
+        else:
+            estimator.fit(X, y, feature_names=feature_names)
+        end = time.time()
+        return estimator, end - start
 
-            # things to save
-            rules[d[0]].append(vars(est))
+    # Loop over estimators, recording metrics and fitted attributes
+    for model in tqdm(estimators, leave=False):
+        # print('kwargs', model.kwargs)
+        est = model.cls(**model.kwargs)
+        # print(est.criterion)
 
-            # loop over metrics
-            suffixes = ['_train', '_test']
-            datas = [(X_train, y_train), (X_test, y_test)]
+        all_metric_results = {}
+        if args.splitting_strategy in {'cv', 'cv-lowdata'}:
 
-            if args.splitting_strategy in {'train-tune-test', 'train-tune-test-lowdata'}:
-                suffixes.append('_tune')
-                datas.append([X_tune, y_tune])
+            kf = model_selection.KFold(10, random_state=0, shuffle=True)
+            for i, (train_idx, tune_idx) in enumerate(kf.split(X_train)):
+                X_train_curr = X_train[train_idx]
+                y_train_curr = y_train[train_idx]
+                X_tune_curr = X_train[tune_idx]
+                y_tune_curr = y_train[tune_idx]
 
-            metric_results = {}
-            for suffix, (X_, y_) in zip(suffixes, datas):
+                est, est_time = fit_estimator(est, X_train_curr, y_train_curr)
 
-                y_pred = est.predict(X_)  # note the .esimator_ here is weird
-                # y_pred = est.estimator_.predict(X_)  # note the .esimator_ here is weird
-                # print('best param', est.reg_param)
-                if args.classification_or_regression == 'classification':
-                    y_pred_proba = est.predict_proba(X_)[:, 1]
-                for i, (met_name, met) in enumerate(metrics):
-                    if met is not None:
-                        if args.classification_or_regression == 'regression' \
-                                or met_name in ['accuracy', 'f1', 'precision', 'recall']:
-                            metric_results[met_name + suffix] = met(y_, y_pred)
-                        else:
-                            metric_results[met_name + suffix] = met(y_, y_pred_proba)
-            metric_results['complexity'] = util.get_complexity(est)
-            metric_results['time'] = end - start
+                # Save metrics and attributes
+                suffix = f'_fold_{i}'
+                metric_results = compute_metrics(metrics=metrics,
+                                                 estimator=est,
+                                                 suffix=suffix,
+                                                 est_time=est_time,
+                                                 X_eval=X_tune_curr,
+                                                 y_eval=y_tune_curr)
+                all_metric_results = {**all_metric_results, **metric_results}
 
-            for met_name, met_val in metric_results.items():
-                colname = d[0] + '_' + met_name
-                results[colname].append(met_val)
-    return results, rules
+        if args.splitting_strategy in {'train-tune-test', 'train-tune-test-lowdata'}:
+            X_train_curr, X_tune, y_train_curr, y_tune = model_selection.train_test_split(
+                X_train, y_train, test_size=0.2, random_state=args.split_seed)
+
+            est, est_time = fit_estimator(est, X_train_curr, y_train_curr)
+
+            suffix = '_tune'
+            # est_attributes['vars' + suffix].append(vars(est))
+            metric_results = compute_metrics(metrics, est, suffix, est_time, X_tune, y_tune)
+            all_metric_results = {**all_metric_results, **metric_results}
+
+        # Always record training and test accuracy, regardless of splitting strategy
+        est, est_time = fit_estimator(est, X_train, y_train)
+
+        for suffix, (X_, y_) in zip(['_train', '_test'], [(X_train, y_train), (X_test, y_test)]):
+            metric_results = compute_metrics(metrics, est, suffix, est_time, X_, y_)
+            all_metric_results = {**all_metric_results, **metric_results}
+        # est_attributes['_train'].append(vars(est))
+
+        for met_name, met_val in all_metric_results.items():
+            colname = dataset.name + '_' + met_name
+            est_metrics[colname].append(met_val)
+
+    return est_metrics  #, est_attributes
 
 
 def run_comparison(path: str,
-                   datasets: List[Tuple],
-                   metrics: List[Tuple[str, Callable]],
-                   estimators: List[Model],
+                   dataset: util.Dataset,
+                   metrics: Sequence[dict[str, Callable]],
+                   estimators: Sequence[util.Model],
                    args):
-    estimator_name = estimators[0].name.split(' - ')[0]
+
+    estimator_name = estimators[0].name
     model_comparison_file = oj(path, f'{estimator_name}_comparisons.pkl')
     if args.parallel_id is not None:
         model_comparison_file = f'_{args.parallel_id[0]}.'.join(model_comparison_file.split('.'))
 
     if os.path.isfile(model_comparison_file) and not args.ignore_cache:
-        print(f'{estimator_name} results already computed and cached. use --ignore_cache to recompute')
+        print(f'{estimator_name} results already computed. use --ignore_cache to recompute')
         return
 
-    results, rules = compare_estimators(estimators=estimators,
-                                        datasets=datasets,
-                                        metrics=metrics,
-                                        args=args)
+    results = compare_estimators(
+        estimators=estimators, dataset=dataset, metrics=metrics, args=args)
 
     estimators_list = [e.name for e in estimators]
-    metrics_list = [m[0] for m in metrics]
+    metrics_list = list(metrics.keys())
     df = pd.DataFrame.from_dict(results)
     df.index = estimators_list
-    rule_df = pd.DataFrame.from_dict(rules)
-    rule_df.index = estimators_list
+    # rule_df = pd.DataFrame.from_dict(rules)
+    # rule_df.index = estimators_list
 
-    # note: this is only actually a mean when using multiple cv folds
-    for met_name, met in metrics:
-        colname = f'mean_{met_name}'
-        met_df = df.iloc[:, 1:].loc[:, [met_name in col
-                                        for col in df.iloc[:, 1:].columns]]
-        df[colname] = met_df.mean(axis=1)
+    if args.splitting_strategy in {'cv', 'cv-lowdata'}:
+        # Average metrics over the cv folds
+        for met_name in metrics:
+            in_col_prefix = f'{met_name}_fold'
+            out_col = f'{met_name}_cv_mean'
+            met_df = df.loc[:, [in_col_prefix in col for col in df.columns]]
+            df[out_col] = met_df.mean(axis=1)
 
-    """
-    if args.parallel_id is None:
-        try:
-            meta_auc_df = compute_meta_auc(df)
-        except ValueError as e:
-            warnings.warn(f'bad complexity range')
-            meta_auc_df = None
-    """
+    # if args.parallel_id is None:
+    #     try:
+    #         meta_auc_df = compute_meta_auc(df)
+    #     except ValueError as e:
+    #         warnings.warn(f'bad complexity range')
+    #         meta_auc_df = None
 
     # meta_auc_df = pd.DataFrame([])
     # if parallel_id is None:
@@ -163,33 +216,32 @@ def run_comparison(path: str,
         'comparison_datasets': datasets,
         'metrics': metrics_list,
         'df': df,
-        'rule_df': rule_df,
+        # 'rule_df': rule_df,
     }
-    """
-    if args.parallel_id is None:
-        output_dict['meta_auc_df'] = meta_auc_df
-    """
+    # if args.parallel_id is None:
+    #     output_dict['meta_auc_df'] = meta_auc_df
+
     pkl.dump(output_dict, open(model_comparison_file, 'wb'))
 
 
-def get_metrics(classification_or_regression: str = 'classification'):
-    mutual = [('complexity', None), ('time', None)]
+def get_metrics(classification_or_regression: str = 'classification') -> OrderedDict:
+    mutual = {'complexity': None, 'time': None}
     if classification_or_regression == 'classification':
-        return [
-                   ('rocauc', roc_auc_score),
-                   ('accuracy', accuracy_score),
-                   ('f1', f1_score),
-                   ('recall', recall_score),
-                   ('precision', precision_score),
-                   ('avg_precision', average_precision_score),
-                   ('best_accuracy', get_best_accuracy),
-               ] + mutual
+        return OrderedDict({
+            'rocauc': metrics.roc_auc_score,
+            'accuracy': metrics.accuracy_score,
+            'f1': metrics.f1_score,
+            'recall': metrics.recall_score,
+            'precision': metrics.precision_score,
+            'avg_precision': metrics.average_precision_score,
+            'best_accuracy': validate.get_best_accuracy,
+            **mutual})
     elif classification_or_regression == 'regression':
-        return [
-                   ('r2', r2_score),
-                   ('explained_variance', explained_variance_score),
-                   ('neg_mean_squared_error', mean_squared_error),
-               ] + mutual
+        return OrderedDict({
+            'r2': metrics.r2_score,
+            'explained_variance': metrics.explained_variance_score,
+            'neg_mean_squared_error': metrics.mean_squared_error,
+            **mutual})
 
 
 if __name__ == '__main__':
@@ -217,66 +269,66 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     assert args.splitting_strategy in {
-        'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata'}
-    
-    DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
-    ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(args.config)
+        'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata', 'cv', 'cv-lowdata'}
 
-    print('dset', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
+    DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
+        ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(args.config)
+
+    print('dset', args.dataset, [d.name for d in DATASETS_CLASSIFICATION])
     if args.classification:
         args.classification_or_regression = 'classification'
     elif args.regression:
         args.classification_or_regression = 'regression'
     if args.classification_or_regression is None:
-        if args.dataset in [d[0] for d in DATASETS_CLASSIFICATION]:
+        if args.dataset in [d.name for d in DATASETS_CLASSIFICATION]:
             args.classification_or_regression = 'classification'
-        elif args.dataset in [d[0] for d in DATASETS_REGRESSION]:
+        elif args.dataset in [d.name for d in DATASETS_REGRESSION]:
             args.classification_or_regression = 'regression'
         else:
-            raise ValueError('Either args.classification_or_regression or args.dataset must be properly set!')
+            raise ValueError(
+                'Either args.classification_or_regression or args.dataset must be properly set!')
 
     # basic setup
     if args.classification_or_regression == 'classification':
         datasets = DATASETS_CLASSIFICATION
-        ests = ESTIMATORS_CLASSIFICATION
+        estimator_lists = ESTIMATORS_CLASSIFICATION
     elif args.classification_or_regression == 'regression':
         datasets = DATASETS_REGRESSION
-        ests = ESTIMATORS_REGRESSION
+        estimator_lists = ESTIMATORS_REGRESSION
 
-    metrics = get_metrics(args.classification_or_regression)
+    metric_list = get_metrics(args.classification_or_regression)
 
     # filter based on args
     if args.dataset:
-        datasets = list(filter(lambda x: args.dataset.lower() == x[0].lower(), datasets))  # strict
+        datasets = [dset for dset in datasets if dset.name == args.dataset]  # strict
         # datasets = list(filter(lambda x: args.dataset.lower() in x[0].lower(), datasets)) # flexible
     if args.model:
         #         ests = list(filter(lambda x: args.model.lower() in x[0].name.lower(), ests))
-        ests = list(filter(lambda x: args.model.lower() == x[0].name.lower(), ests))
+        estimator_lists = [
+            est_list for est_list in estimator_lists if args.model == est_list[0].name]
 
-    """
-    if args.ensemble:
-        ests = get_ensembles_for_dataset(args.dataset, test=args.test)
-    else:
-        ests = get_estimators_for_dataset(args.dataset, test=args.test)
-    """
+    # if args.ensemble:
+    #     ests = get_ensembles_for_dataset(args.dataset, test=args.test)
+    # else:
+    #     ests = get_estimators_for_dataset(args.dataset, test=args.test)
 
-    if len(ests) == 0:
+    if len(estimator_lists) == 0:
         raise ValueError('No valid estimators', 'dset', args.dataset, 'models', args.model)
     if len(datasets) == 0:
         raise ValueError('No valid datasets!')
     if args.verbose:
         print('running',
-              'datasets', [d[0] for d in datasets],
-              'ests', ests)
+              'datasets', [d.name for d in datasets],
+              'estimators', estimator_lists)
         print('saving to', args.results_path)
 
     for dataset in tqdm(datasets):
-        path = util.get_results_path_from_args(args, dataset[0])
-        for est in ests:
+        path = util.get_results_path_from_args(args, dataset.name)
+        for est_list in estimator_lists:
             np.random.seed(1)
             run_comparison(path=path,
-                           datasets=[dataset],
-                           metrics=metrics,
-                           estimators=est,
+                           dataset=dataset,
+                           metrics=metric_list,
+                           estimators=est_list,
                            args=args)
     print('completed all experiments successfully!')

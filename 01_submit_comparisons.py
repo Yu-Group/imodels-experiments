@@ -2,9 +2,9 @@ from slurmpy import Slurm
 
 import config
 
-EXP_TYPE = 'saps'
-MODEL = 'C45'
-ARGS = ['']
+EXP_TYPE = 'stablerules'
+MODEL = 'gradient_boosting'
+ARGS = ['--splitting_strategy cv']
 
 DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
 ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(EXP_TYPE)
@@ -27,7 +27,7 @@ for dset in DATASETS_ALL:
     # param_str = 'source ~/chandan/imodels_env/bin/activate; '
     
     param_str = 'python3 01_run_comparisons.py '
-    param_str += f'--dataset "{dset[0]}" '
+    param_str += f'--dataset "{dset.name}" '
     param_str += f'--model "{MODEL}" '
     param_str += f'--config {EXP_TYPE} '
     param_str += ' '.join(ARGS)
