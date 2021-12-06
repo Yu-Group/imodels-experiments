@@ -21,16 +21,16 @@ def test_fit_models():
                    '--results_path', test_dir, '--ignore_cache'])
         assert os.path.isdir(join(test_dir, 'test', 'heart', 'train-test'))
         assert os.path.isfile(join(test_dir, 'test', 'heart', 'train-test', 'seed0', 'CART_comparisons.pkl'))
+
         sh.python(['02_aggregate_results.py',
                    '--results_path', test_dir])
         assert os.path.isfile(join(test_dir, 'test', 'heart', 'train-test', 'seed0', 'results_aggregated.pkl'))
         results = pkl.load(open(join(test_dir, 'test', 'heart', 'train-test', 'seed0', 'results_aggregated.pkl'), 'rb'))
-        print('ks', results.keys())
+        assert 'df' in results
 
         # mean stuff
         assert os.path.isfile(join(test_dir, 'test', 'heart', 'train-test', 'results_aggregated.pkl'))
         results = pkl.load(open(join(test_dir, 'test', 'heart', 'train-test', 'results_aggregated.pkl'), 'rb'))
-        print('mean', results.keys())
         assert 'df' in results
         assert 'df_mean' in results
         assert 'df_rules' in results
@@ -39,6 +39,5 @@ def test_fit_models():
         print(e)
         pytest.fail(e)
     finally:
-        # if os.path.isdir(test_dir):
-        # shutil.rmtree(test_dir)
-        pass
+        if os.path.isdir(test_dir):
+            shutil.rmtree(test_dir)
