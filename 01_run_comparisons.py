@@ -91,8 +91,15 @@ def compare_estimators(estimators: Sequence[util.Model],
         test_size = 0.9
     else:
         test_size = 0.2
+
+    if dataset.name == 'csi':
+        shuffle = False
+        test_size = 744
+    else:
+        shuffle = True
+
     X_train, X_test, y_train, y_test = model_selection.train_test_split(
-        X, y, test_size=test_size, random_state=args.split_seed)
+        X, y, test_size=test_size, random_state=args.split_seed, shuffle=shuffle)
 
     # Sklearn estimators require a slightly different .fit call
     sklearn_baselines = {
@@ -235,6 +242,9 @@ def get_metrics(classification_or_regression: str = 'classification') -> Ordered
             'precision': metrics.precision_score,
             'avg_precision': metrics.average_precision_score,
             'best_accuracy': validate.get_best_accuracy,
+            'best_spec_0.9_sens': validate.make_best_spec_high_sens_scorer(0.9),
+            'best_spec_0.95_sens': validate.make_best_spec_high_sens_scorer(0.95),
+            'best_spec_0.98_sens': validate.make_best_spec_high_sens_scorer(0.98),
             **mutual})
     elif classification_or_regression == 'regression':
         return OrderedDict({
