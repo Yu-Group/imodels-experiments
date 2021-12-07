@@ -53,7 +53,7 @@ def plot_comparisons(metric='rocauc', datasets=[],
         'SAPS_(Include_Linear)': cb,
     }
 
-    for i, dset in enumerate(tqdm(datasets[::-1])):
+    for i, dset in enumerate(tqdm(datasets)):
         if isinstance(dset, str):
             dset_name = dset
         elif isinstance(dset, tuple):
@@ -65,14 +65,14 @@ def plot_comparisons(metric='rocauc', datasets=[],
         if seed is None:
             pkl_file = oj('results', 'saps', dset_name, 'train-test/results_aggregated.pkl')
             df = pkl.load(open(pkl_file, 'rb'))['df_mean']
-            print('ks', df.keys())
+            # print('ks', df.keys())
         else:
             pkl_file = oj('results', 'saps', dset_name, 'train-test/seed0/results_aggregated.pkl')
             df = pkl.load(open(pkl_file, 'rb'))['df']
             suffix = ''
         for _, (name, g) in enumerate(df.groupby('estimator')):
             if name in models_to_include:
-                #                 print(g)
+                # print('g keys', g.keys())
                 x = g['complexity' + suffix].values
                 y = g[f'{metric}_test' + suffix].values
                 yerr = g[f'{metric}_test' + '_std'].values
@@ -90,7 +90,7 @@ def plot_comparisons(metric='rocauc', datasets=[],
                               lw=lw,
                               label=name.replace('_', ' ').replace('C45', 'C4.5'),
                               zorder=-5,
-                              )
+                         )
                 #                 print(g.keys())
                 #                 plt.plot(x[args], y[args], '.-', **kwargs)
                 plt.errorbar(x[args], y[args], yerr=yerr[args], fmt='.-', **kwargs)
@@ -104,9 +104,10 @@ def plot_comparisons(metric='rocauc', datasets=[],
                                                                                                                '$R^2$'))
         #         if i % C == C - 1:
         if i % C == C - 1:
-            rect = patches.Rectangle((18, 0), 100, 1, linewidth=1, edgecolor='w', facecolor='w', zorder=-4)
-            dvu.line_legend(fontsize=10, xoffset_spacing=0.1, adjust_text_labels=True)
-            ax.add_patch(rect)
+#             rect = patches.Rectangle((18, 0), 100, 1, linewidth=1, edgecolor='w', facecolor='w', zorder=-4)
+#             dvu.line_legend(fontsize=10, xoffset_spacing=0.1, adjust_text_labels=True)
+#             ax.add_patch(rect)
+            plt.legend()
     #         except:
     #             print('skipping', dset_name)
     savefig(save_name)
