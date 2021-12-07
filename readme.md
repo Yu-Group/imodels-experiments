@@ -1,8 +1,7 @@
 <p align="center">
-	<img align="center" width=40% src="https://yu-group.github.io/imodels-experiments/logo_experiments.svg?sanitize=True"> </img> 	 <br/>
+	<img align="center" width=75% src="https://yu-group.github.io/imodels-experiments/logo_experiments.svg?sanitize=True"> </img> 	 <br/>
 	Scripts for easily comparing different experimental aspects of the <a href="https://github.com/csinva/imodels">imodels package.</a>
 </p>
-
 
 
 # Experimental models
@@ -21,9 +20,17 @@ Follow these steps to benchmark a new model:
 2. Update configs - create a new folder mimicking an existing folder (e.g. `config.saps`)
    1. Select which datasets you want by modifying `datasets.py` (datasets will be downloaded locally automatically later)
    2. Select which models you want by editing a list similar to `models.py`
-3. run `01_run_comparisons.py`
+3. run `01_fit_models.py`
     - pass the appropriate cmdline args (e.g. model, dataset, config)
-    - alternatively, to parallelize over a slurm cluster, run `01_submit_comparisons.py`
-    - example command: `python 01_run_comparisons.py --config saps --classification_or_regression regression`
-4. run `02_aggregate_comparisons.py` (which just combines the output of `01_run_comparisons.py` into a `combined.pkl` file across datasets) for plotting
-5. look at the results in notebooks
+    - example command: `python 01_fit_models.py --config saps --classification_or_regression regression --split_seed 0`
+    - running everything: loop over `split_seed` + `classification_or_regression`
+    - alternatively, to parallelize over a slurm cluster, run `01_submit_fitting.py` with the appropriate loops
+4. run `02_aggregate_results.py` (which just combines the output of `01_run_comparisons.py` into a `combined.pkl` file across datasets) for plotting
+5. look at the results in the `notebooks` folder
+
+
+# Testing
+
+Tests are run via `pytest`
+
+

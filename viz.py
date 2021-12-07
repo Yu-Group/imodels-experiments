@@ -1,16 +1,21 @@
 import math
+import os.path
+import pickle as pkl
+from math import ceil
+from os.path import dirname
+from os.path import join as oj
 from typing import List, Dict, Any, Union, Tuple
 
 import dvu
+import matplotlib as mpl
+import matplotlib.patches as patches
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import matplotlib as mpl
-import matplotlib.pyplot as plt
-from os.path import dirname
+from tqdm import tqdm
+
 from util import remove_x_axis_duplicates, merge_overlapping_curves
 
-import os.path
-from os.path import join as oj
 dvu.set_style()
 mpl.rcParams['figure.dpi'] = 250
 
@@ -22,6 +27,89 @@ cy = '#d8b365'
 cg = '#5ab4ac'
 
 DIR_FIGS = oj(dirname(os.path.realpath(__file__)), 'figs')
+
+
+def plot_comparisons(metric='rocauc', datasets=[],
+                     models_to_include=['SAPS', 'CART'], seed=None,
+                     save_name='fig', show_train=False):
+    """Plots curves for different models as a function of complexity
+
+    Params
+    ------
+    metric: str
+        Which metric to plot on y axis
+    """
+    R, C = ceil(len(datasets) / 3), 3
+    plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
+
+    COLORS = {
+        'SAPS': 'black',
+        'CART': 'orange',  # cp,
+        'Rulefit': 'green',
+        'C45': cb,
+        'CART_(MSE)': 'orange',
+        'CART_(MAE)': cg,
+        'SAPS_(Reweighted)': cg,
+        'SAPS_(Include_Linear)': cb,
+    }
+
+    for i, dset in enumerate(tqdm(datasets[::-1])):
+        if isinstance(dset, str):
+            dset_name = dset
+        elif isinstance(dset, tuple):
+            dset_name = dset[0]
+        #         try:
+        ax = plt.subplot(R, C, i + 1)
+
+        suffix = '_mean'
+        if seed is None:
+            pkl_file = oj('results', 'saps', dset_name, 'train-test/results_aggregated.pkl')
+            df = pkl.load(open(pkl_file, 'rb'))['df_mean']
+            print('ks', df.keys())
+        else:
+            pkl_file = oj('results', 'saps', dset_name, 'train-test/seed0/results_aggregated.pkl')
+            df = pkl.load(open(pkl_file, 'rb'))['df']
+            suffix = ''
+        for _, (name, g) in enumerate(df.groupby('estimator')):
+            if name in models_to_include:
+                #                 print(g)
+                x = g['complexity' + suffix].values
+                y = g[f'{metric}_test' + suffix].values
+                yerr = g[f'{metric}_test' + '_std'].values
+                args = np.argsort(x)
+                #                 print(x[args])
+                #                 if i % C == C - 1:
+                #                     for cutoff in args:
+                #                         if args[cutoff] >= 20:
+                #                             break
+                #                     args = args[:cutoff - 1]
+                alpha = 1.0 if 'SAPS' == name else 0.35
+                lw = 2 if 'SAPS' == name else 1.5
+                kwargs = dict(color=COLORS.get(name, 'gray'),
+                              alpha=alpha,
+                              lw=lw,
+                              label=name.replace('_', ' ').replace('C45', 'C4.5'),
+                              zorder=-5,
+                              )
+                #                 print(g.keys())
+                #                 plt.plot(x[args], y[args], '.-', **kwargs)
+                plt.errorbar(x[args], y[args], yerr=yerr[args], fmt='.-', **kwargs)
+                if show_train:
+                    plt.plot(g[f'complexity_train'][args], g[f'{dset_name}_{metric}_train'][args], '.--', **kwargs,
+                             label=name + ' (Train)')
+                plt.xlabel('Number of rules')
+                plt.xlim((0, 20))
+                plt.ylabel(
+                    dset_name.capitalize().replace('-', ' ') + ' ' + metric.upper().replace('ROC', '').replace('R2',
+                                                                                                               '$R^2$'))
+        #         if i % C == C - 1:
+        if i % C == C - 1:
+            rect = patches.Rectangle((18, 0), 100, 1, linewidth=1, edgecolor='w', facecolor='w', zorder=-4)
+            dvu.line_legend(fontsize=10, xoffset_spacing=0.1, adjust_text_labels=True)
+            ax.add_patch(rect)
+    #         except:
+    #             print('skipping', dset_name)
+    savefig(save_name)
 
 
 def savefig(fname):
@@ -144,5 +232,5 @@ def viz_comparison_datasets(result: Union[Dict[str, Any], List[Dict[str, Any]]],
         else:
             plt.legend(frameon=False, handlelength=1)
         plt.title(f'dataset {dataset}')
-#     plt.subplot(n_rows, cols, 1)
+    #     plt.subplot(n_rows, cols, 1)
     plt.tight_layout()

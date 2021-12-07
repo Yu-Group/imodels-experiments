@@ -9,3 +9,10 @@ matplotlib
 slurmpy
 tqdm
 pmlb
+
+# testing
+pytest
+sh
+
+# parallelization
+slurmpy
