@@ -5,7 +5,8 @@ from typing import List
 
 import numpy as np
 from imodels import (
-    SkopeRulesClassifier as skope, RuleFitClassifier as rfit, BoostedRulesClassifier as brs
+    SkopeRulesClassifier as skope, RuleFitClassifier as rfit, BoostedRulesClassifier as brs,
+    GreedyRuleListClassifier as grl, OptimalRuleListClassifier as corels
 )
 from sklearn.ensemble import RandomForestClassifier as rf, GradientBoostingClassifier as gb
 from sklearn.tree import DecisionTreeClassifier as dt
@@ -23,6 +24,17 @@ def grid_to_kwargs(grid: OrderedDict) -> List[dict]:
         all_kwargs.append(curr_kwargs)
 
     return all_kwargs
+
+
+cart_grid = OrderedDict({
+    'max_leaf_nodes': np.arange(1, 30),
+    'class_weight': [
+        {0: 1, 1: 1},
+        {0: 1, 1: 5},
+        {0: 1, 1: 10}
+    ],
+    'criterion': ['gini', 'entropy'],
+})
 
 
 random_forest_grid = OrderedDict({
@@ -64,6 +76,14 @@ brs_grid = OrderedDict({
 })
 
 
+# corels_grid =
+
+
+grl_grid = OrderedDict({
+    'max_depth': np.arange(1, 6)
+})
+
+
 ESTIMATORS_CLASSIFICATION = [
 
     [Model2('random_forest', rf, kw) for kw in grid_to_kwargs(random_forest_grid)],
@@ -71,6 +91,10 @@ ESTIMATORS_CLASSIFICATION = [
     [Model2('skope_rules', skope, kw) for kw in grid_to_kwargs(skope_rules_grid)],
     [Model2('rulefit', rfit, kw) for kw in grid_to_kwargs(rulefit_grid)],
     [Model2('brs', brs, kw) for kw in grid_to_kwargs(brs_grid)],
+    [Model2('grl', grl, kw) for kw in grid_to_kwargs(grl_grid)],
+    # [Model2('corels', corels, kw) for kw in grid_to_kwargs(corels_grid)]
 
 ]
+
+
 ESTIMATORS_REGRESSION = []
