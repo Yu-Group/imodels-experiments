@@ -50,10 +50,12 @@ class Model2:
     def __init__(self,
                  name: str,
                  cls: BaseEstimator,
-                 kwargs: OrderedDict):
+                 kwargs: OrderedDict,
+                 curve_id: str):
         self.name = name
         self.cls = cls
         self.kwargs = kwargs
+        self.curve_id = curve_id
 
         self.vary_param = list(kwargs.keys())[0]
         self.vary_param_val = kwargs[self.vary_param]
@@ -206,6 +208,8 @@ def get_complexity(estimator: BaseEstimator) -> float:
     """
     if hasattr(estimator, 'complexity_'):
         return estimator.complexity_
+    elif hasattr(estimator, 'tree_'):
+        return estimator.tree_.n_leaves
     else:
         # sklearn ensembles have estimator.estimators_
         # RandomForestClassifier, GradientBoostingClassifier, RandomForestRegressor, GradientBoostingRegressor

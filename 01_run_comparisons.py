@@ -70,8 +70,11 @@ def compare_estimators(estimators: Sequence[util.Model],
     est_metrics = defaultdict(lambda: [])
     for e in estimators:
         est_metrics[e.vary_param].append(e.vary_param_val)
-        if e.kwargs:
+        if e.curve_id:
             est_metrics['other_kwargs'].append(e.fixed_kwargs)
+            est_metrics['curve_id'].append(e.curve_id)
+        else:
+            est_metrics['curve_id'].append('default')
     # est_attributes = est_metrics.copy()
 
     if args.verbose:
@@ -219,8 +222,8 @@ def run_comparison(path: str,
     #             warnings.warn(f'bad complexity range for {prefix} datasets')
 
     output_dict = {
-        'estimators': estimators_list,
-        'comparison_datasets': datasets,
+        'estimators': np.unique(estimators_list),
+        'dataset': dataset,
         'metrics': metrics_list,
         'df': df,
         # 'rule_df': rule_df,

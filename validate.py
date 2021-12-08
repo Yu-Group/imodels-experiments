@@ -98,7 +98,7 @@ def make_best_spec_high_sens_scorer(min_sensitivity: float = 0.98):
             specificity = tn / (tn + fp)
             sensitivity = tp / (tp + fn)
 
-            if sensitivity > min_sensitivity:
+            if sensitivity >= min_sensitivity:
                 best_spec = max(specificity, best_spec)
         return best_spec
 
