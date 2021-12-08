@@ -166,8 +166,7 @@ def compare_estimators(estimators: Sequence[util.Model],
         # est_attributes['_train'].append(vars(est))
 
         for met_name, met_val in all_metric_results.items():
-            colname = dataset.name + '_' + met_name
-            est_metrics[colname].append(met_val)
+            est_metrics[met_name].append(met_val)
 
     return est_metrics  #, est_attributes
 
