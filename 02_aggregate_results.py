@@ -24,7 +24,7 @@ def aggregate_single_seed(path: str):
     model_files = sorted([f for f in all_files if '_comparisons' in f])
 
     if len(model_files) == 0:
-        print('No files found at ', path)
+        # print('No files found at ', path)
         return 0
 
     # print('\tprocessing path', '/'.join(path.split('/')[-4:]))
@@ -68,8 +68,9 @@ def aggregate_over_seeds(path: str):
     """
     results_overall = {}
     for seed_path in os.listdir(path):
-        try:
-            results_seed = pkl.load(open(oj(path, seed_path, 'results_aggregated.pkl'), 'rb'))
+        fname = oj(path, seed_path, 'results_aggregated.pkl')
+        if os.path.exists(fname):  # check that this seed has actually saved
+            results_seed = pkl.load(open(fname, 'rb'))
             for k in results_seed.keys():
                 if 'df' not in k:
                     results_overall[k] = results_seed[k]
@@ -79,8 +80,6 @@ def aggregate_over_seeds(path: str):
                         results_overall[k] = pd.concat((results_overall[k], results_seed[k])).reset_index(drop=True)
                     else:
                         results_overall[k] = results_seed[k]
-        except:
-            pass
 
     # keys to aggregate over
 
