@@ -1,3 +1,4 @@
+import copy
 import math
 import os.path
 import pickle as pkl
@@ -12,8 +13,14 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from bartpy.sklearnmodel import BARTRegressor, ShrunkBARTRegressor, ShrunkBARTRegressorCV
+from imodels import ShrunkTreeRegressorCV
+from imodels.util.data_util import get_clean_dataset
+from sklearn.metrics import r2_score, explained_variance_score, mean_squared_error
+from sklearn.tree import DecisionTreeRegressor
 from tqdm import tqdm
 
+import util
 from util import remove_x_axis_duplicates, merge_overlapping_curves
 
 dvu.set_style()
@@ -27,6 +34,102 @@ cy = '#d8b365'
 cg = '#5ab4ac'
 
 DIR_FIGS = oj(dirname(os.path.realpath(__file__)), 'figs')
+R_PATH = "/Users/omerronen/Documents/Phd/tree_shrinkage/imodels-experiments"
+
+
+def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
+                         save_name='fig', show_train=False):
+    """Plots curves for different models as a function of complexity
+
+    Params
+    ------
+    metric: str
+        Which metric to plot on y axis
+    """
+    R, C = ceil(len(datasets) / 3), 3
+    plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
+
+    met_dict = {'r2': r2_score,
+                'explained_variance': explained_variance_score,
+                'neg_mean_squared_error': mean_squared_error}
+
+    r_rng = range(6)
+
+    for i, dset in enumerate(tqdm(datasets)):
+        performance = {"bart": {r:[] for r in r_rng},
+                       "shrunk bart": {r:[] for r in r_rng},
+                       "shrunk tree": {r:[] for r in r_rng}}
+
+        for split_seed in [1, 2, 3, 4, 5]:
+            X, y, feat_names = get_clean_dataset(dset[1], data_source=dset[2])
+
+            # implement provided splitting strategy
+            splitting_strategy = "train-test"
+            # split_seed = 1
+            X_train, X_tune, X_test, y_train, y_tune, y_test = (
+                util.apply_splitting_strategy(X, y, splitting_strategy, split_seed))
+            dset_name = dset[0]
+            ax = plt.subplot(R, C, i + 1)
+            bart_org = BARTRegressor(n_chains=6, n_samples=1, n_trees=1)
+            bart_org.fit(X_train, y_train)
+            actual_range = []
+            for r in r_rng:
+                bart = copy.deepcopy(bart_org)
+                bart = bart.update_complexity(r)
+                bart_c = copy.deepcopy(bart)
+                # print(f"r: {r}, complexity: {bart.sample_complexity}\n")
+                actual_range.append(bart.sample_complexity)
+                shrunk_tree = ShrunkBARTRegressor(estimator_=bart, reg_param=1)
+                shrunk_tree.fit(X_train, y_train)
+                shrunk_tree = ShrunkBARTRegressorCV(estimator_=bart)
+                shrunk_tree.fit(X_train, y_train)
+                m = ShrunkTreeRegressorCV(estimator_=DecisionTreeRegressor(max_leaf_nodes=bart.sample_complexity + 1))
+                m.fit(X_train, y_train)
+                performance['shrunk bart'][r].append(met_dict[metric](y_test, shrunk_tree.predict(X_test)))
+                performance['bart'][r].append(met_dict[metric](y_test, bart_c.predict(X_test)))
+                performance['shrunk tree'][r].append(met_dict[metric](y_test, m.predict(X_test)))
+
+        def _get_mean_std(method):
+
+            mean_p = [np.mean(performance[method][rng]) for rng in r_rng]
+            std_p = [np.std(performance[method][rng]) for rng in r_rng]
+
+            return mean_p, std_p
+
+        bart_perf = _get_mean_std("bart")
+        s_bart_perf = _get_mean_std("shrunk bart")
+        s_tree_perf = _get_mean_std("shrunk tree")
+
+        ax.errorbar(actual_range, bart_perf[0], yerr=bart_perf[1], c="blue", label="BART")
+        ax.errorbar(actual_range, s_bart_perf[0], yerr=s_bart_perf[1], c="red", label="Shrunk BART")
+        ax.errorbar(actual_range, s_tree_perf[0], yerr=s_tree_perf[1], c="green", label=f"Shrunk CART")
+
+        ax.set_xlabel('Number of rules')
+        ax.set_ylabel(
+            dset_name.capitalize().replace('-', ' ') + ' ' + metric.upper().replace('ROC', '').replace('R2',
+                                                                                                       '$R^2$'))
+        if i == 0:
+            ax.legend(fontsize=8, loc="upper left")
+    savefig(os.path.join(R_PATH, save_name))
+
+
+# def _get_node_values(node):
+#     left = []
+#     right = []
+#     feature= []
+#     threshold =[]
+#     def _get_vals_rec(node):
+#         if type(node.left_child) == LeafNode and type(node.right_child) == LeafNode:
+#             left.append()
+
+
+# def convert_bart_tree(tree):
+#     skl_tree = tree.DecisionTreeRegressor()
+#     X = np.random.normal(size=(n, p))
+#     y = np.random.normal(size=n)
+#     skl_tree.fit(X,y)
+#     for d_node in tree.decision_nodes:
+#         skl_tree.
 
 
 def plot_comparisons(metric='rocauc', datasets=[],
@@ -51,6 +154,7 @@ def plot_comparisons(metric='rocauc', datasets=[],
         'CART_(MAE)': cg,
         'SAPS_(Reweighted)': cg,
         'SAPS_(Include_Linear)': cb,
+        "RF_(MSE)": "blue"
     }
 
     for i, dset in enumerate(tqdm(datasets)):
@@ -63,19 +167,20 @@ def plot_comparisons(metric='rocauc', datasets=[],
 
         suffix = '_mean'
         if seed is None:
-            pkl_file = oj('results', 'saps', dset_name, 'train-test/results_aggregated.pkl')
+            pkl_file = oj(R_PATH, 'results', 'shrinkage_o', dset_name, 'train-test/results_aggregated.pkl')
             df = pkl.load(open(pkl_file, 'rb'))['df_mean']
             # print('ks', df.keys())
         else:
-            pkl_file = oj('results', 'saps', dset_name, 'train-test/seed0/results_aggregated.pkl')
+            pkl_file = oj(R_PATH, 'results', 'saps', dset_name, 'train-test/seed0/results_aggregated.pkl')
             df = pkl.load(open(pkl_file, 'rb'))['df']
             suffix = ''
         for _, (name, g) in enumerate(df.groupby('estimator')):
             if name in models_to_include:
                 # print('g keys', g.keys())
                 x = g['complexity' + suffix].values
-                y = g[f'{metric}_test' + suffix].values
-                yerr = g[f'{metric}_test' + '_std'].values
+                metric_name = f'{metric}_test' if metric != "time" else metric
+                y = g[metric_name + suffix].values
+                yerr = g[metric_name + '_std'].values
                 args = np.argsort(x)
                 #                 print(x[args])
                 #                 if i % C == C - 1:
@@ -90,24 +195,24 @@ def plot_comparisons(metric='rocauc', datasets=[],
                               lw=lw,
                               label=name.replace('_', ' ').replace('C45', 'C4.5'),
                               zorder=-5,
-                         )
+                              )
                 #                 print(g.keys())
                 #                 plt.plot(x[args], y[args], '.-', **kwargs)
-                plt.errorbar(x[args], y[args], yerr=yerr[args], fmt='.-', **kwargs)
+                ax.errorbar(x[args], y[args], yerr=yerr[args], fmt='.-', **kwargs)
                 if show_train:
                     plt.plot(g[f'complexity_train'][args], g[f'{dset_name}_{metric}_train'][args], '.--', **kwargs,
                              label=name + ' (Train)')
-                plt.xlabel('Number of rules')
-                plt.xlim((0, 20))
-                plt.ylabel(
+                ax.xlabel('Number of rules')
+                # plt.xlim((0, 20))
+                ax.ylabel(
                     dset_name.capitalize().replace('-', ' ') + ' ' + metric.upper().replace('ROC', '').replace('R2',
                                                                                                                '$R^2$'))
         #         if i % C == C - 1:
         if i % C == C - 1:
-#             rect = patches.Rectangle((18, 0), 100, 1, linewidth=1, edgecolor='w', facecolor='w', zorder=-4)
-#             dvu.line_legend(fontsize=10, xoffset_spacing=0.1, adjust_text_labels=True)
-#             ax.add_patch(rect)
-            plt.legend()
+            #             rect = patches.Rectangle((18, 0), 100, 1, linewidth=1, edgecolor='w', facecolor='w', zorder=-4)
+            #             dvu.line_legend(fontsize=10, xoffset_spacing=0.1, adjust_text_labels=True)
+            #             ax.add_patch(rect)
+            ax.legend()
     #         except:
     #             print('skipping', dset_name)
     savefig(save_name)
@@ -235,3 +340,21 @@ def viz_comparison_datasets(result: Union[Dict[str, Any], List[Dict[str, Any]]],
         plt.title(f'dataset {dataset}')
     #     plt.subplot(n_rows, cols, 1)
     plt.tight_layout()
+
+
+if __name__ == '__main__':
+    DATASETS_REGRESSION = [
+        # leo-breiman paper random forest uses some UCI datasets as well
+        # pg 23: https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf
+        ('friedman1', 'friedman1', 'synthetic'),
+        ('friedman2', 'friedman2', 'synthetic'),
+        ('friedman3', 'friedman3', 'synthetic'),
+        ('abalone', '183', 'openml'),
+        ("diabetes-regr", "diabetes", 'sklearn'),
+        ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
+        ("satellite-image", "294_satellite_image", 'pmlb'),
+        ("echo-months", "1199_BNG_echoMonths", 'pmlb')
+        # ("breast-tumor", "1201_BNG_breastTumor", 'pmlb'),  # this one is v big (100k examples)
+
+    ]
+    plot_bart_comparison("r2", datasets=DATASETS_REGRESSION)
