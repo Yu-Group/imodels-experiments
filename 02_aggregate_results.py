@@ -24,7 +24,7 @@ def aggregate_single_seed(path: str):
     model_files = sorted([f for f in all_files if '_comparisons' in f])
 
     if len(model_files) == 0:
-        print('No files found at ', path)
+        # print('No files found at ', path)
         return 0
 
     # print('\tprocessing path', '/'.join(path.split('/')[-4:]))
