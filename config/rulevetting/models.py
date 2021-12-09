@@ -12,6 +12,7 @@ from sklearn.ensemble import RandomForestClassifier as rf, GradientBoostingClass
 from sklearn.tree import DecisionTreeClassifier as dt
 
 from util import Model2
+from local_models.stable import StableLinearClassifier as stbl
 
 
 def grid_to_kwargs(grid: OrderedDict) -> List[dict]:
@@ -37,6 +38,10 @@ def grid_to_kwargs(grid: OrderedDict) -> List[dict]:
             # special handling for class weight dicts
             if arg_name_repr == 'class_weight':
                 arg_repr = args_combo[i][1]
+            
+            # special handling for long stbl param names
+            if 'max_complexity' in arg_name_repr:
+                arg_name_repr = arg_name_repr.replace('max_complexity', 'mc')
 
             # special handling for boostedruleset bc it takes partial objects
             elif type(arg_repr) == functools.partial:
@@ -57,9 +62,10 @@ def grid_to_kwargs(grid: OrderedDict) -> List[dict]:
 cart_grid = OrderedDict({
     'max_leaf_nodes': np.arange(2, 30),
     'class_weight': [
-        {0: 1, 1: 10},
-        {0: 1, 1: 100},
-        {0: 1, 1: 1000}
+        {0: 1, 1: 1},
+        {0: 1, 1: 2},
+        {0: 1, 1: 6},
+        {0: 1, 1: 10}
     ],
     'criterion': ['gini', 'entropy'],
 })
@@ -79,24 +85,24 @@ gradient_boosting_grid = OrderedDict({
 skope_rules_grid = OrderedDict({
     'n_estimators': np.arange(1, 50),
     'precision_min': [0.01, 0.1],
-    'recall_min': [0.01, 0.1, 0.2, 0.3, 0.4],
+    'recall_min': [0.01, 0.1, 0.2, 0.3],
     'max_depth': [2, 3]
 })
 
 rulefit_grid = OrderedDict({
-    'n_estimators': np.arange(1, 50),
-    'alpha': [0.01, 0.1, 1.0, 2.0, 5.0, 13.0, 20.0, 50.0],
+    'max_rules': np.arange(1, 30),
+    'n_estimators': [5, 10, 25, 50, 100, 500, 1000],
+    'cv': [False],
     'random_state': [0],
-    'max_rules': [None],
     'include_linear': [True]
 })
 
 brs_grid = OrderedDict({
     'n_estimators': np.arange(1, 13),
     'estimator': [
-        functools.partial(dt, max_leaf_nodes=2, class_weight={0: 1, 1: 10}),
-        functools.partial(dt, max_leaf_nodes=3, class_weight={0: 1, 1: 10}),
-        functools.partial(dt, max_leaf_nodes=4, class_weight={0: 1, 1: 10}),
+        functools.partial(dt, max_leaf_nodes=2, class_weight={0: 1, 1: 6}),
+        functools.partial(dt, max_leaf_nodes=3, class_weight={0: 1, 1: 6}),
+        functools.partial(dt, max_leaf_nodes=4, class_weight={0: 1, 1: 6}),
     ]
 })
 
@@ -107,11 +113,40 @@ saps_grid = OrderedDict({
 grl_grid = OrderedDict({
     'max_depth': np.arange(1, 15),
     'class_weight': [
-        {0: 1, 1: 10},
-        {0: 1, 1: 100},
-        {0: 1, 1: 1000}
+        {0: 1, 1: 1},
+        {0: 1, 1: 2},
+        {0: 1, 1: 6},
+        {0: 1, 1: 10}
     ],
     'criterion': ['neg_corr']
+})
+
+
+stbl_l2_grid = OrderedDict({
+    'max_rules': np.arange(1, 30),
+    'max_complexity_brs': [10],
+    'max_complexity_rulefit': [5, 15, 30],
+    'max_complexity_skope_rules': [5, 15, 30],
+    'min_mult': [2, 3],
+    'penalty': ['l2'],
+    'metric': ['best_spec_0.95_sens'],
+    'cv': [False],
+    'random_state': [0],
+    'submodels': ['rulefit', 'skope_rules', 'brs']
+})
+
+
+stbl_l1_grid = OrderedDict({
+    'max_rules': np.arange(1, 30),
+    'max_complexity_brs': [10],
+    'max_complexity_rulefit': [5, 15, 30],
+    'max_complexity_skope_rules': [5, 15, 30],
+    'min_mult': [2, 3],
+    'penalty': ['l1'],
+    'metric': ['best_spec_0.95_sens'],
+    'cv': [False],
+    'random_state': [0],
+    'submodels': [['rulefit', 'skope_rules', 'brs']]
 })
 
 
@@ -124,7 +159,9 @@ ESTIMATORS_CLASSIFICATION = [
     [Model2('rulefit', rfit, kw, kwid) for (kw, kwid) in grid_to_kwargs(rulefit_grid)],
     [Model2('brs', brs, kw, kwid) for (kw, kwid) in grid_to_kwargs(brs_grid)],
     [Model2('saps', saps, kw, kwid) for (kw, kwid) in grid_to_kwargs(saps_grid)],
-    [Model2('grl', grl, kw, kwid) for (kw, kwid) in grid_to_kwargs(grl_grid)]
+    [Model2('grl', grl, kw, kwid) for (kw, kwid) in grid_to_kwargs(grl_grid)],
+    [Model2('stbl_l1', stbl, kw, kwid) for (kw, kwid) in grid_to_kwargs(stbl_l1_grid)],
+    [Model2('stbl_l2', stbl, kw, kwid) for (kw, kwid) in grid_to_kwargs(stbl_l2_grid)],
 
 ]
 ESTIMATORS_REGRESSION = []

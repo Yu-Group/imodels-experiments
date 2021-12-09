@@ -7,7 +7,9 @@ from os.path import dirname, join as oj
 from typing import Any, Dict, Tuple, Sequence
 
 import numpy as np
+import pandas as pd
 from imodels.util.tree import compute_tree_complexity
+from imodels.util.rule import Rule
 from numpy.lib.ufunclike import fix
 from sklearn import model_selection
 from sklearn.base import BaseEstimator
@@ -111,6 +113,32 @@ def get_results_path_from_args(args, dataset):
     return path
 
 
+def get_max_metric_under_complexity(df: pd.DataFrame,
+                                    metric: str,
+                                    suffix: str,
+                                    c: int) -> float:
+    df_under_c = df[df[f'complexity{suffix}'] < c]
+    if df_under_c.shape[0] == 0:
+        return 0
+    max_metric = df_under_c[f'{metric}{suffix}'].sort_values()[-1]
+
+    return max_metric
+
+
+def get_best_model_rules_under_complexity(df: pd.DataFrame,
+                                          metric: str,
+                                          suffix: str,
+                                          c: int) -> list[Rule]:
+    df_under_c = df[df[f'complexity{suffix}'] < c]
+    if df_under_c.shape[0] == 0:
+        return []
+
+    best_model_idx = df_under_c[f'{metric}{suffix}'].argsort()[-1]
+    best_model_vars = df_under_c.iloc[best_model_idx][f'vars{suffix}']
+    best_model_rules = best_model_vars['rules_without_feature_names_']
+    return best_model_rules
+
+
 def get_best_model_under_complexity(c: int, model_name: str,
                                     model_cls: BaseEstimator,
                                     dataset: str,
@@ -209,7 +237,7 @@ def get_complexity(estimator: BaseEstimator) -> float:
     if hasattr(estimator, 'complexity_'):
         return estimator.complexity_
     elif hasattr(estimator, 'tree_'):
-        return estimator.tree_.n_leaves
+        return estimator.tree_.node_count - estimator.tree_.n_leaves
     else:
         # sklearn ensembles have estimator.estimators_
         # RandomForestClassifier, GradientBoostingClassifier, RandomForestRegressor, GradientBoostingRegressor

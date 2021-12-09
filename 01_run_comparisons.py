@@ -21,8 +21,10 @@ from typing import Sequence, Callable
 import config
 import util
 import validate
+from local_models.stable import StableLinearClassifier
 
 warnings.filterwarnings("ignore", message="Bins whose width")
+warnings.filterwarnings("ignore", message="Precision is ill-defined")
 
 
 def compute_metrics(metrics: OrderedDict[str, Callable],
@@ -117,6 +119,12 @@ def compare_estimators(estimators: Sequence[util.Model],
             estimator.fit(X, y, feature_names=feature_names)
         end = time.time()
         return estimator, end - start
+    
+    if estimators[0].cls == StableLinearClassifier:
+        results_path = util.get_results_path_from_args(args, dataset.name)
+        submodel_dfs = [
+            pkl.load(open(oj(results_path, f'{submodel}_comparisons.pkl'), 'rb'))['df']
+            for submodel in estimators[0].kwargs['submodels']]
 
     # Loop over estimators, recording metrics and fitted attributes
     for model in tqdm(estimators, leave=False):
@@ -134,10 +142,13 @@ def compare_estimators(estimators: Sequence[util.Model],
                 X_tune_curr = X_train[tune_idx]
                 y_tune_curr = y_train[tune_idx]
 
+                suffix = f'_fold_{i}'
+
+                if type(est) == StableLinearClassifier:
+                    est.set_rules(submodel_dfs, suffix=suffix)
                 est, est_time = fit_estimator(est, X_train_curr, y_train_curr)
 
                 # Save metrics and attributes
-                suffix = f'_fold_{i}'
                 metric_results = compute_metrics(metrics=metrics,
                                                  estimator=est,
                                                  suffix=suffix,
@@ -150,12 +161,17 @@ def compare_estimators(estimators: Sequence[util.Model],
             X_train_curr, X_tune, y_train_curr, y_tune = model_selection.train_test_split(
                 X_train, y_train, test_size=0.2, random_state=args.split_seed)
 
+            suffix = '_tune'
+
+            if type(est) == StableLinearClassifier:
+                est.set_rules(submodel_dfs, suffix=suffix)
             est, est_time = fit_estimator(est, X_train_curr, y_train_curr)
 
-            suffix = '_tune'
-            # est_attributes['vars' + suffix].append(vars(est))
             metric_results = compute_metrics(metrics, est, suffix, est_time, X_tune, y_tune)
             all_metric_results = {**all_metric_results, **metric_results}
+
+        if type(est) == StableLinearClassifier:
+            est.set_rules(submodel_dfs, suffix='_train')
 
         # Always record training and test accuracy, regardless of splitting strategy
         est, est_time = fit_estimator(est, X_train, y_train)
@@ -163,12 +179,11 @@ def compare_estimators(estimators: Sequence[util.Model],
         for suffix, (X_, y_) in zip(['_train', '_test'], [(X_train, y_train), (X_test, y_test)]):
             metric_results = compute_metrics(metrics, est, suffix, est_time, X_, y_)
             all_metric_results = {**all_metric_results, **metric_results}
-        # est_attributes['_train'].append(vars(est))
 
         for met_name, met_val in all_metric_results.items():
             est_metrics[met_name].append(met_val)
 
-    return est_metrics  #, est_attributes
+    return est_metrics
 
 
 def run_comparison(path: str,
@@ -246,6 +261,7 @@ def get_metrics(classification_or_regression: str = 'classification') -> Ordered
             'best_accuracy': validate.get_best_accuracy,
             'best_spec_0.9_sens': validate.make_best_spec_high_sens_scorer(0.9),
             'best_spec_0.95_sens': validate.make_best_spec_high_sens_scorer(0.95),
+            'best_spec_0.96_sens': validate.make_best_spec_high_sens_scorer(0.96),
             'best_spec_0.98_sens': validate.make_best_spec_high_sens_scorer(0.98),
             **mutual})
     elif classification_or_regression == 'regression':
