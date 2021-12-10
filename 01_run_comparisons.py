@@ -8,6 +8,7 @@ import warnings
 from collections import OrderedDict, defaultdict
 from os.path import join as oj
 
+import imodels
 from imodels.discretization import ExtraBasicDiscretizer
 from imodels.util import data_util
 from sklearn import metrics, model_selection
@@ -47,7 +48,12 @@ def compute_metrics(metrics: OrderedDict[str, Callable],
                 results[met_name + suffix] = met(y_eval, y_pred_proba)
 
         if suffix != '_test':
-            results['vars' + suffix] = (vars(estimator))
+            object_attributes = vars(estimator).copy()
+            if type(estimator) == imodels.SkopeRulesClassifier:
+                object_attributes.pop('estimators_samples_')
+                object_attributes.pop('estimators_features_')
+
+            results['vars' + suffix] = object_attributes
             results['complexity' + suffix] = util.get_complexity(estimator)
             results['time' + suffix] = est_time
 
@@ -89,7 +95,7 @@ def compare_estimators(estimators: Sequence[util.Model],
         eb_discretizer = ExtraBasicDiscretizer(
             dcols=disc_column_names, n_bins=8, strategy='uniform')
         disc_df = eb_discretizer.fit_transform(pd.DataFrame(X, columns=feature_names))
-        X, feature_names = disc_df.values.astype(int), disc_df.columns.values
+        X, feature_names = disc_df.values.astype(int), disc_df.columns.values.tolist()
 
     # Separate test set before doing any validation
     if args.splitting_strategy in {'train-test-lowdata', 'train-tune-test-lowdata'}:
