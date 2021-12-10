@@ -71,6 +71,7 @@ def aggregate_over_seeds(path: str):
         fname = oj(path, seed_path, 'results_aggregated.pkl')
         if os.path.exists(fname):  # check that this seed has actually saved
             results_seed = pkl.load(open(fname, 'rb'))
+
             for k in results_seed.keys():
                 if 'df' not in k:
                     results_overall[k] = results_seed[k]
@@ -82,7 +83,6 @@ def aggregate_over_seeds(path: str):
                         results_overall[k] = results_seed[k]
 
     # keys to aggregate over
-
     if 'df' in results_overall:
         ks = []
         df = results_overall['df']
@@ -90,7 +90,7 @@ def aggregate_over_seeds(path: str):
         for k in df.keys():
             skip = False
             for met in mets:
-                if k.startswith(met):
+                if k and k.startswith(met):
                     skip = True
             if not skip:
                 ks.append(k)
