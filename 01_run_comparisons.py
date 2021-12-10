@@ -121,6 +121,9 @@ def compare_estimators(estimators: Sequence[util.Model],
         return estimator, end - start
     
     if estimators[0].cls == StableLinearClassifier:
+
+        # loading all the cached rules that will be input to stablerules once
+        #   at the beginning, instead of every time it is fit, saves a lot of time
         results_path = util.get_results_path_from_args(args, dataset.name)
         submodel_dfs = [
             pkl.load(open(oj(results_path, f'{submodel}_comparisons.pkl'), 'rb'))['df']
@@ -145,6 +148,8 @@ def compare_estimators(estimators: Sequence[util.Model],
                 suffix = f'_fold_{i}'
 
                 if type(est) == StableLinearClassifier:
+                    # this loads the submodel rules from our result pkls instead
+                    #   of re-computing them
                     est.set_rules(submodel_dfs, suffix=suffix)
                 est, est_time = fit_estimator(est, X_train_curr, y_train_curr)
 

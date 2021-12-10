@@ -17,9 +17,9 @@ class StableLinear(RuleFit):
 
     def __init__(self,
                  submodels: List[str] = ['rulefit', 'skope_rules', 'brs'],
-                 max_complexity_rulefit: int = None,
-                 max_complexity_skope_rules: int = None,
-                 max_complexity_brs: int = None,
+                 max_complexity: int = None,
+                #  max_complexity_skope_rules: int = None,
+                #  max_complexity_brs: int = None,
                  metric: str = None,
                  p_filtering: float = None,
                  min_mult: int = 2,
@@ -50,9 +50,10 @@ class StableLinear(RuleFit):
                          alpha,
                          cv,
                          random_state)
-        self.max_complexity_rulefit = max_complexity_rulefit
-        self.max_complexity_skope_rules = max_complexity_skope_rules
-        self.max_complexity_brs = max_complexity_brs
+        self.max_complexity = max_complexity
+        # self.max_complexity_rulefit = max_complexity_rulefit
+        # self.max_complexity_skope_rules = max_complexity_skope_rules
+        # self.max_complexity_brs = max_complexity_brs
         self.metric = metric
         self.p_filtering = p_filtering
         self.submodels = submodels
@@ -66,8 +67,8 @@ class StableLinear(RuleFit):
                 df=dfs[i],
                 metric=self.metric,
                 suffix=suffix,
-                c=getattr(self, f'max_complexity_{submodel}')
-            )
+                # c=getattr(self, f'max_complexity_{submodel}')
+                c=self.max_complexity)
             submodel_metrics.append(submodel_metric)
 
         all_rules = []
@@ -84,7 +85,8 @@ class StableLinear(RuleFit):
                     df=dfs[i],
                     metric=self.metric,
                     suffix=suffix,
-                    c=getattr(self, f'max_complexity_{submodel}'))
+                    # c=getattr(self, f'max_complexity_{submodel}'))
+                    c=self.max_complexity)
                 all_rules += submodel_rules
                 all_subterms += [indv_r for r in submodel_rules for indv_r in split(r)]
 

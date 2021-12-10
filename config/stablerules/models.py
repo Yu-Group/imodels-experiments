@@ -27,7 +27,7 @@ def grid_to_kwargs(grid: OrderedDict) -> List[dict]:
 
 
 cart_grid = OrderedDict({
-    'max_leaf_nodes': np.arange(1, 30),
+    'max_leaf_nodes': np.arange(2, 30),
     'class_weight': [
         {0: 1, 1: 1},
         {0: 1, 1: 5},
@@ -51,14 +51,14 @@ gradient_boosting_grid = OrderedDict({
 
 skope_rules_grid = OrderedDict({
     'n_estimators': np.arange(1, 20),
-    'precision_min': [0.2, 0.3, 0.4],
-    'recall_min': [0.2, 0.3, 0.4],
+    'precision_min': [0.1, 0.2, 0.3, 0.4],
+    'recall_min': [0.1, 0.2, 0.3, 0.4],
     'max_depth': [2, 3]
 })
 
 rulefit_grid = OrderedDict({
     'n_estimators': np.arange(1, 20),
-    'alpha': [1.0, 2.0, 5.0, 13.0, 20.0, 50.0, 100.0],
+    'alpha': [0.1, 1.0, 2.0, 5.0, 13.0, 20.0, 50.0, 100.0],
     'random_state': [0],
     'max_rules': [None],
     'include_linear': [False]

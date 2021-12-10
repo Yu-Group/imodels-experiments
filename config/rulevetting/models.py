@@ -85,13 +85,13 @@ gradient_boosting_grid = OrderedDict({
 skope_rules_grid = OrderedDict({
     'n_estimators': np.arange(1, 50),
     'precision_min': [0.01, 0.1],
-    'recall_min': [0.01, 0.1, 0.2, 0.3],
+    'recall_min': [0.01, 0.1, 0.2],
     'max_depth': [2, 3]
 })
 
 rulefit_grid = OrderedDict({
     'max_rules': np.arange(1, 30),
-    'n_estimators': [5, 10, 25, 50, 100, 500, 1000],
+    'n_estimators': [5, 10, 25, 50, 100, 500],
     'cv': [False],
     'random_state': [0],
     'include_linear': [True]
@@ -122,28 +122,52 @@ grl_grid = OrderedDict({
 })
 
 
-stbl_l2_grid = OrderedDict({
-    'max_rules': np.arange(1, 30),
-    'max_complexity_brs': [10],
-    'max_complexity_rulefit': [5, 15, 30],
-    'max_complexity_skope_rules': [5, 15, 30],
-    'min_mult': [2, 3],
-    'penalty': ['l2'],
-    'metric': ['best_spec_0.95_sens'],
-    'cv': [False],
-    'random_state': [0],
-    'submodels': ['rulefit', 'skope_rules', 'brs']
-})
+# stbl_l2_grid = OrderedDict({
+#     'max_rules': np.arange(1, 30),
+#     'max_complexity_brs': [10],
+#     'max_complexity_rulefit': [5, 15, 30],
+#     'max_complexity_skope_rules': [5, 15, 30],
+#     'min_mult': [2, 3],
+#     'penalty': ['l2'],
+#     'metric': ['best_spec_0.95_sens'],
+#     'cv': [False],
+#     'random_state': [0],
+#     'submodels': [['rulefit', 'skope_rules', 'brs']]
+# })
+
+
+# stbl_l1_grid = OrderedDict({
+#     'max_rules': np.arange(1, 30),
+#     'max_complexity_brs': [10],
+#     'max_complexity_rulefit': [5, 15, 30],
+#     'max_complexity_skope_rules': [5, 15, 30],
+#     'min_mult': [2, 3],
+#     'penalty': ['l1'],
+#     'metric': ['best_spec_0.95_sens'],
+#     'cv': [False],
+#     'random_state': [0],
+#     'submodels': [['rulefit', 'skope_rules', 'brs']]
+# })
 
 
 stbl_l1_grid = OrderedDict({
     'max_rules': np.arange(1, 30),
-    'max_complexity_brs': [10],
-    'max_complexity_rulefit': [5, 15, 30],
-    'max_complexity_skope_rules': [5, 15, 30],
+    'max_complexity': [10, 20, 30, 40, 50],
     'min_mult': [2, 3],
     'penalty': ['l1'],
-    'metric': ['best_spec_0.95_sens'],
+    'metric': ['best_spec_0.96_sens'],
+    'cv': [False],
+    'random_state': [0],
+    'submodels': [['rulefit', 'skope_rules', 'brs']]
+})
+
+
+stbl_l2_grid = OrderedDict({
+    'max_rules': np.arange(1, 30),
+    'max_complexity': [10, 20, 30, 40, 50],
+    'min_mult': [2, 3],
+    'penalty': ['l2'],
+    'metric': ['best_spec_0.96_sens'],
     'cv': [False],
     'random_state': [0],
     'submodels': [['rulefit', 'skope_rules', 'brs']]

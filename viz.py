@@ -43,39 +43,78 @@ def get_x_and_y(result_data: pd.Series, x_col: str, y_col: str, test=False) -> T
     return remove_x_axis_duplicates(x.values, y.values)
 
 
-def viz_comparison_val_average(result: Dict[str, Any], metric: str = 'mean_ROCAUC') -> None:
-    '''Plot dataset-averaged y_column vs dataset-averaged complexity for different hyperparameter settings
-    of a single model, including zoomed-in plot of overlapping region
-    '''
-    result_data = result['df']
-    result_estimators = result['estimators']
-    x_column = 'mean_complexity'
-    y_column = metric
-    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
-    for est in np.unique(result_estimators):
+def viz_model_curves_validation(
+    ax: plt.Axes,
+    result: dict[str, Any],
+    suffix: str,
+    metric: str = 'rocauc',
+    curve_id: str = None) -> None:
 
-        est_result_data = result_data[result_data.index.str.fullmatch(est)]
-        x, y = get_x_and_y(est_result_data, x_column, y_column)
-        axes[0].plot(x, y, marker='o', markersize=4, label=est.replace('_', ' '))
+    df = result['df']
+    if curve_id:
+        curve_ids = [curve_id]
+    else:
+        curve_ids = df['curve_id'].unique()
+    dataset = result['dataset']
+    
+    if suffix == 'test':
+        x_column = 'complexity_train'
+    else:
+        x_column = 'complexity_' + suffix
+    y_column = f'{metric}_' + suffix
 
-        meta_auc_df = result['meta_auc_df']
-        area = meta_auc_df.loc[est, y_column + '_auc']
-        label = est.split(' - ')[1]
-        if area != 0:
-            label += f' {y_column} AUC: {area:.3f}'
-        axes[1].plot(x, y, marker='o', markersize=4, label=label.replace('_', ' '))
+    # fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 5))
+    min_complexity_all_curves = float('inf')
+    for curve_id in curve_ids:
+        curr_curve_df = df[df['curve_id'] == curve_id]
+        curr_est_name = curr_curve_df.index[0]
 
-    axes[0].set_title(f'{metric} across comparison datasets')
-    axes[1].set_xlim(meta_auc_df.iloc[0][f'{x_column}_lb'], meta_auc_df.iloc[0][f'{x_column}_ub'])
-    axes[0].set_xlim(0, 40)
-    axes[1].set_title('Overlapping, low (<30) complexity region only')
+        x, y = get_x_and_y(curr_curve_df, x_column, y_column)
+        min_complexity_all_curves = min(min_complexity_all_curves, x[0])
 
-    for ax in axes:
-        ax.set_xlabel('complexity score')
-        ax.set_ylabel(y_column)
-        ax.legend(frameon=False, handlelength=1)
-        # dvu.line_legend(fontsize=10, ax=ax)
-    plt.tight_layout()
+        # meta_auc_df = result['meta_auc_df']
+        # area = meta_auc_df.loc[est, y_column + '_auc']
+        # label = est.split(' - ')[1]
+        # if area != 0:
+        #     label += f' {y_column} AUC: {area:.3f}'
+        # axes[0].plot(x, y, marker='o', markersize=4, label=curve_id)
+        # axes[1].plot(x, y, marker='o', markersize=4, label=curve_id)
+
+        if len(curve_ids) == 1:
+            label = curr_est_name
+        else:
+            label = curve_id
+
+        ax.plot(x, y, marker='o', markersize=4, label=label)
+
+    # axes[0].set_title(f'{metric} vs. complexity, {curr_est_name} on {dataset}')
+    # axes[1].set_xlim(meta_auc_df.iloc[0][f'{x_column}_lb'], meta_auc_df.iloc[0][f'{x_column}_ub'])
+    # axes[1].set_xlim(0, 20)
+    # axes[0].set_xlim(0, 40)
+    # axes[1].set_title('Low (<20) complexity region only')
+
+    ax.set_xlim(0, 30)
+    if suffix != 'test':
+        est_name_title = curr_est_name
+    else:
+        est_name_title = 'all'
+    ax.set_title(f'{metric} vs. complexity, {est_name_title} on {dataset}')
+    ax.set_xlabel('complexity score')
+    ax.set_ylabel(y_column)
+    ax.legend(frameon=False, handlelength=1)
+
+    # for ax in axes:
+    #     ax.set_xlabel('complexity score')
+    #     ax.set_ylabel(y_column)
+    #     ax.legend(frameon=False, handlelength=1)
+    #     dvu.line_legend(fontsize=10, ax=ax)
+    
+    # axes[0].set_xlabel('complexity score')
+    # axes[0].set_ylabel(y_column)
+    # axes[0].legend(frameon=False, handlelength=1)
+    # dvu.line_legend(fontsize=10, ax=axes[0])
+
+    # plt.tight_layout()
 
 
 def viz_comparison_test_average(results: List[Dict[str, Any]],
@@ -103,6 +142,7 @@ def viz_comparison_test_average(results: List[Dict[str, Any]],
 
 def viz_comparison_datasets(result: Union[Dict[str, Any], List[Dict[str, Any]]],
                             y_column: str = 'ROCAUC',
+                            suffix: str = 'train',
                             cols=3,
                             figsize=(14, 10),
                             line_legend: bool = False,
@@ -120,7 +160,7 @@ def viz_comparison_datasets(result: Union[Dict[str, Any], List[Dict[str, Any]]],
         results_datasets = result['comparison_datasets']
 
     if datasets is None:
-        datasets = list(map(lambda x: x[0], results_datasets))
+        datasets = [d.name for d in results_datasets]
     n_rows = int(math.ceil(len(datasets) / cols))
     plt.figure(figsize=figsize)
     for i, dataset in enumerate(datasets):
@@ -128,7 +168,7 @@ def viz_comparison_datasets(result: Union[Dict[str, Any], List[Dict[str, Any]]],
 
         for est in np.unique(results_estimators):
             est_result_data = results_data[results_data.index.str.fullmatch(est)]
-            x, y = get_x_and_y(est_result_data, dataset + '_complexity', dataset + f'_{y_column}')
+            x, y = get_x_and_y(est_result_data, dataset + '_complexity_' + suffix, dataset + f'_{y_column}_' + suffix)
 
             linestyle = '--' if 'stbl' in est else '-'
             plt.plot(x, y, marker='o', linestyle=linestyle, markersize=4, label=est.replace('_', ' '))
