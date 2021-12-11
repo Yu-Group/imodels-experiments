@@ -14,23 +14,22 @@ from imodels.util.tree import compute_tree_complexity
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
 
-class Model:
+class ModelConfig:
     def __init__(self,
                  name: str, cls,
                  vary_param: str = None, vary_param_val: Any = None,
-                 fixed_param: str = None, fixed_param_val: Any = None,
                  other_params: Dict[str, Any] = {}):
+        """
+        vary_param: str
+            Name of the parameter to be varied
+        """
         self.name = name
         self.cls = cls
-        self.fixed_param = fixed_param
-        self.fixed_param_val = fixed_param_val
         self.vary_param = vary_param
         self.vary_param_val = vary_param_val
         self.kwargs = {}
         if self.vary_param is not None:
             self.kwargs[self.vary_param] = self.vary_param_val
-        if self.fixed_param is not None:
-            self.kwargs[self.fixed_param] = self.fixed_param_val
         self.kwargs = {**self.kwargs, **other_params}
 
     def __repr__(self):
@@ -154,7 +153,9 @@ def get_complexity(estimator: BaseEstimator) -> float:
         estimators = None
         if hasattr(estimator, 'estimators_'):
             estimators = estimator.estimators_
-        elif hasattr(estimator, 'estimator_'):  # ShrunkTreeCV
+
+        # ShrunkTreeCV
+        elif hasattr(estimator, 'estimator_'):
             if hasattr(estimator.estimator_, 'estimators_'):  # ensemble passed
                 estimators = estimator.estimator_.estimators_
             elif hasattr(estimator.estimator_, 'tree_'):  # tree passed

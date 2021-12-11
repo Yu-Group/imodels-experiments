@@ -19,13 +19,13 @@ from tqdm import tqdm
 import config
 import util
 from imodels.util.data_util import get_clean_dataset
-from util import Model
+from util import ModelConfig
 from validate import get_best_accuracy
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
 
-def compare_estimators(estimators: List[Model],
+def compare_estimators(estimators: List[ModelConfig],
                        datasets: List[Tuple],
                        metrics: List[Tuple[str, Callable]],
                        args, ) -> Tuple[dict, dict]:
@@ -40,9 +40,9 @@ def compare_estimators(estimators: List[Model],
     # initialize results with metadata
     results = defaultdict(lambda: [])
     for e in estimators:
-        results[e.vary_param].append(e.vary_param_val)
-        if e.fixed_param is not None:
-            results[e.fixed_param].append(e.fixed_param_val)
+        kwargs: dict = e.kwargs  # dict
+        for k in kwargs:
+            results[k].append(kwargs[k])
     rules = results.copy()
 
     # loop over datasets
@@ -109,7 +109,7 @@ def compare_estimators(estimators: List[Model],
 def run_comparison(path: str,
                    datasets: List[Tuple],
                    metrics: List[Tuple[str, Callable]],
-                   estimators: List[Model],
+                   estimators: List[ModelConfig],
                    args):
     estimator_name = estimators[0].name.split(' - ')[0]
     model_comparison_file = oj(path, f'{estimator_name}_comparisons.pkl')
