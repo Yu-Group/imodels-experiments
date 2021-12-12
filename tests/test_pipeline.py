@@ -33,9 +33,16 @@ def test_fit_models():
             shutil.rmtree(test_dir)
         sh.python(['01_fit_models.py', '--dataset', 'heart',
                    '--model', 'cart', '--config', 'test',
-                   '--results_path', test_dir, '--ignore_cache'])
+                   '--results_path', test_dir,
+                   '--split_seed', '0',
+                   '--ignore_cache'])
         assert os.path.isdir(join(test_dir, 'test', 'heart', 'train-test'))
         assert os.path.isfile(join(test_dir, 'test', 'heart', 'train-test', 'seed0', 'CART_comparisons.pkl'))
+        sh.python(['01_fit_models.py', '--dataset', 'heart',
+                   '--model', 'cart', '--config', 'test',
+                   '--results_path', test_dir,
+                   '--split_seed', '1',
+                   '--ignore_cache'])
 
         sh.python(['02_aggregate_results.py',
                    '--results_path', test_dir])

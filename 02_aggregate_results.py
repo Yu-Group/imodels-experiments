@@ -48,13 +48,13 @@ def aggregate_single_seed(path: str):
 
     # for curr_df, prefix in level_dfs:
     try:
-        meta_auc_df = compute_meta_auc(df)
+        df_meta_auc = compute_meta_auc(df)
     except Exception as e:
         warnings.warn(f'bad complexity range')
         # warnings.warn(e)
-        meta_auc_df = None
+        df_meta_auc = None
 
-    output_dict['meta_auc_df'] = meta_auc_df
+    output_dict['df_meta_auc'] = df_meta_auc
     # combined_filename = '.'.join(model_files_sorted[0].split('_0.'))
     # pkl.dump(output_dict, open(combined_filename, 'wb'))
 
@@ -73,14 +73,21 @@ def aggregate_over_seeds(path: str):
             results_seed = pkl.load(open(fname, 'rb'))
 
             for k in results_seed.keys():
-                if 'df' not in k:
+                if not k.startswith('df'):  # value is not dataframe, don't need to aggregate
                     results_overall[k] = results_seed[k]
-                else:
-                    if k in results_overall:
-                        # print(results_seed[k]['split_seed'])
-                        results_overall[k] = pd.concat((results_overall[k], results_seed[k])).reset_index(drop=True)
-                    else:
+                else:  # value is dataframe
+                    # initialize dataframe
+                    if k not in results_overall:
                         results_overall[k] = results_seed[k]
+                    # append to dataframe
+                    else:
+                        df_old = results_overall[k]
+                        df_new = results_seed[k]
+                        # print(results_seed[k]['split_seed'])
+                        if df_old is None and df_new is None:  # check to make sure they're not None
+                            results_overall[k] = None
+                        else:
+                            results_overall[k] = pd.concat((df_old, df_new)).reset_index(drop=True)
 
     # keys to aggregate over
     if 'df' in results_overall:
