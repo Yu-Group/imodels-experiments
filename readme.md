@@ -29,6 +29,10 @@ Follow these steps to benchmark a new model:
 5. look at the results in the `notebooks` folder
 
 
+## Config
+- Note that any hyperparameters not passed in ModelConfig cannot be aggregated over seeds later on
+
+
 # Testing
 
 Tests are run via `pytest`
