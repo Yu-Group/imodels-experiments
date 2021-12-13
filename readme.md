@@ -1,7 +1,8 @@
 <p align="center">
-	<img align="center" width=75% src="https://yu-group.github.io/imodels-experiments/logo_experiments.svg?sanitize=True"> </img> 	 <br/>
+	<img align="center" width=75% src="https://yu-group.github.io/imodels-experiments/docs/logo_experiments.svg?sanitize=True"> </img> 	 <br/>
 	Scripts for easily comparing different experimental aspects of the <a href="https://github.com/csinva/imodels">imodels package.</a>
 </p>
+
 
 
 # Experimental models
@@ -36,5 +37,4 @@ Follow these steps to benchmark a new model:
 # Testing
 
 Tests are run via `pytest`
-
 
