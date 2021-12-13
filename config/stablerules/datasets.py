@@ -18,7 +18,7 @@ DATASETS_CLASSIFICATION = [
     # popular classification datasets used in rule-based modeling / fairness
     # page 7: http://proceedings.mlr.press/v97/wang19a/wang19a.pdf
     # our preprocessing in imodels-data places continuous columns in the front
-    Dataset("juvenile_clean", 'imodels', 'juvenile', np.arange(3)),
+    Dataset("juvenile_clean", 'imodels', 'juvenile', np.arange(12)),
     Dataset("compas_two_year_clean", 'imodels', 'recidivism', np.arange(7)),
     Dataset("credit_card_clean", 'imodels', 'credit', np.arange(20)),
     Dataset("readmission_clean", 'imodels', 'readmission', np.arange(10)),

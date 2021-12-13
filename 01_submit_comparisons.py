@@ -3,7 +3,7 @@ from slurmpy import Slurm
 import config
 
 EXP_TYPE = 'stablerules'
-MODEL = 'gradient_boosting'
+MODEL = 'cart'
 ARGS = ['--splitting_strategy cv']
 
 DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
