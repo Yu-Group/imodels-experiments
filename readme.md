@@ -9,7 +9,7 @@
 
 | ![](docs/logo_saps.png)               | Tree shrinkage 🌱 | Stable rules                 |
 | ------------------------------------- | ---------------- | ---------------------------- |
-| Greedily learn a concise sum of trees | Shrunk trees     | Learn a set of stable models |
+| Greedily learn a concise sum of trees | Shrunk trees ([demo](https://yu-group.github.io/imodels-experiments/notebooks/shrinkage/export.html))    | Learn a set of stable models |
 
 
 
