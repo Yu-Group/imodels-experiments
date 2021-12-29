@@ -83,11 +83,11 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                 shrunk_tree.fit(X_train, y_train)
                 shrunk_tree = ShrunkBARTRegressorCV(estimator_=bart)
                 shrunk_tree.fit(X_train, y_train)
-                m = ShrunkTreeRegressorCV(estimator_=DecisionTreeRegressor(max_leaf_nodes=bart.sample_complexity + 1))
-                m.fit(X_train, y_train)
+                # m = ShrunkTreeRegressorCV(estimator_=DecisionTreeRegressor(max_leaf_nodes=bart.sample_complexity + 1))
+                # m.fit(X_train, y_train)
                 performance['shrunk bart'][r].append(met_dict[metric](y_test, shrunk_tree.predict(X_test)))
                 performance['bart'][r].append(met_dict[metric](y_test, bart_c.predict(X_test)))
-                performance['shrunk tree'][r].append(met_dict[metric](y_test, m.predict(X_test)))
+                # performance['shrunk tree'][r].append(met_dict[metric](y_test, m.predict(X_test)))
 
         def _get_mean_std(method):
 
@@ -353,7 +353,7 @@ if __name__ == '__main__':
         ("diabetes-regr", "diabetes", 'sklearn'),
         ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
         ("satellite-image", "294_satellite_image", 'pmlb'),
-        ("echo-months", "1199_BNG_echoMonths", 'pmlb')
+        # ("echo-months", "1199_BNG_echoMonths", 'pmlb')
         # ("breast-tumor", "1201_BNG_breastTumor", 'pmlb'),  # this one is v big (100k examples)
 
     ]
