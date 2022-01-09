@@ -7,10 +7,10 @@
 
 # Experimental models
 
-| ![](docs/logo_saps.png)               | Tree shrinkage 🌱 | Stable rules                 |
-| ------------------------------------- | ---------------- | ---------------------------- |
-| Greedily learn a concise sum of trees | Shrunk trees ([demo](https://yu-group.github.io/imodels-experiments/notebooks/shrinkage/demo_main.html))    | Learn a set of stable models |
-
+- SAPS <img align="center" style="height:30px;" src="https://yu-group.github.io/imodels-experiments/docs/logo_saps.png"> </img> - greedily learn a concise sum of trees
+- Hierarchical tree shrinkage 🌱
+  - [demo](https://yu-group.github.io/imodels-experiments/notebooks/shrinkage/demo_main.html)
+- Stable rules - finding a stable set of rules across different models
 
 
 # Documentation
@@ -31,7 +31,7 @@ Follow these steps to benchmark a new model:
 
 
 ## Config
-- Note that any hyperparameters not passed in ModelConfig cannot be aggregated over seeds later on
+- Note that any hyperparameters not passed in `ModelConfig ` cannot be aggregated over seeds later on
 
 
 # Testing
