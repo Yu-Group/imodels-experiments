@@ -14,9 +14,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from bartpy.sklearnmodel import BARTRegressor, ShrunkBARTRegressor, ShrunkBARTRegressorCV
-from imodels import ShrunkTreeRegressorCV
+from imodels import ShrunkTreeRegressorCV, OptimalTreeClassifier
+from imodels.tree.gosdt.pygosdt import ShrunkOptimalTreeClassifier
 from imodels.util.data_util import get_clean_dataset
-from sklearn.metrics import r2_score, explained_variance_score, mean_squared_error
+from sklearn.metrics import r2_score, explained_variance_score, mean_squared_error, roc_auc_score
 from sklearn.tree import DecisionTreeRegressor
 from tqdm import tqdm
 
@@ -53,14 +54,15 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                 'explained_variance': explained_variance_score,
                 'neg_mean_squared_error': mean_squared_error}
 
-    r_rng = range(6)
+    r_rng = [1, 5, 10, 20]
 
     for i, dset in enumerate(tqdm(datasets)):
-        performance = {"bart": {r:[] for r in r_rng},
-                       "shrunk bart": {r:[] for r in r_rng},
-                       "shrunk tree": {r:[] for r in r_rng}}
+        performance = {"bart": {r: [] for r in r_rng},
+                       "shrunk bart node": {r: [] for r in r_rng},
+                       "shrunk bart leaf": {r: [] for r in r_rng},
+                       "shrunk bart constant": {r: [] for r in r_rng}}
 
-        for split_seed in [1, 2, 3, 4, 5]:
+        for split_seed in [1, 2, 3]:
             X, y, feat_names = get_clean_dataset(dset[1], data_source=dset[2])
 
             # implement provided splitting strategy
@@ -70,23 +72,43 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                 util.apply_splitting_strategy(X, y, splitting_strategy, split_seed))
             dset_name = dset[0]
             ax = plt.subplot(R, C, i + 1)
-            bart_org = BARTRegressor(n_chains=6, n_samples=1, n_trees=1)
-            bart_org.fit(X_train, y_train)
+            # bart_org = BARTRegressor(n_chains=6, n_samples=1, n_trees=5)
+            # bart_org.fit(X_train, y_train)
             actual_range = []
             for r in r_rng:
+                bart_org = BARTRegressor(n_chains=1, n_samples=1, n_trees=r + 1)
+                bart_org.fit(X_train, y_train)
                 bart = copy.deepcopy(bart_org)
-                bart = bart.update_complexity(r)
+                # bart = bart.update_complexity(r)
                 bart_c = copy.deepcopy(bart)
                 # print(f"r: {r}, complexity: {bart.sample_complexity}\n")
-                actual_range.append(bart.sample_complexity)
-                shrunk_tree = ShrunkBARTRegressor(estimator_=bart, reg_param=1)
+                actual_range.append(bart_c.sample_complexity)
+                # shrunk_tree = ShrunkBARTRegressor(estimator_=bart, reg_param=0)
+                # shrunk_tree.fit(X_train, y_train)
+                shrunk_tree = ShrunkBARTRegressorCV(estimator_=copy.deepcopy(bart), scheme="node_based")
                 shrunk_tree.fit(X_train, y_train)
-                shrunk_tree = ShrunkBARTRegressorCV(estimator_=bart)
-                shrunk_tree.fit(X_train, y_train)
+                shrunk_tree_l = ShrunkBARTRegressorCV(estimator_=copy.deepcopy(bart), scheme="leaf_based")
+                shrunk_tree_l.fit(X_train, y_train)
+                shrunk_tree_c = ShrunkBARTRegressorCV(estimator_=copy.deepcopy(bart), scheme="constant")
+                shrunk_tree_c.fit(X_train, y_train)
+
+                # shrunk_tree = ShrunkBARTRegressor(estimator_=copy.deepcopy(bart), scheme="node_based", reg_param=1)
+                # shrunk_tree.fit(X_train, y_train)
+                # shrunk_tree_l = ShrunkBARTRegressor(estimator_=copy.deepcopy(bart), scheme="leaf_based", reg_param=1)
+                # shrunk_tree_l.fit(X_train, y_train)
+                # shrunk_tree_c = ShrunkBARTRegressor(estimator_=copy.deepcopy(bart), scheme="constant", reg_param=1)
+                # shrunk_tree_c.fit(X_train, y_train)
                 # m = ShrunkTreeRegressorCV(estimator_=DecisionTreeRegressor(max_leaf_nodes=bart.sample_complexity + 1))
                 # m.fit(X_train, y_train)
-                performance['shrunk bart'][r].append(met_dict[metric](y_test, shrunk_tree.predict(X_test)))
-                performance['bart'][r].append(met_dict[metric](y_test, bart_c.predict(X_test)))
+                y_test_st = shrunk_tree.predict(X_test)
+                y_test_bart = bart_c.predict(X_test)
+                y_test_st_l = shrunk_tree_l.predict(X_test)
+                y_test_st_c = shrunk_tree_c.predict(X_test)
+                performance['shrunk bart node'][r].append(met_dict[metric](y_test, y_test_st))
+                performance['shrunk bart leaf'][r].append(met_dict[metric](y_test, y_test_st_l))
+                performance['shrunk bart constant'][r].append(met_dict[metric](y_test, y_test_st_c))
+
+                performance['bart'][r].append(met_dict[metric](y_test, y_test_bart))
                 # performance['shrunk tree'][r].append(met_dict[metric](y_test, m.predict(X_test)))
 
         def _get_mean_std(method):
@@ -97,19 +119,93 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
             return mean_p, std_p
 
         bart_perf = _get_mean_std("bart")
-        s_bart_perf = _get_mean_std("shrunk bart")
-        s_tree_perf = _get_mean_std("shrunk tree")
+        s_bart_perf = _get_mean_std("shrunk bart node")
+        s_bart_l_perf = _get_mean_std("shrunk bart leaf")
+        s_bart_c_perf = _get_mean_std("shrunk bart constant")
 
-        ax.errorbar(actual_range, bart_perf[0], yerr=bart_perf[1], c="blue", label="BART")
-        ax.errorbar(actual_range, s_bart_perf[0], yerr=s_bart_perf[1], c="red", label="Shrunk BART")
-        ax.errorbar(actual_range, s_tree_perf[0], yerr=s_tree_perf[1], c="green", label=f"Shrunk CART")
+        ax.errorbar(r_rng, bart_perf[0], yerr=bart_perf[1], c="blue", label="BART")
+        ax.errorbar(r_rng, s_bart_perf[0], yerr=s_bart_perf[1], c="red", label="Shrunk BART Node")
+        ax.errorbar(r_rng, s_bart_l_perf[0], yerr=s_bart_l_perf[1], c="green", label="Shrunk BART Leaf")
+        ax.errorbar(r_rng, s_bart_c_perf[0], yerr=s_bart_c_perf[1], c="purple", label="Shrunk BART Constant")
+        # ax.errorbar(actual_range, s_tree_perf[0], yerr=s_tree_perf[1], c="green", label=f"Shrunk CART")
 
-        ax.set_xlabel('Number of rules')
+        ax.set_xlabel('Number of Trees')
         ax.set_ylabel(
             dset_name.capitalize().replace('-', ' ') + ' ' + metric.upper().replace('ROC', '').replace('R2',
                                                                                                        '$R^2$'))
         if i == 0:
             ax.legend(fontsize=8, loc="upper left")
+    savefig(os.path.join(R_PATH, save_name))
+
+
+def plot_godst_comparison(metric='rocauc', datasets=[], seed=None,
+                          save_name='godst', show_train=False):
+    """Plots curves for different models as a function of complexity
+
+    Params
+    ------
+    metric: str
+        Which metric to plot on y axis
+    """
+    R, C = ceil(len(datasets) / 3), 3
+    plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
+
+    met_dict = {'r2': r2_score,
+                'explained_variance': explained_variance_score,
+                'neg_mean_squared_error': mean_squared_error,
+                "rocauc": roc_auc_score}
+
+    r_rng = [0]
+
+    for i, dset in enumerate(tqdm(datasets)):
+        performance = {"godst": {r: [] for r in r_rng},
+                       "godst shrunk": {r: [] for r in r_rng}}
+
+        for split_seed in [1, 2, 3]:
+            # print(split_seed)
+            X, y, feat_names = get_clean_dataset(dset[1], data_source=dset[2])
+
+            # implement provided splitting strategy
+            splitting_strategy = "train-test"
+            # split_seed = 1
+            X_train, X_tune, X_test, y_train, y_tune, y_test = (
+                util.apply_splitting_strategy(X, y, splitting_strategy, split_seed))
+            dset_name = dset[0]
+            # bart_org = BARTRegressor(n_chains=6, n_samples=1, n_trees=5)
+            # bart_org.fit(X_train, y_train)
+            # actual_range = []
+            # sz = 40
+            # X_train = X_train[0:sz, ...]
+            # y_train = y_train[0:sz]
+            # print(X_train.shape[1])
+            for r in r_rng:
+                godst = OptimalTreeClassifier(regularization=0.025)
+                godst.fit(X_train, y_train)
+                godst_shrunk = ShrunkOptimalTreeClassifier(copy.deepcopy(godst))
+                godst_shrunk.fit(X_train, y_train)
+
+                preds_godst = godst.predict_proba_new(X_test)
+                preds_shrunk = godst_shrunk.predict_proba(X_test)
+
+                performance['godst'][r].append(met_dict[metric](y_test, preds_godst))
+                performance['godst shrunk'][r].append(met_dict[metric](y_test, preds_shrunk))
+
+        ax = plt.subplot(R, C, i + 1)
+
+        # print(performance)
+
+        bp1 = ax.boxplot(performance['godst'][r_rng[0]], positions=[1], widths=0.35,
+                         patch_artist=True, boxprops=dict(facecolor="C0"))
+        bp2 = ax.boxplot(performance['godst shrunk'][r_rng[0]], positions=[2], widths=0.35,
+                         patch_artist=True, boxprops=dict(facecolor="C2"))
+
+        ax.legend([bp1["boxes"][0], bp2["boxes"][0]], ['godst', 'godst shrunk'], loc='upper right')
+
+        ax.set_ylabel(
+            dset_name.capitalize().replace('-', ' ') + ' ' + metric.upper().replace('ROC', '').replace('R2',
+                                                                                                       '$R^2$'))
+        # if i == 0:
+        #     ax.legend(fontsize=8, loc="upper left")
     savefig(os.path.join(R_PATH, save_name))
 
 
@@ -349,6 +445,8 @@ if __name__ == '__main__':
         ('friedman1', 'friedman1', 'synthetic'),
         ('friedman2', 'friedman2', 'synthetic'),
         ('friedman3', 'friedman3', 'synthetic'),
+        ("red-wine", "wine_quality_red", "pmlb"),
+        ("geographical-music", "4544_GeographicalOriginalofMusic", "pmlb"),
         ('abalone', '183', 'openml'),
         ("diabetes-regr", "diabetes", 'sklearn'),
         ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
@@ -357,4 +455,28 @@ if __name__ == '__main__':
         # ("breast-tumor", "1201_BNG_breastTumor", 'pmlb'),  # this one is v big (100k examples)
 
     ]
-    plot_bart_comparison("r2", datasets=DATASETS_REGRESSION)
+    DATASETS_CLASSIFICATION = [
+        # classification datasets from original random forests paper
+        # page 9: https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf
+        # ("sonar", "sonar", "pmlb"),
+        # ("heart", "heart", 'imodels'),
+        # ("breast-cancer", "breast_cancer", 'imodels'),
+        ("haberman", "haberman", 'imodels'),
+        # ("ionosphere", "ionosphere", 'pmlb'),
+        # ("diabetes", "diabetes", "pmlb"),
+        # # ("liver", "8", "openml"), # note: we omit this dataset bc it's label was found to be incorrect (see caveat here: https://archive.ics.uci.edu/ml/datasets/liver+disorders#:~:text=The%207th%20field%20(selector)%20has%20been%20widely%20misinterpreted%20in%20the%20past%20as%20a%20dependent%20variable%20representing%20presence%20or%20absence%20of%20a%20liver%20disorder.)
+        # # ("credit-g", "credit_g", 'imodels'), # like german-credit, but more feats
+        # ("german-credit", "german", "pmlb"),
+        #
+        # # clinical-decision rules
+        # # ("iai-pecarn", "iai_pecarn.csv", "imodels"),
+        #
+        # # popular classification datasets used in rule-based modeling / fairness
+        # # page 7: http://proceedings.mlr.press/v97/wang19a/wang19a.pdf
+        # ("juvenile", "juvenile_clean", 'imodels'),
+        # ("recidivism", "compas_two_year_clean", 'imodels'),
+        # ("credit", "credit_card_clean", 'imodels'),
+        # ("readmission", 'readmission_clean', 'imodels'),  # v big
+    ]
+    # plot_bart_comparison("r2", datasets=DATASETS_REGRESSION)
+    plot_godst_comparison(datasets=DATASETS_CLASSIFICATION)

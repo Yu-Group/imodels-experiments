@@ -27,11 +27,13 @@ DATASETS_REGRESSION = [
     # pg 23: https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf
     ('friedman1', 'friedman1', 'synthetic'),
     ('friedman2', 'friedman2', 'synthetic'),
-    ('friedman3', 'friedman3', 'synthetic')#,
-    # ('abalone', '183', 'openml'),
-    # ("diabetes-regr", "diabetes", 'sklearn'),
-    # ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
-    # ("satellite-image", "294_satellite_image", 'pmlb'),
+    ('friedman3', 'friedman3', 'synthetic'),
+    ("red-wine", "wine_quality_red", "pmlb"),
+    ("geographical-music","4544_GeographicalOriginalofMusic","pmlb" ),
+    ('abalone', '183', 'openml'),
+    ("diabetes-regr", "diabetes", 'sklearn'),
+    ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
+    ("satellite-image", "294_satellite_image", 'pmlb'),
     # ("echo-months", "1199_BNG_echoMonths", 'pmlb'),
     # ("breast-tumor", "1201_BNG_breastTumor", 'pmlb'),  # this one is v big (100k examples)
 
