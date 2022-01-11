@@ -1,6 +1,7 @@
 import copy
 import math
 import os.path
+import pickle
 import pickle as pkl
 from math import ceil
 from os.path import dirname
@@ -13,12 +14,13 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from bartpy.sklearnmodel import BARTRegressor, ShrunkBARTRegressor, ShrunkBARTRegressorCV
+from bartpy import BART, ShrunkBART, ShrunkBARTCV
 from imodels import ShrunkTreeRegressorCV, OptimalTreeClassifier
 from imodels.tree.gosdt.pygosdt import ShrunkOptimalTreeClassifier
 from imodels.util.data_util import get_clean_dataset
 from sklearn.metrics import r2_score, explained_variance_score, mean_squared_error, roc_auc_score
-from sklearn.tree import DecisionTreeRegressor
+from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 from tqdm import tqdm
 
 import util
@@ -35,7 +37,20 @@ cy = '#d8b365'
 cg = '#5ab4ac'
 
 DIR_FIGS = oj(dirname(os.path.realpath(__file__)), 'figs')
+is_ssh = "SSH_CONNECTION" in os.environ
 R_PATH = "/Users/omerronen/Documents/Phd/tree_shrinkage/imodels-experiments"
+if is_ssh:
+    R_PATH = "/accounts/campus/omer_ronen/projects/tree_shrink/imodels-experiments"
+
+
+def pkl_save(f_name, data):
+    with open(f'{f_name}.pickle', 'wb') as handle:
+        pickle.dump(data, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+def pkl_load(f_name):
+    with open(f'{f_name}.pickle', 'rb') as handle:
+        return pickle.load(handle)
 
 
 def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
@@ -52,7 +67,8 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
 
     met_dict = {'r2': r2_score,
                 'explained_variance': explained_variance_score,
-                'neg_mean_squared_error': mean_squared_error}
+                'neg_mean_squared_error': mean_squared_error,
+                "rocauc": roc_auc_score}
 
     r_rng = [1, 5, 10, 20]
 
@@ -64,6 +80,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
 
         for split_seed in [1, 2, 3]:
             X, y, feat_names = get_clean_dataset(dset[1], data_source=dset[2])
+            is_cls = len(np.unique(y)) == 2
 
             # implement provided splitting strategy
             splitting_strategy = "train-test"
@@ -76,20 +93,29 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
             # bart_org.fit(X_train, y_train)
             actual_range = []
             for r in r_rng:
-                bart_org = BARTRegressor(n_chains=1, n_samples=1, n_trees=r + 1)
+                bart_org = BART(classification=is_cls)
                 bart_org.fit(X_train, y_train)
                 bart = copy.deepcopy(bart_org)
                 # bart = bart.update_complexity(r)
                 bart_c = copy.deepcopy(bart)
+                y_test_bart = bart_c.predict_proba(X_test)
+                tree = RandomForestClassifier()
+                tree.fit(X_train, y_train)
+                y_test_tree = [p[1] for p in tree.predict_proba(X_test)]
+
+                auc_tree = roc_auc_score(y_test, y_test_tree)
+                auc_bart = roc_auc_score(y_test, y_test_bart)
+                continue
+
                 # print(f"r: {r}, complexity: {bart.sample_complexity}\n")
                 actual_range.append(bart_c.sample_complexity)
                 # shrunk_tree = ShrunkBARTRegressor(estimator_=bart, reg_param=0)
                 # shrunk_tree.fit(X_train, y_train)
-                shrunk_tree = ShrunkBARTRegressorCV(estimator_=copy.deepcopy(bart), scheme="node_based")
+                shrunk_tree = ShrunkBARTCV(estimator_=copy.deepcopy(bart), scheme="node_based")
                 shrunk_tree.fit(X_train, y_train)
-                shrunk_tree_l = ShrunkBARTRegressorCV(estimator_=copy.deepcopy(bart), scheme="leaf_based")
+                shrunk_tree_l = ShrunkBARTCV(estimator_=copy.deepcopy(bart), scheme="leaf_based")
                 shrunk_tree_l.fit(X_train, y_train)
-                shrunk_tree_c = ShrunkBARTRegressorCV(estimator_=copy.deepcopy(bart), scheme="constant")
+                shrunk_tree_c = ShrunkBARTCV(estimator_=copy.deepcopy(bart), scheme="constant")
                 shrunk_tree_c.fit(X_train, y_train)
 
                 # shrunk_tree = ShrunkBARTRegressor(estimator_=copy.deepcopy(bart), scheme="node_based", reg_param=1)
@@ -101,7 +127,6 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                 # m = ShrunkTreeRegressorCV(estimator_=DecisionTreeRegressor(max_leaf_nodes=bart.sample_complexity + 1))
                 # m.fit(X_train, y_train)
                 y_test_st = shrunk_tree.predict(X_test)
-                y_test_bart = bart_c.predict(X_test)
                 y_test_st_l = shrunk_tree_l.predict(X_test)
                 y_test_st_c = shrunk_tree_c.predict(X_test)
                 performance['shrunk bart node'][r].append(met_dict[metric](y_test, y_test_st))
@@ -155,11 +180,10 @@ def plot_godst_comparison(metric='rocauc', datasets=[], seed=None,
                 'neg_mean_squared_error': mean_squared_error,
                 "rocauc": roc_auc_score}
 
-    r_rng = [0]
 
     for i, dset in enumerate(tqdm(datasets)):
-        performance = {"godst": {r: [] for r in r_rng},
-                       "godst shrunk": {r: [] for r in r_rng}}
+        performance = {"godst": {"auc": [], "models": []},
+                       "godst shrunk": {"auc": [], "models": []}}
 
         for split_seed in [1, 2, 3]:
             # print(split_seed)
@@ -178,25 +202,27 @@ def plot_godst_comparison(metric='rocauc', datasets=[], seed=None,
             # X_train = X_train[0:sz, ...]
             # y_train = y_train[0:sz]
             # print(X_train.shape[1])
-            for r in r_rng:
-                godst = OptimalTreeClassifier(regularization=0.025)
-                godst.fit(X_train, y_train)
-                godst_shrunk = ShrunkOptimalTreeClassifier(copy.deepcopy(godst))
-                godst_shrunk.fit(X_train, y_train)
+            # for r in r_rng:
+            godst = OptimalTreeClassifier(regularization=0.025)
+            godst.fit(X_train, y_train)
+            performance["godst"]["models"].append(godst)
+            godst_shrunk = ShrunkOptimalTreeClassifier(copy.deepcopy(godst))
+            godst_shrunk.fit(X_train, y_train)
+            performance["godst shrunk"]["models"].append(godst_shrunk)
 
-                preds_godst = godst.predict_proba_new(X_test)
-                preds_shrunk = godst_shrunk.predict_proba(X_test)
+            preds_godst = godst.predict_proba_new(X_test)
+            preds_shrunk = godst_shrunk.predict_proba(X_test)
 
-                performance['godst'][r].append(met_dict[metric](y_test, preds_godst))
-                performance['godst shrunk'][r].append(met_dict[metric](y_test, preds_shrunk))
+            performance['godst']["auc"].append(met_dict[metric](y_test, preds_godst))
+            performance['godst shrunk']["auc"].append(met_dict[metric](y_test, preds_shrunk))
 
         ax = plt.subplot(R, C, i + 1)
 
         # print(performance)
 
-        bp1 = ax.boxplot(performance['godst'][r_rng[0]], positions=[1], widths=0.35,
+        bp1 = ax.boxplot(performance['godst']["auc"], positions=[1], widths=0.35,
                          patch_artist=True, boxprops=dict(facecolor="C0"))
-        bp2 = ax.boxplot(performance['godst shrunk'][r_rng[0]], positions=[2], widths=0.35,
+        bp2 = ax.boxplot(performance['godst shrunk']["auc"], positions=[2], widths=0.35,
                          patch_artist=True, boxprops=dict(facecolor="C2"))
 
         ax.legend([bp1["boxes"][0], bp2["boxes"][0]], ['godst', 'godst shrunk'], loc='upper right')
@@ -458,10 +484,10 @@ if __name__ == '__main__':
     DATASETS_CLASSIFICATION = [
         # classification datasets from original random forests paper
         # page 9: https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf
-        # ("sonar", "sonar", "pmlb"),
-        # ("heart", "heart", 'imodels'),
+        ("sonar", "sonar", "pmlb"),
+        ("heart", "heart", 'imodels'),
         # ("breast-cancer", "breast_cancer", 'imodels'),
-        ("haberman", "haberman", 'imodels'),
+        # ("haberman", "haberman", 'imodels'),
         # ("ionosphere", "ionosphere", 'pmlb'),
         # ("diabetes", "diabetes", "pmlb"),
         # # ("liver", "8", "openml"), # note: we omit this dataset bc it's label was found to be incorrect (see caveat here: https://archive.ics.uci.edu/ml/datasets/liver+disorders#:~:text=The%207th%20field%20(selector)%20has%20been%20widely%20misinterpreted%20in%20the%20past%20as%20a%20dependent%20variable%20representing%20presence%20or%20absence%20of%20a%20liver%20disorder.)
@@ -478,5 +504,5 @@ if __name__ == '__main__':
         # ("credit", "credit_card_clean", 'imodels'),
         # ("readmission", 'readmission_clean', 'imodels'),  # v big
     ]
-    # plot_bart_comparison("r2", datasets=DATASETS_REGRESSION)
+    # plot_bart_comparison("rocauc", datasets=DATASETS_CLASSIFICATION, save_name="bart_cls")
     plot_godst_comparison(datasets=DATASETS_CLASSIFICATION)
