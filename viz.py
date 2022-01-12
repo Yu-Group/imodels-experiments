@@ -3,6 +3,7 @@ import math
 import os.path
 import pickle
 import pickle as pkl
+import time
 from math import ceil
 from os.path import dirname
 from os.path import join as oj
@@ -18,13 +19,16 @@ from bartpy import BART, ShrunkBART, ShrunkBARTCV
 from imodels import ShrunkTreeRegressorCV, OptimalTreeClassifier
 from imodels.tree.gosdt.pygosdt import ShrunkOptimalTreeClassifier
 from imodels.util.data_util import get_clean_dataset
-from sklearn.metrics import r2_score, explained_variance_score, mean_squared_error, roc_auc_score
+from sklearn.feature_selection import SelectFromModel
+from sklearn.metrics import r2_score, explained_variance_score, mean_squared_error, roc_auc_score, accuracy_score, \
+    f1_score, recall_score, precision_score, average_precision_score
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 from tqdm import tqdm
 
 import util
 from util import remove_x_axis_duplicates, merge_overlapping_curves
+from validate import get_best_accuracy
 
 dvu.set_style()
 mpl.rcParams['figure.dpi'] = 250
@@ -52,6 +56,26 @@ def pkl_load(f_name):
     with open(f'{f_name}.pickle', 'rb') as handle:
         return pickle.load(handle)
 
+def get_metrics(classification_or_regression: str = 'classification'):
+    mutual = [('complexity', None), ('time', None)]
+    if classification_or_regression == 'classification':
+        return [
+                   ('rocauc', roc_auc_score),
+                   ('accuracy', accuracy_score),
+                   ('f1', f1_score),
+                   ('recall', recall_score),
+                   ('precision', precision_score),
+                   ('avg_precision', average_precision_score),
+                   ('best_accuracy', get_best_accuracy),
+               ] + mutual
+    elif classification_or_regression == 'regression':
+        return [
+                   ('r2', r2_score),
+                   ('explained_variance', explained_variance_score),
+                   ('neg_mean_squared_error', mean_squared_error),
+               ] + mutual
+
+
 
 def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                          save_name='fig', show_train=False):
@@ -65,10 +89,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
     R, C = ceil(len(datasets) / 3), 3
     plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
 
-    met_dict = {'r2': r2_score,
-                'explained_variance': explained_variance_score,
-                'neg_mean_squared_error': mean_squared_error,
-                "rocauc": roc_auc_score}
+    met_dict = get_metrics("classification")
 
     r_rng = [1, 5, 10, 20]
 
@@ -163,8 +184,8 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
     savefig(os.path.join(R_PATH, save_name))
 
 
-def plot_godst_comparison(metric='rocauc', datasets=[], seed=None,
-                          save_name='godst', show_train=False):
+def godst_comparison(datasets=[],
+                     save_name='godst'):
     """Plots curves for different models as a function of complexity
 
     Params
@@ -172,17 +193,15 @@ def plot_godst_comparison(metric='rocauc', datasets=[], seed=None,
     metric: str
         Which metric to plot on y axis
     """
-    R, C = ceil(len(datasets) / 3), 3
-    plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
+    # R, C = ceil(len(datasets) / 3), 3
+    # plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
+    #
+    met_dict = get_metrics()
 
-    met_dict = {'r2': r2_score,
-                'explained_variance': explained_variance_score,
-                'neg_mean_squared_error': mean_squared_error,
-                "rocauc": roc_auc_score}
-
+    expr_data = {}
 
     for i, dset in enumerate(tqdm(datasets)):
-        performance = {"godst": {"auc": [], "models": []},
+        perf_ds = {"godst": {"auc": [], "models": []},
                        "godst shrunk": {"auc": [], "models": []}}
 
         for split_seed in [1, 2, 3]:
@@ -198,41 +217,53 @@ def plot_godst_comparison(metric='rocauc', datasets=[], seed=None,
             # bart_org = BARTRegressor(n_chains=6, n_samples=1, n_trees=5)
             # bart_org.fit(X_train, y_train)
             # actual_range = []
-            # sz = 40
-            # X_train = X_train[0:sz, ...]
+            clf = ExtraTreesClassifier(n_estimators=50)
+            clf = clf.fit(X, y)
+
+            model = SelectFromModel(clf, prefit=True, max_features=5)
+            X_train = model.transform(X_train)
+            X_test = model.transform(X_test)
+            # n_features = np.minimum(10, X.shape[-1])
+            # X_train = X_train[0:sz, 0:n_features]
             # y_train = y_train[0:sz]
+            # X_test = X_test[..., 0:n_features]
             # print(X_train.shape[1])
             # for r in r_rng:
             godst = OptimalTreeClassifier(regularization=0.04)
+            s_gosdt = time.time()
             godst.fit(X_train, y_train)
-            performance["godst"]["models"].append(godst)
+            time_gosdt = time.time() - s_gosdt
+            perf_ds["godst"]["models"].append(godst)
             godst_shrunk = ShrunkOptimalTreeClassifier(copy.deepcopy(godst))
             godst_shrunk.fit(X_train, y_train)
-            performance["godst shrunk"]["models"].append(godst_shrunk)
+            perf_ds["godst shrunk"]["models"].append(godst_shrunk)
 
             preds_godst = godst.predict_proba_new(X_test)
             preds_shrunk = godst_shrunk.predict_proba(X_test)
 
-            performance['godst']["auc"].append(met_dict[metric](y_test, preds_godst))
-            performance['godst shrunk']["auc"].append(met_dict[metric](y_test, preds_shrunk))
+            perf_ds['godst']["auc"].append(met_dict[metric](y_test, preds_godst))
+            perf_ds['godst shrunk']["auc"].append(met_dict[metric](y_test, preds_shrunk))
 
-        ax = plt.subplot(R, C, i + 1)
+        expr_data[dset_name] = perf_ds
 
-        # print(performance)
-
-        bp1 = ax.boxplot(performance['godst']["auc"], positions=[1], widths=0.35,
-                         patch_artist=True, boxprops=dict(facecolor="C0"))
-        bp2 = ax.boxplot(performance['godst shrunk']["auc"], positions=[2], widths=0.35,
-                         patch_artist=True, boxprops=dict(facecolor="C2"))
-
-        ax.legend([bp1["boxes"][0], bp2["boxes"][0]], ['godst', 'godst shrunk'], loc='upper right')
-
-        ax.set_ylabel(
-            dset_name.capitalize().replace('-', ' ') + ' ' + metric.upper().replace('ROC', '').replace('R2',
-                                                                                                       '$R^2$'))
+        # ax = plt.subplot(R, C, i + 1)
+        #
+        # # print(performance)
+        #
+        # bp1 = ax.boxplot(perf_ds['godst']["auc"], positions=[1], widths=0.35,
+        #                  patch_artist=True, boxprops=dict(facecolor="C0"))
+        # bp2 = ax.boxplot(perf_ds['godst shrunk']["auc"], positions=[2], widths=0.35,
+        #                  patch_artist=True, boxprops=dict(facecolor="C2"))
+        #
+        # ax.legend([bp1["boxes"][0], bp2["boxes"][0]], ['godst', 'godst shrunk'], loc='upper right')
+        #
+        # ax.set_ylabel(
+        #     dset_name.capitalize().replace('-', ' ') + ' ' + metric.upper().replace('ROC', '').replace('R2',
+        #                                                                                                '$R^2$'))
         # if i == 0:
         #     ax.legend(fontsize=8, loc="upper left")
-    savefig(os.path.join(R_PATH, save_name))
+    # savefig(os.path.join(R_PATH, save_name))
+    pkl_save(os.path.join(R_PATH, save_name), expr_data)
 
 
 # def _get_node_values(node):
@@ -484,7 +515,7 @@ if __name__ == '__main__':
     DATASETS_CLASSIFICATION = [
         # classification datasets from original random forests paper
         # page 9: https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf
-        ("sonar", "sonar", "pmlb"),
+        # ("sonar", "sonar", "pmlb"),
         ("heart", "heart", 'imodels'),
         # ("breast-cancer", "breast_cancer", 'imodels'),
         # ("haberman", "haberman", 'imodels'),
@@ -505,4 +536,4 @@ if __name__ == '__main__':
         # ("readmission", 'readmission_clean', 'imodels'),  # v big
     ]
     # plot_bart_comparison("rocauc", datasets=DATASETS_CLASSIFICATION, save_name="bart_cls")
-    plot_godst_comparison(datasets=DATASETS_CLASSIFICATION)
+    godst_comparison(datasets=DATASETS_CLASSIFICATION)

@@ -10,7 +10,7 @@ from sklearn.ensemble import (
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
 from bartpy.sklearnmodel import SklearnModel
 
-from util import Model
+from util import ModelConfig
 
 
 class BARTRegressor(SklearnModel):

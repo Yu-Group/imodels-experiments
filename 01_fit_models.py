@@ -9,11 +9,14 @@ from typing import Callable, List, Tuple
 
 import numpy as np
 import pandas as pd
+from imodels import OptimalTreeClassifier
+from imodels.tree.gosdt.pygosdt import ShrunkOptimalTreeClassifier
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
-    RandomForestRegressor
+    RandomForestRegressor, ExtraTreesClassifier
 from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score, f1_score, recall_score, \
     precision_score, r2_score, explained_variance_score, mean_squared_error
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+from sklearn.feature_selection import SelectFromModel
 from tqdm import tqdm
 
 import config
@@ -39,10 +42,12 @@ def compare_estimators(estimators: List[ModelConfig],
 
     # initialize results with metadata
     results = defaultdict(lambda: [])
-    for e in estimators:
-        kwargs: dict = e.kwargs  # dict
-        for k in kwargs:
-            results[k].append(kwargs[k])
+    # estimators = [ModelConfig("OptimalTreeClassifier", OptimalTreeClassifier, "regularization", 0.05),
+    #               ModelConfig("ShrunkOptimalTreeClassifier", cls=ShrunkOptimalTreeClassifier)]
+    # for e in estimators:
+    #     kwargs: dict = e.kwargs  # dict
+    #     for k in kwargs:
+    #         results[k].append(kwargs[k])
     rules = results.copy()
 
     # loop over datasets
@@ -54,22 +59,33 @@ def compare_estimators(estimators: List[ModelConfig],
         # implement provided splitting strategy
         X_train, X_tune, X_test, y_train, y_tune, y_test = (
             util.apply_splitting_strategy(X, y, args.splitting_strategy, args.split_seed))
+        clf = ExtraTreesClassifier(n_estimators=50)
+        clf = clf.fit(X, y)
+        model = SelectFromModel(clf, prefit=True, max_features=5)
+        X_train = model.transform(X_train)
+        X_test = model.transform(X_test)
 
         # loop over estimators
         for model in tqdm(estimators, leave=False):
             # print('kwargs', model.kwargs)
-            est = model.cls(**model.kwargs)
+            if model.name == "OptimalTreeClassifier":
+                est_gosdt = model.cls(**model.kwargs)
+                est = est_gosdt
+            else:
+                est = model.cls(est_gosdt)
             # print(est.criterion)
-
-            sklearn_baselines = {
-                RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
-                RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor}
+            #
+            # sklearn_baselines = {
+            #     RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
+            #     RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor}
 
             start = time.time()
-            if type(est) in sklearn_baselines:
-                est.fit(X_train, y_train)
-            else:
-                est.fit(X_train, y_train, feature_names=feat_names)
+            est.fit(X_train[0:10, ...], y_train[0:10])
+            #
+            # if type(est) in sklearn_baselines or True:
+            #     est.fit(X_train, y_train)
+            # else:
+            #     est.fit(X_train, y_train, feature_names=feat_names)
             end = time.time()
 
             # things to save
@@ -89,7 +105,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 y_pred = est.predict(X_)
                 # print('best param', est.reg_param)
                 if args.classification_or_regression == 'classification':
-                    y_pred_proba = est.predict_proba(X_)[:, 1]
+                    y_pred_proba = est.predict_proba(X_)[..., 1]
                 for i, (met_name, met) in enumerate(metrics):
                     if met is not None:
                         if args.classification_or_regression == 'regression' \
@@ -204,7 +220,10 @@ if __name__ == '__main__':
         'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata'}
 
     DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
-    ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(args.config)
+    _, ESTIMATORS_REGRESSION = config.get_configs(args.config)
+
+    ESTIMATORS_CLASSIFICATION = [ModelConfig("OptimalTreeClassifier", OptimalTreeClassifier, "regularization", 0.05),
+                                 ModelConfig("ShrunkOptimalTreeClassifier", cls=ShrunkOptimalTreeClassifier)]
 
     print('dset', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
     if args.classification:
@@ -256,11 +275,14 @@ if __name__ == '__main__':
 
     for dataset in tqdm(datasets):
         path = util.get_results_path_from_args(args, dataset[0])
-        for est in ests:
-            np.random.seed(1)
-            run_comparison(path=path,
-                           datasets=[dataset],
-                           metrics=metrics,
-                           estimators=est,
-                           args=args)
+        # for s in [1, 2, 3]:
+        np.random.seed(1)
+        # p = os.path.join(path, f"seed_{s}")
+        # if not os.path.exists(p):
+        #     os.mkdir(p)
+        run_comparison(path=path,
+                       datasets=[dataset],
+                       metrics=metrics,
+                       estimators=ests,
+                       args=args)
     print('completed all experiments successfully!')
