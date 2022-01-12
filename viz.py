@@ -198,12 +198,12 @@ def plot_godst_comparison(metric='rocauc', datasets=[], seed=None,
             # bart_org = BARTRegressor(n_chains=6, n_samples=1, n_trees=5)
             # bart_org.fit(X_train, y_train)
             # actual_range = []
-            sz = 40
-            X_train = X_train[0:sz, ...]
-            y_train = y_train[0:sz]
+            # sz = 40
+            # X_train = X_train[0:sz, ...]
+            # y_train = y_train[0:sz]
             # print(X_train.shape[1])
             # for r in r_rng:
-            godst = OptimalTreeClassifier(regularization=0.025)
+            godst = OptimalTreeClassifier(regularization=0.04)
             godst.fit(X_train, y_train)
             performance["godst"]["models"].append(godst)
             godst_shrunk = ShrunkOptimalTreeClassifier(copy.deepcopy(godst))
