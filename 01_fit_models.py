@@ -80,7 +80,7 @@ def compare_estimators(estimators: List[ModelConfig],
             #     RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor}
 
             start = time.time()
-            est.fit(X_train[0:90, ...], y_train[0:90])
+            est.fit(X_train, y_train)
             #
             # if type(est) in sklearn_baselines or True:
             #     est.fit(X_train, y_train)
