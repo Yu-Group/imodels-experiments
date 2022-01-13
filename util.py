@@ -45,7 +45,7 @@ def get_results_path_from_args(args, dataset):
     path = oj(path, args.config)
     path = oj(path, dataset)
     path = oj(path, args.splitting_strategy)
-    path = oj(path, 'seed' + str(args.split_seed))
+    path = oj(path, f'seed{str(args.split_seed)}_reg_{args.reg}')
     os.makedirs(path, exist_ok=True)
     return path
 

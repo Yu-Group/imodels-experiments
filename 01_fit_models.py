@@ -214,6 +214,8 @@ if __name__ == '__main__':
     parser.add_argument('--ensemble', action='store_true', default=False)
     parser.add_argument('--results_path', type=str,
                         default=oj(os.path.dirname(os.path.realpath(__file__)), 'results'))
+    parser.add_argument('--reg', type=float,
+                        default=0.05)
     args = parser.parse_args()
 
     assert args.splitting_strategy in {
@@ -222,7 +224,9 @@ if __name__ == '__main__':
     DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
     _, ESTIMATORS_REGRESSION = config.get_configs(args.config)
 
-    ESTIMATORS_CLASSIFICATION = [ModelConfig("OptimalTreeClassifier", OptimalTreeClassifier, "regularization", 0.05),
+    reg = args.reg
+
+    ESTIMATORS_CLASSIFICATION = [ModelConfig("OptimalTreeClassifier", OptimalTreeClassifier, "regularization", reg),
                                  ModelConfig("ShrunkOptimalTreeClassifier", cls=ShrunkOptimalTreeClassifier)]
 
     print('dset', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
