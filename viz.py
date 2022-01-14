@@ -104,7 +104,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                        "shrunk bart leaf": {r: [] for r in r_rng},
                        "shrunk bart constant": {r: [] for r in r_rng}}
 
-        for split_seed in tqdm(range(9), colour="green"):
+        for split_seed in tqdm(range(3), colour="green"):
             X, y, feat_names = get_clean_dataset(dset[1], data_source=dset[2])
             is_cls = len(np.unique(y)) == 2
 
@@ -507,13 +507,13 @@ if __name__ == '__main__':
         # pg 23: https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf
         ('friedman1', 'friedman1', 'synthetic'),
         ('friedman2', 'friedman2', 'synthetic'),
-        ('friedman3', 'friedman3', 'synthetic'),
-        ("diabetes-regr", "diabetes", 'sklearn'),
-        ("geographical-music", "4544_GeographicalOriginalofMusic", "pmlb"),
-        ("red-wine", "wine_quality_red", "pmlb"),
-        ('abalone', '183', 'openml'),
-        ("satellite-image", "294_satellite_image", 'pmlb'),
-        ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
+        # ('friedman3', 'friedman3', 'synthetic'),
+        # ("diabetes-regr", "diabetes", 'sklearn'),
+        # ("geographical-music", "4544_GeographicalOriginalofMusic", "pmlb"),
+        # ("red-wine", "wine_quality_red", "pmlb"),
+        # ('abalone', '183', 'openml'),
+        # ("satellite-image", "294_satellite_image", 'pmlb'),
+        # ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
         # ("echo-months", "1199_BNG_echoMonths", 'pmlb')
         # ("breast-tumor", "1201_BNG_breastTumor", 'pmlb'),  # this one is v big (100k examples)
 
@@ -542,6 +542,6 @@ if __name__ == '__main__':
         # ("readmission", 'readmission_clean', 'imodels'),  # v big
     ]
     plot_bart_comparison("r2", datasets=DATASETS_REGRESSION, save_name="bart_reg")
-    plot_bart_comparison("rocauc", datasets=DATASETS_CLASSIFICATION, save_name="bart_cls")
+    # plot_bart_comparison("rocauc", datasets=DATASETS_CLASSIFICATION, save_name="bart_cls")
 
     # godst_comparison(datasets=DATASETS_CLASSIFICATION)
