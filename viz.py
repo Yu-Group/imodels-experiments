@@ -104,7 +104,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                        "shrunk bart leaf": {r: [] for r in r_rng},
                        "shrunk bart constant": {r: [] for r in r_rng}}
 
-        for split_seed in tqdm(range(3), colour="green"):
+        for split_seed in tqdm(range(9), colour="green"):
             X, y, feat_names = get_clean_dataset(dset[1], data_source=dset[2])
             is_cls = len(np.unique(y)) == 2
 
@@ -173,16 +173,17 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
 
         bart_perf = _get_mean_std("bart")
         s_bart_perf = _get_mean_std("shrunk bart node")
-        s_bart_l_perf = _get_mean_std("shrunk bart leaf")
-        s_bart_c_perf = _get_mean_std("shrunk bart constant")
+        # s_bart_l_perf = _get_mean_std("shrunk bart leaf")
+        # s_bart_c_perf = _get_mean_std("shrunk bart constant")
         ax = plt.subplot(R, C, i + 1)
 
         ax.errorbar(r_rng, bart_perf[0], yerr=bart_perf[1], c="blue", label="BART")
         ax.errorbar(r_rng, s_bart_perf[0], yerr=s_bart_perf[1], c="red", label="Shrunk BART Node")
-        ax.errorbar(r_rng, s_bart_l_perf[0], yerr=s_bart_l_perf[1], c="green", label="Shrunk BART Leaf")
-        ax.errorbar(r_rng, s_bart_c_perf[0], yerr=s_bart_c_perf[1], c="purple", label="Shrunk BART Constant")
+        # ax.errorbar(r_rng, s_bart_l_perf[0], yerr=s_bart_l_perf[1], c="green", label="Shrunk BART Leaf")
+        # ax.errorbar(r_rng, s_bart_c_perf[0], yerr=s_bart_c_perf[1], c="purple", label="Shrunk BART Constant")
         # ax.errorbar(actual_range, s_tree_perf[0], yerr=s_tree_perf[1], c="green", label=f"Shrunk CART")
-        ax.set_title(f"{dset_name.capitalize().replace('-', ' ')} (n = {X.shape[0]}, p = {X.shape[1]})", style='italic')
+        ax.set_title(f"{dset_name.capitalize().replace('-', ' ')} (n = {X.shape[0]}, p = {X.shape[1]})", style='italic',
+                     fontsize=8)
         ax.set_xlabel('Number of Trees')
         ax.set_ylabel(metric.upper().replace('ROC', '').replace('R2', '$R^2$'))
         if i == 0:
@@ -507,13 +508,13 @@ if __name__ == '__main__':
         # pg 23: https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf
         ('friedman1', 'friedman1', 'synthetic'),
         ('friedman2', 'friedman2', 'synthetic'),
-        # ('friedman3', 'friedman3', 'synthetic'),
-        # ("diabetes-regr", "diabetes", 'sklearn'),
-        # ("geographical-music", "4544_GeographicalOriginalofMusic", "pmlb"),
-        # ("red-wine", "wine_quality_red", "pmlb"),
-        # ('abalone', '183', 'openml'),
-        # ("satellite-image", "294_satellite_image", 'pmlb'),
-        # ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
+        ('friedman3', 'friedman3', 'synthetic'),
+        ("diabetes-regr", "diabetes", 'sklearn'),
+        ("geographical-music", "4544_GeographicalOriginalofMusic", "pmlb"),
+        ("red-wine", "wine_quality_red", "pmlb"),
+        ('abalone', '183', 'openml'),
+        ("satellite-image", "294_satellite_image", 'pmlb'),
+        ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
         # ("echo-months", "1199_BNG_echoMonths", 'pmlb')
         # ("breast-tumor", "1201_BNG_breastTumor", 'pmlb'),  # this one is v big (100k examples)
 
@@ -542,6 +543,6 @@ if __name__ == '__main__':
         # ("readmission", 'readmission_clean', 'imodels'),  # v big
     ]
     plot_bart_comparison("r2", datasets=DATASETS_REGRESSION, save_name="bart_reg")
-    # plot_bart_comparison("rocauc", datasets=DATASETS_CLASSIFICATION, save_name="bart_cls")
+    plot_bart_comparison("rocauc", datasets=DATASETS_CLASSIFICATION, save_name="bart_cls")
 
     # godst_comparison(datasets=DATASETS_CLASSIFICATION)
