@@ -56,6 +56,7 @@ def pkl_load(f_name):
     with open(f'{f_name}.pickle', 'rb') as handle:
         return pickle.load(handle)
 
+
 def get_metrics(classification_or_regression: str = 'classification'):
     mutual = [('complexity', None), ('time', None)]
     if classification_or_regression == 'classification':
@@ -76,7 +77,6 @@ def get_metrics(classification_or_regression: str = 'classification'):
                ] + mutual
 
 
-
 def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                          save_name='fig', show_train=False):
     """Plots curves for different models as a function of complexity
@@ -88,10 +88,12 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
     """
     R, C = ceil(len(datasets) / 3), 3
     plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
-
-    met_dict = get_metrics("classification")
+    met_dict = {"r2": r2_score, "rocauc": roc_auc_score}
 
     r_rng = [1, 5, 10, 20]
+
+    def _get_preds(mdl, X, is_cls):
+        return mdl.predict_proba(X)[..., 1] if is_cls else mdl.predict(X)
 
     for i, dset in enumerate(tqdm(datasets)):
         performance = {"bart": {r: [] for r in r_rng},
@@ -99,7 +101,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                        "shrunk bart leaf": {r: [] for r in r_rng},
                        "shrunk bart constant": {r: [] for r in r_rng}}
 
-        for split_seed in [1, 2, 3]:
+        for split_seed in tqdm(range(9), colour="green"):
             X, y, feat_names = get_clean_dataset(dset[1], data_source=dset[2])
             is_cls = len(np.unique(y)) == 2
 
@@ -112,24 +114,24 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
             ax = plt.subplot(R, C, i + 1)
             # bart_org = BARTRegressor(n_chains=6, n_samples=1, n_trees=5)
             # bart_org.fit(X_train, y_train)
-            actual_range = []
+            # actual_range = []
             for r in r_rng:
-                bart_org = BART(classification=is_cls)
+                bart_org = BART(classification=is_cls, n_trees=r)
                 bart_org.fit(X_train, y_train)
                 bart = copy.deepcopy(bart_org)
                 # bart = bart.update_complexity(r)
-                bart_c = copy.deepcopy(bart)
-                y_test_bart = bart_c.predict_proba(X_test)
-                tree = RandomForestClassifier()
-                tree.fit(X_train, y_train)
-                y_test_tree = [p[1] for p in tree.predict_proba(X_test)]
-
-                auc_tree = roc_auc_score(y_test, y_test_tree)
-                auc_bart = roc_auc_score(y_test, y_test_bart)
-                continue
+                # bart_c = copy.deepcopy(bart)
+                y_test_bart = _get_preds(bart_org, X_test, is_cls)  # bart_org.predict(X_test)
+                # tree = RandomForestClassifier()
+                # tree.fit(X_train, y_train)
+                # y_test_tree = [p[1] for p in tree.predict_proba(X_test)]
+                #
+                # auc_tree = roc_auc_score(y_test, y_test_tree)
+                # auc_bart = roc_auc_score(y_test, y_test_bart)
+                # continue
 
                 # print(f"r: {r}, complexity: {bart.sample_complexity}\n")
-                actual_range.append(bart_c.sample_complexity)
+                # actual_range.append(bart_c.sample_complexity)
                 # shrunk_tree = ShrunkBARTRegressor(estimator_=bart, reg_param=0)
                 # shrunk_tree.fit(X_train, y_train)
                 shrunk_tree = ShrunkBARTCV(estimator_=copy.deepcopy(bart), scheme="node_based")
@@ -147,9 +149,9 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                 # shrunk_tree_c.fit(X_train, y_train)
                 # m = ShrunkTreeRegressorCV(estimator_=DecisionTreeRegressor(max_leaf_nodes=bart.sample_complexity + 1))
                 # m.fit(X_train, y_train)
-                y_test_st = shrunk_tree.predict(X_test)
-                y_test_st_l = shrunk_tree_l.predict(X_test)
-                y_test_st_c = shrunk_tree_c.predict(X_test)
+                y_test_st = _get_preds(shrunk_tree, X_test, is_cls)  # shrunk_tree.predict(X_test) if not is_cls else
+                y_test_st_l = _get_preds(shrunk_tree_l, X_test, is_cls)
+                y_test_st_c = _get_preds(shrunk_tree_c, X_test, is_cls)
                 performance['shrunk bart node'][r].append(met_dict[metric](y_test, y_test_st))
                 performance['shrunk bart leaf'][r].append(met_dict[metric](y_test, y_test_st_l))
                 performance['shrunk bart constant'][r].append(met_dict[metric](y_test, y_test_st_c))
@@ -202,9 +204,9 @@ def godst_comparison(datasets=[],
 
     for i, dset in enumerate(tqdm(datasets)):
         perf_ds = {"godst": {"auc": [], "models": []},
-                       "godst shrunk": {"auc": [], "models": []}}
+                   "godst shrunk": {"auc": [], "models": []}}
 
-        for split_seed in [1, 2, 3]:
+        for split_seed in np.arange(0, 9):
             # print(split_seed)
             X, y, feat_names = get_clean_dataset(dset[1], data_source=dset[2])
 
@@ -502,12 +504,14 @@ if __name__ == '__main__':
         ('friedman1', 'friedman1', 'synthetic'),
         ('friedman2', 'friedman2', 'synthetic'),
         ('friedman3', 'friedman3', 'synthetic'),
-        ("red-wine", "wine_quality_red", "pmlb"),
-        ("geographical-music", "4544_GeographicalOriginalofMusic", "pmlb"),
-        ('abalone', '183', 'openml'),
         ("diabetes-regr", "diabetes", 'sklearn'),
-        ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
+        ("geographical-music", "4544_GeographicalOriginalofMusic", "pmlb"),
+
+        ("red-wine", "wine_quality_red", "pmlb"),
+        ('abalone', '183', 'openml'),
         ("satellite-image", "294_satellite_image", 'pmlb'),
+
+        ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
         # ("echo-months", "1199_BNG_echoMonths", 'pmlb')
         # ("breast-tumor", "1201_BNG_breastTumor", 'pmlb'),  # this one is v big (100k examples)
 
@@ -517,10 +521,10 @@ if __name__ == '__main__':
         # page 9: https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf
         # ("sonar", "sonar", "pmlb"),
         ("heart", "heart", 'imodels'),
-        # ("breast-cancer", "breast_cancer", 'imodels'),
-        # ("haberman", "haberman", 'imodels'),
-        # ("ionosphere", "ionosphere", 'pmlb'),
-        # ("diabetes", "diabetes", "pmlb"),
+        ("breast-cancer", "breast_cancer", 'imodels'),
+        ("haberman", "haberman", 'imodels'),
+        ("ionosphere", "ionosphere", 'pmlb'),
+        ("diabetes", "diabetes", "pmlb"),
         # # ("liver", "8", "openml"), # note: we omit this dataset bc it's label was found to be incorrect (see caveat here: https://archive.ics.uci.edu/ml/datasets/liver+disorders#:~:text=The%207th%20field%20(selector)%20has%20been%20widely%20misinterpreted%20in%20the%20past%20as%20a%20dependent%20variable%20representing%20presence%20or%20absence%20of%20a%20liver%20disorder.)
         # # ("credit-g", "credit_g", 'imodels'), # like german-credit, but more feats
         # ("german-credit", "german", "pmlb"),
@@ -530,10 +534,12 @@ if __name__ == '__main__':
         #
         # # popular classification datasets used in rule-based modeling / fairness
         # # page 7: http://proceedings.mlr.press/v97/wang19a/wang19a.pdf
-        # ("juvenile", "juvenile_clean", 'imodels'),
-        # ("recidivism", "compas_two_year_clean", 'imodels'),
-        # ("credit", "credit_card_clean", 'imodels'),
+        ("juvenile", "juvenile_clean", 'imodels'),
+        ("recidivism", "compas_two_year_clean", 'imodels'),
+        ("credit", "credit_card_clean", 'imodels'),
         # ("readmission", 'readmission_clean', 'imodels'),  # v big
     ]
-    # plot_bart_comparison("rocauc", datasets=DATASETS_CLASSIFICATION, save_name="bart_cls")
-    godst_comparison(datasets=DATASETS_CLASSIFICATION)
+    plot_bart_comparison("r2", datasets=DATASETS_REGRESSION, save_name="bart_reg")
+    plot_bart_comparison("rocauc", datasets=DATASETS_CLASSIFICATION, save_name="bart_cls")
+
+    # godst_comparison(datasets=DATASETS_CLASSIFICATION)
