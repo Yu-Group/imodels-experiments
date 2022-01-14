@@ -101,6 +101,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                        "shrunk bart leaf": {r: [] for r in r_rng},
                        "shrunk bart constant": {r: [] for r in r_rng}}
 
+
         for split_seed in tqdm(range(9), colour="green"):
             X, y, feat_names = get_clean_dataset(dset[1], data_source=dset[2])
             is_cls = len(np.unique(y)) == 2
@@ -111,7 +112,6 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
             X_train, X_tune, X_test, y_train, y_tune, y_test = (
                 util.apply_splitting_strategy(X, y, splitting_strategy, split_seed))
             dset_name = dset[0]
-            ax = plt.subplot(R, C, i + 1)
             # bart_org = BARTRegressor(n_chains=6, n_samples=1, n_trees=5)
             # bart_org.fit(X_train, y_train)
             # actual_range = []
@@ -170,6 +170,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
         s_bart_perf = _get_mean_std("shrunk bart node")
         s_bart_l_perf = _get_mean_std("shrunk bart leaf")
         s_bart_c_perf = _get_mean_std("shrunk bart constant")
+        ax = plt.subplot(R, C, i + 1)
 
         ax.errorbar(r_rng, bart_perf[0], yerr=bart_perf[1], c="blue", label="BART")
         ax.errorbar(r_rng, s_bart_perf[0], yerr=s_bart_perf[1], c="red", label="Shrunk BART Node")
