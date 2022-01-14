@@ -116,7 +116,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
             # bart_org.fit(X_train, y_train)
             # actual_range = []
             for r in r_rng:
-                bart_org = BART(classification=is_cls, n_trees=r)
+                bart_org = BART(classification=is_cls, n_trees=r, n_samples=1, n_chains=1)
                 bart_org.fit(X_train, y_train)
                 bart = copy.deepcopy(bart_org)
                 # bart = bart.update_complexity(r)
