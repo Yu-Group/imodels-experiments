@@ -96,7 +96,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
         os.mkdir(bart_pth)
 
     def _get_preds(mdl, X, is_cls):
-        return mdl.predict_proba(X)[..., 1] if is_cls else mdl.predict(X)
+        return mdl.predict_proba(X) if is_cls else mdl.predict(X)
 
     for i, dset in enumerate(tqdm(datasets)):
         performance = {"bart": {r: [] for r in r_rng},
@@ -542,7 +542,7 @@ if __name__ == '__main__':
         ("credit", "credit_card_clean", 'imodels'),
         # ("readmission", 'readmission_clean', 'imodels'),  # v big
     ]
-    plot_bart_comparison("r2", datasets=DATASETS_REGRESSION, save_name="bart_reg")
+    # plot_bart_comparison("r2", datasets=DATASETS_REGRESSION, save_name="bart_reg")
     plot_bart_comparison("rocauc", datasets=DATASETS_CLASSIFICATION, save_name="bart_cls")
 
     # godst_comparison(datasets=DATASETS_CLASSIFICATION)
