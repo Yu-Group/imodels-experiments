@@ -1,5 +1,5 @@
 <p align="center">
-	<img align="center" width=75% src="https://yu-group.github.io/imodels-experiments/docs/logo_experiments.svg?sanitize=True"> </img> 	 <br/>
+	<img align="center" width=75% src="https://yu-group.github.io/imodels-experiments/logo_experiments.svg?sanitize=True"> </img> 	 <br/>
 	Scripts for easily comparing different experimental aspects of the <a href="https://github.com/csinva/imodels">imodels package.</a>
 </p>
 
@@ -7,7 +7,7 @@
 
 # Experimental models
 
-- SAPS <img align="center" style="height:30px;" src="https://yu-group.github.io/imodels-experiments/docs/logo_saps.png"> </img> - greedily learn a concise sum of trees
+- SAPS <img align="center" style="height:30px;" src="https://yu-group.github.io/imodels-experiments/logo_saps.png"> </img> - greedily learn a concise sum of trees
 - Hierarchical tree shrinkage 🌱
   - [demo](https://yu-group.github.io/imodels-experiments/notebooks/shrinkage/demo_main.html)
 - Stable rules - finding a stable set of rules across different models
