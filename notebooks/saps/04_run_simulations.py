@@ -24,7 +24,7 @@ from viz import *
 if __name__ == '__main__':
 
     # choose params
-    model = 'linear_model'  # sum_of_squares
+    model = 'sum_of_squares'  # sum_of_squares
     n_train = [100, 250, 500, 750, 1000, 1500] #,1500,2000,2500]
     n_test = 500
     d = 50
