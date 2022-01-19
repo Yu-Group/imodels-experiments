@@ -24,6 +24,7 @@ Follow these steps to benchmark a new model:
 3. run `01_fit_models.py`
     - pass the appropriate cmdline args (e.g. model, dataset, config)
     - example command: `python 01_fit_models.py --config saps --classification_or_regression regression --split_seed 0`
+    - another example command: `python 01_fit_models.py --config saps --classification_or_regression regression --model randomforest --split_seed 0`
     - running everything: loop over `split_seed` + `classification_or_regression`
     - alternatively, to parallelize over a slurm cluster, run `01_submit_fitting.py` with the appropriate loops
 4. run `02_aggregate_results.py` (which just combines the output of `01_run_comparisons.py` into a `combined.pkl` file across datasets) for plotting
