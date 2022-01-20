@@ -181,6 +181,7 @@ def run_comparison(path: str,
         'df': df,
         'df_rules': df_rules,
     }
+    print(df)
     # print(output_dict)
     pkl.dump(output_dict, open(model_comparison_file, 'wb'))
 
