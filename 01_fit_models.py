@@ -110,8 +110,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 # print('best param', est.reg_param)
                 if args.classification_or_regression == 'classification':
                     y_pred_proba = est.predict_proba(X_)[..., 1]
-                    print(f"{model.name} {suffix} mse: {np.linalg.norm(y_ - y_pred_proba)}")
-                k = False
+                    # print(f"preds {suffix}: {np.unique(y_pred_proba)}")
 
                 for i, (met_name, met) in enumerate(metrics):
                     if met is not None:
@@ -121,15 +120,12 @@ def compare_estimators(estimators: List[ModelConfig],
                         else:
                             # print(y_pred_proba)
                             metric_results[met_name + suffix] = met(y_, y_pred_proba)
-
-                            if k:
-                                print(y_pred_proba[0:10])
-                                k = False
-                            print(f"{model.name} {suffix}: {met_name}: {metric_results[met_name + suffix]},"
-                                  f" preds: {np.mean(y_pred_proba)}")
+                            # print(f"{model.name} {suffix}: {met_name}: {metric_results[met_name + suffix]},"
+                            #       f" preds: {np.mean(y_pred_proba)}")
 
             metric_results['complexity'] = util.get_complexity(est)
             metric_results['time'] = end - start
+            print(f"{model.name}: {metric_results}")
 
             for met_name, met_val in metric_results.items():
                 colname = met_name
@@ -243,7 +239,7 @@ if __name__ == '__main__':
     reg = args.reg
 
     ESTIMATORS_CLASSIFICATION = [ModelConfig("OptimalTreeClassifier", OptimalTreeClassifier, "regularization", reg),
-                                 ModelConfig("ShrunkOptimalTreeClassifier", ShrunkOptimalTreeClassifier, "reg_param", 1e+6)]
+                                 ModelConfig("ShrunkOptimalTreeClassifierCV", ShrunkOptimalTreeClassifierCV)]
 
     print('dset', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
     if args.classification:
