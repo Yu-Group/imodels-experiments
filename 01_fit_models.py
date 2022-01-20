@@ -119,6 +119,8 @@ def compare_estimators(estimators: List[ModelConfig],
                         else:
                             # print(y_pred_proba)
                             metric_results[met_name + suffix] = met(y_, y_pred_proba)
+
+                            print(f"{model.name} mse: {np.sum(np.power(y-y_pred_proba), 2)}")
                             if k:
                                 print(y_pred_proba[0:10])
                                 k = False
@@ -181,7 +183,6 @@ def run_comparison(path: str,
         'df': df,
         'df_rules': df_rules,
     }
-    print(df)
     # print(output_dict)
     pkl.dump(output_dict, open(model_comparison_file, 'wb'))
 
