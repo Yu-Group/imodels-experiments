@@ -1,4 +1,5 @@
 import argparse
+import copy
 import os
 import pickle as pkl
 import time
@@ -72,7 +73,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 est_gosdt = model.cls(**model.kwargs)
                 est = est_gosdt
             else:
-                est = model.cls(est_gosdt)
+                est = model.cls(copy.deepcopy(est_gosdt))
             # print(est.criterion)
             #
             # sklearn_baselines = {
