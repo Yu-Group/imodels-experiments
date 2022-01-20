@@ -122,7 +122,7 @@ def compare_estimators(estimators: List[ModelConfig],
                             if k:
                                 print(y_pred_proba[0:10])
                                 k = False
-                            print(f"{model.name}: {met_name}: {metric_results[met_name + suffix]},"
+                            print(f"{model.name} {suffix}: {met_name}: {metric_results[met_name + suffix]},"
                                   f" preds: {np.mean(y_pred_proba)}")
 
             metric_results['complexity'] = util.get_complexity(est)
@@ -240,7 +240,7 @@ if __name__ == '__main__':
     reg = args.reg
 
     ESTIMATORS_CLASSIFICATION = [ModelConfig("OptimalTreeClassifier", OptimalTreeClassifier, "regularization", reg),
-                                 ModelConfig("ShrunkOptimalTreeClassifier", ShrunkOptimalTreeClassifier, "reg_param", 100)]
+                                 ModelConfig("ShrunkOptimalTreeClassifier", ShrunkOptimalTreeClassifier, "reg_param", 500)]
 
     print('dset', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
     if args.classification:
