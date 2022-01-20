@@ -115,8 +115,10 @@ def compare_estimators(estimators: List[ModelConfig],
                                 or met_name in ['accuracy', 'f1', 'precision', 'recall']:
                             metric_results[met_name + suffix] = met(y_, y_pred)
                         else:
-                            print(y_pred_proba)
+                            # print(y_pred_proba)
                             metric_results[met_name + suffix] = met(y_, y_pred_proba)
+                            print(f"{model.name}: {met_name}: {metric_results[met_name + suffix]},"
+                                  f" preds: {np.mean(y_pred_proba)}")
             metric_results['complexity'] = util.get_complexity(est)
             metric_results['time'] = end - start
 
