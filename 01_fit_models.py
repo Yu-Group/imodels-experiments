@@ -110,6 +110,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 # print('best param', est.reg_param)
                 if args.classification_or_regression == 'classification':
                     y_pred_proba = est.predict_proba(X_)[..., 1]
+                k = True
                 for i, (met_name, met) in enumerate(metrics):
                     if met is not None:
                         if args.classification_or_regression == 'regression' \
@@ -118,8 +119,12 @@ def compare_estimators(estimators: List[ModelConfig],
                         else:
                             # print(y_pred_proba)
                             metric_results[met_name + suffix] = met(y_, y_pred_proba)
+                            if k:
+                                print(y_pred_proba[0:10])
+                                k = False
                             print(f"{model.name}: {met_name}: {metric_results[met_name + suffix]},"
                                   f" preds: {np.mean(y_pred_proba)}")
+
             metric_results['complexity'] = util.get_complexity(est)
             metric_results['time'] = end - start
 
