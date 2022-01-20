@@ -10,7 +10,7 @@ from typing import Callable, List, Tuple
 import numpy as np
 import pandas as pd
 from imodels import OptimalTreeClassifier
-from imodels.tree.gosdt.pygosdt import ShrunkOptimalTreeClassifier
+from imodels.tree.gosdt.pygosdt import ShrunkOptimalTreeClassifier, ShrunkOptimalTreeClassifierCV
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
     RandomForestRegressor, ExtraTreesClassifier
 from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score, f1_score, recall_score, \
@@ -234,7 +234,7 @@ if __name__ == '__main__':
     reg = args.reg
 
     ESTIMATORS_CLASSIFICATION = [ModelConfig("OptimalTreeClassifier", OptimalTreeClassifier, "regularization", reg),
-                                 ModelConfig("ShrunkOptimalTreeClassifier", cls=ShrunkOptimalTreeClassifier)]
+                                 ModelConfig("ShrunkOptimalTreeClassifierCV", cls=ShrunkOptimalTreeClassifierCV)]
 
     print('dset', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
     if args.classification:
