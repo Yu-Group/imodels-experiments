@@ -59,11 +59,11 @@ def compare_estimators(estimators: List[ModelConfig],
         # implement provided splitting strategy
         X_train, X_tune, X_test, y_train, y_tune, y_test = (
             util.apply_splitting_strategy(X, y, args.splitting_strategy, args.split_seed))
-        clf = ExtraTreesClassifier(n_estimators=50)
-        clf = clf.fit(X, y)
-        model = SelectFromModel(clf, prefit=True, max_features=5)
-        X_train = model.transform(X_train)
-        X_test = model.transform(X_test)
+        # clf = ExtraTreesClassifier(n_estimators=50)
+        # clf = clf.fit(X, y)
+        # model = SelectFromModel(clf, prefit=True, max_features=5)
+        # X_train = model.transform(X_train)
+        # X_test = model.transform(X_test)
 
         # loop over estimators
         for model in tqdm(estimators, leave=False):
