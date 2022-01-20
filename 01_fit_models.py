@@ -80,6 +80,9 @@ def compare_estimators(estimators: List[ModelConfig],
             #     RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor}
 
             start = time.time()
+            # ss = 70
+            # indx = np.random.choice(np.arange(0, len(y_train)), ss)
+            # est.fit(X_train[indx, ...], y_train[indx])
             est.fit(X_train, y_train)
             #
             # if type(est) in sklearn_baselines or True:
@@ -169,6 +172,7 @@ def run_comparison(path: str,
         'df': df,
         'df_rules': df_rules,
     }
+    print(output_dict)
     pkl.dump(output_dict, open(model_comparison_file, 'wb'))
 
 

@@ -91,6 +91,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
     met_dict = {"r2": r2_score, "rocauc": roc_auc_score}
 
     r_rng = [1, 5, 10, 20]
+    # r_rng = [20]
     bart_pth = os.path.join(R_PATH, "bart")
     if not os.path.exists(bart_pth):
         os.mkdir(bart_pth)
@@ -104,7 +105,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                        "shrunk bart leaf": {r: [] for r in r_rng},
                        "shrunk bart constant": {r: [] for r in r_rng}}
 
-        for split_seed in tqdm(range(9), colour="green"):
+        for split_seed in tqdm(range(3), colour="green"):
             X, y, feat_names = get_clean_dataset(dset[1], data_source=dset[2])
             is_cls = len(np.unique(y)) == 2
 
@@ -118,7 +119,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
             # bart_org.fit(X_train, y_train)
             # actual_range = []
             for r in r_rng:
-                bart_org = BART(classification=is_cls, n_trees=r, n_samples=1, n_chains=1)
+                bart_org = BART(classification=is_cls, n_trees=30, n_samples=100, n_chains=4)
                 bart_org.fit(X_train, y_train)
                 bart = copy.deepcopy(bart_org)
                 # bart = bart.update_complexity(r)
@@ -136,12 +137,12 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                 # actual_range.append(bart_c.sample_complexity)
                 # shrunk_tree = ShrunkBARTRegressor(estimator_=bart, reg_param=0)
                 # shrunk_tree.fit(X_train, y_train)
-                shrunk_tree = ShrunkBARTCV(estimator_=copy.deepcopy(bart), scheme="node_based")
+                shrunk_tree = ShrunkBARTCV(estimator_=bart, scheme="node_based")
                 shrunk_tree.fit(X_train, y_train)
-                shrunk_tree_l = ShrunkBARTCV(estimator_=copy.deepcopy(bart), scheme="leaf_based")
-                shrunk_tree_l.fit(X_train, y_train)
-                shrunk_tree_c = ShrunkBARTCV(estimator_=copy.deepcopy(bart), scheme="constant")
-                shrunk_tree_c.fit(X_train, y_train)
+                # shrunk_tree_l = ExpandedBART(estimator_=copy.deepcopy(bart), scheme="leaf_based")
+                # shrunk_tree_l.fit(X_train, y_train)
+                # shrunk_tree_c = ShrunkBARTCV(estimator_=copy.deepcopy(bart), scheme="constant")
+                # shrunk_tree_c.fit(X_train, y_train)
 
                 # shrunk_tree = ShrunkBARTRegressor(estimator_=copy.deepcopy(bart), scheme="node_based", reg_param=1)
                 # shrunk_tree.fit(X_train, y_train)
@@ -152,13 +153,14 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                 # m = ShrunkTreeRegressorCV(estimator_=DecisionTreeRegressor(max_leaf_nodes=bart.sample_complexity + 1))
                 # m.fit(X_train, y_train)
                 y_test_st = _get_preds(shrunk_tree, X_test, is_cls)  # shrunk_tree.predict(X_test) if not is_cls else
-                y_test_st_l = _get_preds(shrunk_tree_l, X_test, is_cls)
-                y_test_st_c = _get_preds(shrunk_tree_c, X_test, is_cls)
-                performance['shrunk bart node'][r].append(met_dict[metric](y_test, y_test_st))
-                performance['shrunk bart leaf'][r].append(met_dict[metric](y_test, y_test_st_l))
-                performance['shrunk bart constant'][r].append(met_dict[metric](y_test, y_test_st_c))
-
-                performance['bart'][r].append(met_dict[metric](y_test, y_test_bart))
+                # y_test_st_l = _get_preds(shrunk_tree_l, X_test, is_cls)
+                # y_test_st_c = _get_preds(shrunk_tree_c, X_test, is_cls)
+                s_bart_perf = met_dict[metric](y_test, y_test_st)
+                performance['shrunk bart node'][r].append(s_bart_perf)
+                # performance['shrunk bart leaf'][r].append(met_dict[metric](y_test, y_test_st_l))
+                # performance['shrunk bart constant'][r].append(met_dict[metric](y_test, y_test_st_c))
+                bart_perf = met_dict[metric](y_test, y_test_bart)
+                performance['bart'][r].append(bart_perf)
                 # performance['shrunk tree'][r].append(met_dict[metric](y_test, m.predict(X_test)))
 
         def _get_mean_std(method):
@@ -170,15 +172,14 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
 
         pkl_save(f_name=os.path.join(bart_pth, dset_name), data=performance)
 
-
         bart_perf = _get_mean_std("bart")
         s_bart_perf = _get_mean_std("shrunk bart node")
         # s_bart_l_perf = _get_mean_std("shrunk bart leaf")
         # s_bart_c_perf = _get_mean_std("shrunk bart constant")
         ax = plt.subplot(R, C, i + 1)
 
-        ax.errorbar(r_rng, bart_perf[0], yerr=bart_perf[1], c="blue", label="BART")
-        ax.errorbar(r_rng, s_bart_perf[0], yerr=s_bart_perf[1], c="red", label="Shrunk BART Node")
+        ax.errorbar(r_rng, bart_perf[0], yerr=bart_perf[1], c="blue", label="BART", alpha=0.3)
+        ax.errorbar(r_rng, s_bart_perf[0], yerr=s_bart_perf[1], c="blue", label="Shrunk BART")
         # ax.errorbar(r_rng, s_bart_l_perf[0], yerr=s_bart_l_perf[1], c="green", label="Shrunk BART Leaf")
         # ax.errorbar(r_rng, s_bart_c_perf[0], yerr=s_bart_c_perf[1], c="purple", label="Shrunk BART Constant")
         # ax.errorbar(actual_range, s_tree_perf[0], yerr=s_tree_perf[1], c="green", label=f"Shrunk CART")
@@ -506,15 +507,15 @@ if __name__ == '__main__':
     DATASETS_REGRESSION = [
         # leo-breiman paper random forest uses some UCI datasets as well
         # pg 23: https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf
-        ('friedman1', 'friedman1', 'synthetic'),
-        ('friedman2', 'friedman2', 'synthetic'),
-        ('friedman3', 'friedman3', 'synthetic'),
+        # ('friedman1', 'friedman1', 'synthetic'),
+        # ('friedman2', 'friedman2', 'synthetic'),
+        # ('friedman3', 'friedman3', 'synthetic'),
         ("diabetes-regr", "diabetes", 'sklearn'),
-        ("geographical-music", "4544_GeographicalOriginalofMusic", "pmlb"),
-        ("red-wine", "wine_quality_red", "pmlb"),
-        ('abalone', '183', 'openml'),
-        ("satellite-image", "294_satellite_image", 'pmlb'),
-        ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
+        # ("geographical-music", "4544_GeographicalOriginalofMusic", "pmlb"),
+        # ("red-wine", "wine_quality_red", "pmlb"),
+        # ('abalone', '183', 'openml'),
+        # ("satellite-image", "294_satellite_image", 'pmlb'),
+        # ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
         # ("echo-months", "1199_BNG_echoMonths", 'pmlb')
         # ("breast-tumor", "1201_BNG_breastTumor", 'pmlb'),  # this one is v big (100k examples)
 
@@ -542,7 +543,12 @@ if __name__ == '__main__':
         ("credit", "credit_card_clean", 'imodels'),
         # ("readmission", 'readmission_clean', 'imodels'),  # v big
     ]
-    # plot_bart_comparison("r2", datasets=DATASETS_REGRESSION, save_name="bart_reg")
-    plot_bart_comparison("rocauc", datasets=DATASETS_CLASSIFICATION, save_name="bart_cls")
+
+
+    plot_bart_comparison("r2", datasets=DATASETS_REGRESSION, save_name="bart_reg")
+    # plot_bart_comparison("rocauc", datasets=DATASETS_CLASSIFICATION, save_name="bart_cls")
+
+
+
 
     # godst_comparison(datasets=DATASETS_CLASSIFICATION)
