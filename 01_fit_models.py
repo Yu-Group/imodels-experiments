@@ -110,7 +110,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 # print('best param', est.reg_param)
                 if args.classification_or_regression == 'classification':
                     y_pred_proba = est.predict_proba(X_)[..., 1]
-                    # print(f"preds {suffix}: {np.unique(y_pred_proba)}")
+                    print(f"preds {suffix}, {model.name}: {np.unique(y_pred_proba)}")
 
                 for i, (met_name, met) in enumerate(metrics):
                     if met is not None:
@@ -125,7 +125,7 @@ def compare_estimators(estimators: List[ModelConfig],
 
             metric_results['complexity'] = util.get_complexity(est)
             metric_results['time'] = end - start
-            print(f"{model.name}: {metric_results}")
+            print(f"\n{model.name}: {metric_results['mean_squared_error_train']}\n")
 
             for met_name, met_val in metric_results.items():
                 colname = met_name
@@ -189,12 +189,12 @@ def get_metrics(classification_or_regression: str = 'classification'):
     if classification_or_regression == 'classification':
         return [
                    ('rocauc', roc_auc_score),
-                   ('accuracy', accuracy_score),
-                   ('f1', f1_score),
-                   ('recall', recall_score),
-                   ('precision', precision_score),
-                   ('avg_precision', average_precision_score),
-                   ('best_accuracy', get_best_accuracy),
+                   # ('accuracy', accuracy_score),
+                   # ('f1', f1_score),
+                   # ('recall', recall_score),
+                   # ('precision', precision_score),
+                   # ('avg_precision', average_precision_score),
+                   # ('best_accuracy', get_best_accuracy),
                    ('mean_squared_error', mean_squared_error)
                ] + mutual
     elif classification_or_regression == 'regression':
