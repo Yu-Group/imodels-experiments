@@ -544,11 +544,7 @@ if __name__ == '__main__':
         # ("readmission", 'readmission_clean', 'imodels'),  # v big
     ]
 
-
     plot_bart_comparison("r2", datasets=DATASETS_REGRESSION, save_name="bart_reg")
     # plot_bart_comparison("rocauc", datasets=DATASETS_CLASSIFICATION, save_name="bart_cls")
-
-
-
 
     # godst_comparison(datasets=DATASETS_CLASSIFICATION)
