@@ -507,15 +507,15 @@ if __name__ == '__main__':
     DATASETS_REGRESSION = [
         # leo-breiman paper random forest uses some UCI datasets as well
         # pg 23: https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf
-        # ('friedman1', 'friedman1', 'synthetic'),
-        # ('friedman2', 'friedman2', 'synthetic'),
-        # ('friedman3', 'friedman3', 'synthetic'),
+        ('friedman1', 'friedman1', 'synthetic'),
+        ('friedman2', 'friedman2', 'synthetic'),
+        ('friedman3', 'friedman3', 'synthetic'),
         ("diabetes-regr", "diabetes", 'sklearn'),
-        # ("geographical-music", "4544_GeographicalOriginalofMusic", "pmlb"),
-        # ("red-wine", "wine_quality_red", "pmlb"),
-        # ('abalone', '183', 'openml'),
-        # ("satellite-image", "294_satellite_image", 'pmlb'),
-        # ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
+        ("geographical-music", "4544_GeographicalOriginalofMusic", "pmlb"),
+        ("red-wine", "wine_quality_red", "pmlb"),
+        ('abalone', '183', 'openml'),
+        ("satellite-image", "294_satellite_image", 'pmlb'),
+        ("california-housing", "california_housing", 'sklearn'),  # this replaced boston-housing due to ethical issues
         # ("echo-months", "1199_BNG_echoMonths", 'pmlb')
         # ("breast-tumor", "1201_BNG_breastTumor", 'pmlb'),  # this one is v big (100k examples)
 
