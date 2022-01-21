@@ -240,7 +240,8 @@ if __name__ == '__main__':
     reg = args.reg
 
     ESTIMATORS_CLASSIFICATION = [ModelConfig("OptimalTreeClassifier", OptimalTreeClassifier, "regularization", reg),
-                                 ModelConfig("ShrunkOptimalTreeClassifierCV", ShrunkOptimalTreeClassifierCV)]
+                                 ModelConfig("ShrunkOptimalTreeClassifierCV", ShrunkOptimalTreeClassifierCV),
+                                 ModelConfig("ShrunkOptimalTreeClassifier", ShrunkOptimalTreeClassifier, "reg_param", 100)]
 
     print('dset', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
     if args.classification:

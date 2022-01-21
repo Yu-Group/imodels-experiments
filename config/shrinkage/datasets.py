@@ -18,7 +18,7 @@ DATASETS_CLASSIFICATION = [
     # # page 7: http://proceedings.mlr.press/v97/wang19a/wang19a.pdf
     ("juvenile", "juvenile_clean", 'imodels'),
     ("recidivism", "compas_two_year_clean", 'imodels'),
-    ("credit", "credit_card_clean", 'imodels'),
+    # ("credit", "credit_card_clean", 'imodels'),
     # ("readmission", 'readmission_clean', 'imodels'),  # v big
 ]
 
