@@ -195,6 +195,7 @@ def get_metrics(classification_or_regression: str = 'classification'):
                    ('precision', precision_score),
                    ('avg_precision', average_precision_score),
                    ('best_accuracy', get_best_accuracy),
+                   ('mean_squared_error', mean_squared_error)
                ] + mutual
     elif classification_or_regression == 'regression':
         return [
