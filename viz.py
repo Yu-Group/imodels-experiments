@@ -37,11 +37,13 @@ def plot_comparisons(metric='rocauc', datasets=[],
                      eps_legend_sep=0.01,
                      save_name='fig', show_train=False, xlim=20):
     """Plots curves for different models as a function of complexity
+    Note: for best legends, pass models_to_include from top to bottom
 
     Params
     ------
     metric: str
         Which metric to plot on y axis
+    
     """
     R, C = ceil(len(datasets) / 3), 3
     plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
@@ -55,6 +57,8 @@ def plot_comparisons(metric='rocauc', datasets=[],
         'CART_(MAE)': cg,
         'SAPS_(Reweighted)': cg,
         'SAPS_(Include_Linear)': cb,
+        'GBDT-1': cp,
+        'GBDT-2': 'gray',
     }
 
     for i, dset in enumerate(tqdm(datasets)):
@@ -76,66 +80,75 @@ def plot_comparisons(metric='rocauc', datasets=[],
             suffix = ''
         texts = []
         ys = []
-        for _, (name, g) in enumerate(df.groupby('estimator')):
-            if name in models_to_include + models_to_include_dashed:
+        for name in models_to_include + models_to_include_dashed:
+            try:
+                g = df.groupby('estimator').get_group(name)
+            except:
+                raise Exception(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
+#             print(g)
+#             .get_group(name)
+#         for _, (name, g) in enumerate(df.groupby('estimator')):
+#             if name in models_to_include + models_to_include_dashed:
                 # print('g keys', g.keys())
-                x = g['complexity' + suffix].values
-                y = g[f'{metric}_test' + suffix].values
-                yerr = g[f'{metric}_test' + '_std'].values
-                args = np.argsort(x)
-                alpha = 1.0 if 'SAPS' == name else 0.35
-                lw = 2 if 'SAPS' == name else 1.5
-                name_lab = (
-                    name.replace('_', ' ')
-                    .replace('C45', 'C4.5')
-                    .replace('SAPS', 'FIGS')
-                )
-                kwargs = dict(color=COLORS.get(name, 'gray'),
-                              alpha=alpha,
-                              lw=lw,
-                              zorder=-5,
-                         )
-                #                 print(g.keys())
-                #                 plt.plot(x[args], y[args], '.-', **kwargs)
-                
-                def select_y(y, ys, eps_legend_sep, delta=0.005):
-                    """Select y that doesn't overlap with previous ys
-                    """
-                    min_dist = 0
-                    while min_dist < eps_legend_sep:
-                        min_dist = 1e10
-                        for yy in ys:
-                            if np.abs(y - yy) < min_dist:
-                                min_dist = np.abs(y - yy)
-                        if min_dist < eps_legend_sep:
-                            y = y + delta
-                    return y
-                
-                if name in models_to_include:
-                    plt.errorbar(x[args], y[args], yerr=yerr[args], fmt='.-', 
-                                 label=name_lab, **kwargs)
-                    if color_legend and i % C == C - 1 and i / C < 1: # top-right
-                        arg_rightmost_less_than_xlim = np.sum(x < xlim)
-                        y = select_y(y[args][arg_rightmost_less_than_xlim] - eps_legend_sep / 2,
-                                     ys, eps_legend_sep)
-                        ys.append(y)
-                        texts.append(plt.text(xlim, y,
-                                 name_lab,
-                                 color=COLORS.get(name, 'gray')))
+            x = g['complexity' + suffix].values
+            y = g[f'{metric}_test' + suffix].values
+            yerr = g[f'{metric}_test' + '_std'].values
+            args = np.argsort(x)
+            alpha = 1.0 if 'SAPS' == name else 0.35
+            lw = 2 if 'SAPS' == name else 1.5
+            name_lab = (
+                name.replace('_', ' ')
+                .replace('C45', 'C4.5')
+                .replace('SAPS', 'FIGS')
+                .replace('GBDT-1', 'Boosted Stumps')
+            )
+            kwargs = dict(color=COLORS.get(name, 'gray'),
+                          alpha=alpha,
+                          lw=lw,
+                          zorder=-5,
+                     )
+            #                 print(g.keys())
+            #                 plt.plot(x[args], y[args], '.-', **kwargs)
 
-                elif name in models_to_include_dashed:
-                    assert x.size == 1, 'Dashed models should only have 1 complexity value!'
-                    plt.axhline(y[args], **kwargs, linestyle='--')
-                    if i % C == C - 1 and i / C < 1: # top-right
-                        texts.append(plt.text(xlim, y[args], 'Random Forest', color='gray'))
-                if show_train:
-                    plt.plot(g[f'complexity_train'][args], g[f'{dset_name}_{metric}_train'][args], '.--', **kwargs,
-                             label=name + ' (Train)')
-                plt.xlabel('Number of rules')
-                if xlim is not None:
-                    plt.xlim((0, xlim))
-                
-                plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA[dset_name][0]}$)', fontsize='medium')
+            def select_y(y, ys, eps_legend_sep, delta=0.005):
+                """Select y that doesn't overlap with previous ys by pushing things down
+                """
+                min_dist = 0
+                while min_dist < eps_legend_sep:
+                    min_dist = 1e10
+                    for yy in ys:
+                        if np.abs(y - yy) < min_dist:
+                            min_dist = np.abs(y - yy)
+                    if min_dist < eps_legend_sep:
+                        y = y - delta
+                return y
+
+            if name in models_to_include:
+                plt.errorbar(x[args], y[args], yerr=yerr[args], fmt='.-', 
+                             label=name_lab, **kwargs)
+                if color_legend and i % C == C - 1 and i / C < 1: # top-right
+                    arg_rightmost_less_than_xlim = np.sum(x < xlim)
+                    y = select_y(y[args][arg_rightmost_less_than_xlim], # - eps_legend_sep / 2,
+                                 ys, eps_legend_sep)
+                    ys.append(y)
+                    texts.append(plt.text(xlim, y,
+                                          name_lab,
+                                          color=COLORS.get(name, 'gray'),
+                                         fontsize='medium'))
+
+            elif name in models_to_include_dashed:
+                assert x.size == 1, 'Dashed models should only have 1 complexity value!'
+                plt.axhline(y[args], **kwargs, linestyle='--')
+                if i % C == C - 1 and i / C < 1: # top-right
+                    texts.append(plt.text(xlim, y[args], 'Random Forest', color='gray', fontsize='medium'))
+            if show_train:
+                plt.plot(g[f'complexity_train'][args], g[f'{dset_name}_{metric}_train'][args], '.--', **kwargs,
+                         label=name + ' (Train)')
+            plt.xlabel('Number of rules')
+            if xlim is not None:
+                plt.xlim((0, xlim))
+
+            plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA[dset_name][0]}$)', fontsize='medium')
         #         if i % C == C - 1:
         if i % C == 0: # left col
             plt.ylabel(metric.upper()
