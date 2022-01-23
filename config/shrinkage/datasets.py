@@ -4,12 +4,12 @@ DATASETS_CLASSIFICATION = [
     # ("sonar", "sonar", "pmlb"),
     ("heart", "heart", 'imodels'),
     ("breast-cancer", "breast_cancer", 'imodels'),
-    # ("haberman", "haberman", 'imodels'),
+    ("haberman", "haberman", 'imodels'),
     ("ionosphere", "ionosphere", 'pmlb'),
     ("diabetes", "diabetes", "pmlb"),
     # # ("liver", "8", "openml"), # note: we omit this dataset bc it's label was found to be incorrect (see caveat here: https://archive.ics.uci.edu/ml/datasets/liver+disorders#:~:text=The%207th%20field%20(selector)%20has%20been%20widely%20misinterpreted%20in%20the%20past%20as%20a%20dependent%20variable%20representing%20presence%20or%20absence%20of%20a%20liver%20disorder.)
-    # # ("credit-g", "credit_g", 'imodels'), # like german-credit, but more feats
-    # ("german-credit", "german", "pmlb"),
+    # ("credit-g", "credit_g", 'imodels'), # like german-credit, but more feats
+    ("german-credit", "german", "pmlb"),
     #
     # # clinical-decision rules
     # # ("iai-pecarn", "iai_pecarn.csv", "imodels"),
