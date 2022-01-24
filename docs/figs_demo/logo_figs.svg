@@ -5,7 +5,7 @@
         <path d="m0 0l228.0 0l0 288.0l-228.0 0l0 -288.0z" clip-rule="nonzero"/>
     </clipPath>
     <g clip-path="url(#g106732f9e27_0_4.0)">
-        <path fill="#ffffff" d="m0 0l228.0 0l0 288.0l-228.0 0z" fill-rule="evenodd"/>
+        <path fill="#ffffff" fill-opacity="0.0" d="m0 0l228.0 0l0 288.0l-228.0 0z" fill-rule="evenodd"/>
         <path fill="#000000" fill-opacity="0.0"
               d="m61.473965 92.77988l0 0c19.003819 -23.317726 42.693943 -35.46597 52.913387 -27.133865l-34.409447 42.220474z"
               fill-rule="evenodd"/>
