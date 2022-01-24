@@ -53,10 +53,10 @@ const maxBoxes = 175;
 const instruction = document.querySelector(".instruction");
 const reset = document.querySelector(".js-reset");
 const count = document.querySelector(".js-count");
-const drawnEmojis = document.querySelector(".js-total");
+// const drawnEmojis = document.querySelector(".js-total");
 let instructionTimeout;
 let numOfDrags = 0;
-drawnEmojis.innerHTML = maxBoxes;
+// drawnEmojis.innerHTML = maxBoxes;
 // reset.addEventListener("click", resetApp);
 window.addEventListener("resize", () => {
   vpWidth = window.innerWidth;
@@ -203,7 +203,7 @@ function isOutOfView(el) {
   let y = el.body.position.y;
 
   if (x < -100 || x > windowWidth + 100 || y < -100 || y > windowHeight + 100) {
-    count.innerHTML = boxes.length;
+    // count.innerHTML = boxes.length;
     return true;
   } else {
     return false;
@@ -292,7 +292,7 @@ var intervalId = window.setInterval(function(){
   const divider = 40;
   const diameter = vpWidth > vpHeight ? vpWidth / divider : vpHeight / divider;
   const randomX = (Math.random()) * vpWidth;
-  const randomY = (Math.random()) * vpHeight * 0.3 + vpHeight * 0.1;
+  const randomY = (Math.random()) * vpHeight * 0.3;
   const newEl = new Emoji(randomX, randomY, diameter, diameter);
   boxes.push(newEl);
   /// call your function here
@@ -324,7 +324,7 @@ function draw() {
   }
 
   // update count
-  count.innerHTML = boxes.length;
+  // count.innerHTML = boxes.length;
 }
 
 function windowResized() {
