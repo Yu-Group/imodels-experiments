@@ -6,6 +6,7 @@ from collections import defaultdict
 import pickle as pkl
 from numpy.random import uniform
 from os.path import join as oj
+import sys
 
 from imodels.tree.saps import SaplingSumRegressor
 from sklearn.tree import DecisionTreeRegressor
@@ -20,13 +21,13 @@ if os.getcwd().split('/')[-1] == 'notebooks':
     os.chdir('../..')
 
 # choose params
-n_train = np.geomspace(100, 2500, ) [100, 250, 500, 750, 1000, 1500, 2000, 2500]
+n_train = np.ceil(np.geomspace(100, 2500, 8)).astype(int)  # [100, 250, 500, 750, 1000, 1500, 2000, 2500]
 n_test = 500
 d = 50
-m = 4  # number of interaction terms
+m = 5  # number of interaction terms
 r = 3  # order of interaction
 sigma = 0.1
-n_avg = 4
+n_avg = 10
 seed = 1
 thres = 5
 tau = 0.5
@@ -80,6 +81,29 @@ def get_sim_results(model_dict, y_gen, n_train, n_test, d, n_avg, seed, sim_name
     return scores, error_bars
 
 
+def get_saps_trees_sim(y_gen, d, n, n_avg, seed, sim_name, sigma, **kwargs):
+
+    np.random.seed(seed)
+    out_dir = oj('results', sim_name)
+    fname = oj('results', sim_name, 'trees.pkl')
+    trees = []
+
+    for j in range(n_avg):
+        X_train = uniform(low=0, high=1.0, size=(n, d))
+        y_train = y_gen(X_train, sigma, **kwargs)
+
+        model = SaplingSumRegressor()
+        model.fit(X_train, y_train, min_impurity_decrease=thres*sigma**2)
+        trees += model.trees_
+
+    os.makedirs(out_dir, exist_ok=True)
+    with open(fname, 'wb') as f:
+        pkl.dump(trees, f)
+
+
 # get_sim_results(model_dict, lss_model, n_train, n_test, d, n_avg, seed, "LSS", sigma, m=m, r=r, tau=0.5)
 # get_sim_results(model_dict, sum_of_polys, n_train, n_test, d, n_avg, seed, "poly", sigma, m=m, r=r)
-get_sim_results(model_dict, linear_model, n_train, n_test, d, n_avg, seed, "linear", sigma, beta=beta, s=sparsity)
+# get_sim_results(model_dict, linear_model, n_train, n_test, d, n_avg, seed, "linear", sigma, beta=beta, s=sparsity)
+
+#get_saps_trees_sim(lss_model, d, 2500, n_avg, seed, "LSS", sigma, m=m, r=r, tau=0.5)
+get_saps_trees_sim(sum_of_polys, d, 2500, n_avg, seed, "poly", sigma, m=m, r=r)
