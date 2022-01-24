@@ -7,7 +7,7 @@
 
 # Experimental models
 
-- SAPS <img align="center" style="height:30px;" src="https://yu-group.github.io/imodels-experiments/logo_saps.png"> </img> - greedily learn a concise sum of trees
+- SAPS <img align="center" style="height:30px;" src="https://yu-group.github.io/imodels-experiments/logo_figs.svg?sanitize=True"> </img> - greedily learn a concise sum of trees
 - Hierarchical tree shrinkage 🌱
   - [demo](https://yu-group.github.io/imodels-experiments/notebooks/shrinkage/demo_main.html)
 - Stable rules - finding a stable set of rules across different models
