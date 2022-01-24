@@ -2,10 +2,13 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>CodePen - Emoji Day 2020</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css">
+<!--    <title>FIGS</title>-->
+<!--    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"-->
+<!--              integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">-->
+<!--    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/meyer-reset/2.0/reset.min.css">-->
+<!--  <script src="https://cdnjs.cloudflare.com/ajax/libs/startbootstrap-clean-blog/5.0.10/js/clean-blog.min.js"></script>-->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/startbootstrap-clean-blog/5.0.10/css/clean-blog.min.css">
     <link rel="stylesheet" href="./style.css">
-
 </head>
 <body>
 <!-- partial:index.partial.html -->
@@ -14,19 +17,65 @@
     <div class="butt disabled"><span class="js-count">0</span>/<span class="js-total">100</div>
 </nav>
 
-<!--<div class="instruction is-active">Click & Drag</div>-->
+<!--<div class="instruction is-active" onClick="document.getElementById('test').scrollIntoView();">Click & Drag</div>-->
 
-<div width="50%">
-  <div id="p5" class="container"></div>
-  <!-- partial -->
-  <script src='https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.3/p5.min.js'></script>
-  <script src='https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.3/addons/p5.dom.min.js'></script>
-  <script src='https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.3/addons/p5.sound.min.js'></script>
-  <script src='https://unpkg.com/matter-js@0.14.2/build/matter.min.js'></script>
-  <script src="./script.js"></script>
+<!--<div width="50%">-->
+<div id="p5" class="container"></div>
+<!-- partial -->
+<script src='https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.3/p5.min.js'></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.3/addons/p5.dom.min.js'></script>
+<script src='https://cdnjs.cloudflare.com/ajax/libs/p5.js/0.7.3/addons/p5.sound.min.js'></script>
+<script src='https://unpkg.com/matter-js@0.14.2/build/matter.min.js'></script>
+<script src="./script.js"></script>
+<!--</div>-->
+<!--<nav>-->
+<!--  <button class="js-reset butt">Reset</button>-->
+<p style="color: gray; text-align: center">Click and drag for more FIGS</p>
+<hr>
+<div style="padding-right: 10%; padding-left: 10%;">
+    <h1 text-align="center" style="display: inline;"> FIGS: Fast Interpretable Greedy-Tree Sums </h1>
+
+    <p>
+        Modern machine learning has achieved impressive prediction performance, but often sacrifices interpretability, a
+        critical consideration in many problems.
+        Here, we propose Fast Interpretable Greedy-Tree Sums (\method), an algorithm for fitting concise rule-based
+        models.
+        Specifically, \methods generalizes the CART algorithm to work on sums of trees, growing a flexible number of
+        them simultaneously.
+        The total number of splits across all the trees is restricted by a pre-specified threshold, which ensures that
+        FIGS remains interpretable. % a small number of total rules.
+        Extensive experiments show that \methods achieves state-of-the-art performance across a wide array of real-world
+        datasets when restricted to very few splits (e.g. less than 20). % total maintaining interpretability.
+        Theoretical and simulation results suggest that \methods overcomes a key weakness of single-tree models by
+        disentangling additive components of generative additive models, thereby significantly improving convergence
+        rates for $\ell_2$ generalization error.
+        We further characterize the success of \methods by quantifying how it reduces repeated splits, which can lead to
+        redundancy in single-tree models such as CART.
+        All code and models are released in a full-fledged package available on Github.
+    </p>
+    <h2>An example of interpretable modeling</h2>
+    <p>
+        Here, we examine the <a href="https://www.sciencedirect.com/science/article/pii/S0140673671923038">Diabetes
+        classification dataset</a>, in which eight risk factors were collected and used to predict the onset of diabetes
+        within 5 five years. Fitting, several models we find that with very few rules, the model can achieve excellent
+        test performance.
+    </p>
+
+    <p>
+        For example, Fig 2 shows a model fitted using the [FIGS]() algorithm which achieves a test-AUC of 0.820 despite
+        being extremely simple. In this model, each feature contributes independently of the others, and the final risks
+        from each of three key features is summed to get a risk for the onset of diabetes (higher is higher risk). As
+        opposed to a black-box model, this model is easy to interpret, fast to compute with, and allows us to vet the
+        features being used for decision-making.
+    </p>
+
+    <p style="text-align:center;">
+        <img width=60% src="https://demos.csinva.io/diabetes_figs.svg" title="diabetes SAPS"></img>
+        <br>
+        <i><b>Fig 2.</b> Simple model learned by <a href="">FIGS</a> for diabetes risk prediction. </i>
+    </p>
+
 </div>
-
-<h1> FIGS </h1>
 
 </body>
 

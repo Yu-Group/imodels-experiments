@@ -2,69 +2,93 @@
   box-sizing: border-box;
 }
 
-@font-face {
-  font-family: "Meta";
-  src: url(https://s3-us-west-2.amazonaws.com/s.cdpn.io/3410/MonumentGrotesk-Mono.ttf);
-}
-@font-face {
-  font-family: "Art";
-  src: url(https://s3-us-west-2.amazonaws.com/s.cdpn.io/3410/ArtCompany-Mono.woff);
-}
+/*title {*/
+/*  text-align: center;*/
+/*  align-content: center;*/
+/*}*/
+
+/*h1 {*/
+/*  font-size: xxx-large;*/
+/*}*/
+
+/*h2 {*/
+/*  font-size: xx-large;*/
+/*}*/
+
+/*p {*/
+/*  font-size: x-large;*/
+/*}*/
+
+/*@font-face {*/
+/*  font-family: "Meta";*/
+/*  src: url(https://s3-us-west-2.amazonaws.com/s.cdpn.io/3410/MonumentGrotesk-Mono.ttf);*/
+/*}*/
+/*@font-face {*/
+/*  font-family: "Art";*/
+/*  src: url(https://s3-us-west-2.amazonaws.com/s.cdpn.io/3410/ArtCompany-Mono.woff);*/
+/*}*/
 .container {
-  width: 30%;
-  height: 100%;
+  /*width: 100px;*/
+  /*margin-left: 200px;*/
+  /*margin-bottom: 1000px;*/
+  /*width: 30%;*/
+  /*height: 100%;*/
+  scroll-behavior: smooth;
   height: -webkit-fill-available;
-  height: -moz-available;
-  height: fill-available;
+  /*display: inline-block;*/
+  /*position: fixed;*/
+  /*height: 100px;*/
+  /*height: -moz-available;*/
+  /*height: fill-available;*/
 }
 
-/*.instruction {*/
-/*  pointer-events: none;*/
-/*  transition: opacity 0.4s ease-in-out;*/
-/*  position: fixed;*/
-/*  top: 50%;*/
-/*  left: 50%;*/
-/*  display: inline-block;*/
-/*  width: auto;*/
-/*  text-align: center;*/
-/*  transform: translate3d(-50%, -50%, 0);*/
-/*  white-space: nowrap;*/
-/*  font-family: "Meta", monospace;*/
-/*  font-size: calc(10px + 4vw);*/
-/*  opacity: 0;*/
-/*  padding: 0.6em 1em;*/
-/*  border-radius: 100vw;*/
-/*  color: black;*/
-/*  text-transform: uppercase;*/
-/*  line-height: 1;*/
-/*}*/
-/*.instruction.is-active {*/
-/*  opacity: 1;*/
-/*}*/
-/*.instruction:before {*/
-/*  content: "";*/
-/*  position: absolute;*/
-/*  border-radius: 100vw;*/
-/*  overflow: hidden;*/
-/*  top: 0;*/
-/*  left: 0;*/
-/*  right: 0;*/
-/*  bottom: 0;*/
-/*  background: rgba(255, 255, 255, 0.8);*/
-/*  -webkit-backdrop-filter: blur(2vw) saturate(500%);*/
-/*          backdrop-filter: blur(2vw) saturate(500%);*/
-/*  z-index: -1;*/
-/*}*/
-/*.instruction:after {*/
-/*  content: "";*/
-/*  position: absolute;*/
-/*  border-radius: 100vw;*/
-/*  top: 0;*/
-/*  left: 0;*/
-/*  right: 0;*/
-/*  bottom: 0;*/
-/*  box-shadow: 0 0 16px rgba(0, 0, 0, 0.2);*/
-/*}*/
+.instruction {
+  pointer-events: none;
+  transition: opacity 0.4s ease-in-out;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  display: inline-block;
+  width: auto;
+  text-align: center;
+  transform: translate3d(-50%, -50%, 0);
+  white-space: nowrap;
+  font-family: "Meta", monospace;
+  font-size: calc(10px + 4vw);
+  opacity: 0;
+  padding: 0.6em 1em;
+  border-radius: 100vw;
+  color: black;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.instruction.is-active {
+  opacity: 1;
+}
+.instruction:before {
+  content: "";
+  position: absolute;
+  border-radius: 100vw;
+  overflow: hidden;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.8);
+  -webkit-backdrop-filter: blur(2vw) saturate(500%);
+          backdrop-filter: blur(2vw) saturate(500%);
+  z-index: -1;
+}
+.instruction:after {
+  content: "";
+  position: absolute;
+  border-radius: 100vw;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-shadow: 0 0 16px rgba(0, 0, 0, 0.2);
+}
 
 .nav {
   position: fixed;

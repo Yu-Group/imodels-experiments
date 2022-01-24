@@ -1,10 +1,4 @@
-/**********************************************
- 💥️🌴️💯️🌮️🤯️🖥️🤓️ Emoji Day 2020 😀️💥️🌴️💯️🌮️🤯️🖥️
- **********************************************
- An experiment built with P5.js and Matter.js
- **********************************************
- Built by Instrument - instrument.com
- *********************************************/
+
 console.clear();
 
 
@@ -216,14 +210,6 @@ function isOutOfView(el) {
   }
 }
 
-function showInstruction() {
-  instruction.classList.add("is-active");
-}
-
-function hideInstruction() {
-  instruction.classList.remove("is-active");
-}
-
 function timeoutInstruction() {
   clearTimeout(instructionTimeout);
   instructionTimeout = setTimeout(() => {
@@ -249,13 +235,13 @@ function preloadImages() {
 }
 
 function setup() {
-  const canvas = createCanvas(windowWidth, windowHeight);
+  const canvas = createCanvas(windowWidth, windowHeight * 0.4);
   canvas.parent("p5");
   vpHeight = window.innerHeight;
   vpWidth = window.innerWidth;
   engine = Engine.create();
   world = engine.world;
-  engine.timing.timeScale = 0.8;
+  engine.timing.timeScale = 0.4; //0.8;
 
   // setup barriers
   if (barriers.length > 0) resetBarrier();
@@ -282,43 +268,8 @@ function setup() {
   World.add(world, mConstraint);
 }
 
-function keyPressed() {
-  if (key == " ") {
-    resetApp();
-  }
-}
-
 function mousePressed() {
   numOfDrags++;
-
-
-  // switch (numOfDrags) {
-  //   case 1:
-  //     instruction.innerHTML = "Nice! Again! 👏️";
-  //     showInstruction();
-  //     break;
-  //   case 2:
-  //     timeoutInstruction();
-  //     break;
-  //   case 6:
-  //     instruction.innerHTML = "OMG calm down 😊️";
-  //     showInstruction();
-  //     timeoutInstruction();
-  //     break;
-  //   case 8:
-  //     instruction.innerHTML = "Ugh wutever 😉";
-  //     showInstruction();
-  //     timeoutInstruction();
-  //     break;
-  //   case 10:
-  //     instruction.innerHTML = "Have fun! 😘";
-  //     showInstruction();
-  //     timeoutInstruction();
-  //     break;
-  //   case 12:
-  //     timeoutInstruction();
-  //     break;
-  //   default:}
 
 
   const divider = 40;
@@ -335,6 +286,17 @@ function mouseDragged() {
   const newEl = new Emoji(mouseX, mouseY, diameter, diameter);
   boxes.push(newEl);
 }
+
+/// create something every second
+var intervalId = window.setInterval(function(){
+  const divider = 40;
+  const diameter = vpWidth > vpHeight ? vpWidth / divider : vpHeight / divider;
+  const randomX = (Math.random()) * vpWidth;
+  const randomY = (Math.random()) * vpHeight * 0.3 + vpHeight * 0.1;
+  const newEl = new Emoji(randomX, randomY, diameter, diameter);
+  boxes.push(newEl);
+  /// call your function here
+}, 1000);
 
 function draw() {
   background(255);
