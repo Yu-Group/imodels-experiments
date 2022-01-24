@@ -80,7 +80,7 @@ def plot_comparisons(metric='rocauc', datasets=[],
             suffix = ''
         texts = []
         ys = []
-        for name in models_to_include + models_to_include_dashed:
+        for name in models_to_include_dashed + models_to_include:
             try:
                 g = df.groupby('estimator').get_group(name)
             except:
@@ -140,6 +140,7 @@ def plot_comparisons(metric='rocauc', datasets=[],
                 assert x.size == 1, 'Dashed models should only have 1 complexity value!'
                 plt.axhline(y[args], **kwargs, linestyle='--')
                 if i % C == C - 1 and i / C < 1: # top-right
+                    ys.append(y[args])
                     texts.append(plt.text(xlim, y[args], 'Random Forest', color='gray', fontsize='medium'))
             if show_train:
                 plt.plot(g[f'complexity_train'][args], g[f'{dset_name}_{metric}_train'][args], '.--', **kwargs,
