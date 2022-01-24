@@ -160,6 +160,7 @@ def plot_bart_comparison(metric='rocauc', datasets=[], seed=None,
                 # performance['shrunk bart leaf'][r].append(met_dict[metric](y_test, y_test_st_l))
                 # performance['shrunk bart constant'][r].append(met_dict[metric](y_test, y_test_st_c))
                 bart_perf = met_dict[metric](y_test, y_test_bart)
+                print(f"performance: Bart {bart_perf}, Shrunk {s_bart_perf}")
                 performance['bart'][r].append(bart_perf)
                 # performance['shrunk tree'][r].append(met_dict[metric](y_test, m.predict(X_test)))
 
