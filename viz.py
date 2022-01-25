@@ -145,7 +145,7 @@ def plot_comparisons(metric='rocauc', datasets=[],
             if show_train:
                 plt.plot(g[f'complexity_train'][args], g[f'{dset_name}_{metric}_train'][args], '.--', **kwargs,
                          label=name + ' (Train)')
-            plt.xlabel('Number of rules')
+            plt.xlabel('Number of splits')
             if xlim is not None:
                 plt.xlim((0, xlim))
 
