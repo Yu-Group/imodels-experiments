@@ -2,6 +2,7 @@ import numpy as np
 from collections import Counter
 
 import pandas as pd
+from scipy.spatial.distance import cosine
 
 
 def sample_boolean_X(n, d):
@@ -190,7 +191,7 @@ def get_split_feats_counts(node):
         return [node.feature] + get_split_feats_counts(node.left) + get_split_feats_counts(node.right)
 
 
-def get_feat_counts_correlation(trees, d):
+def get_feat_counts_matrix(trees, d):
     num_trees = len(trees)
     count_matrix = np.zeros((num_trees, d))
     for i, tree in enumerate(trees):
@@ -199,6 +200,23 @@ def get_feat_counts_correlation(trees, d):
             if k < d:
                 count_matrix[i, k] = v
 
+    return count_matrix
+
+
+def get_feat_counts_cossim(trees, d):
+    count_matrix = get_feat_counts_matrix(trees, d)
+    counts_cossim = np.zeros((d, d))
+    for i in range(d):
+        counts_cossim[i, i] = 1
+        for j in range(i):
+            counts_cossim[i, j] = 1 - cosine(count_matrix[:, i], count_matrix[:, j])
+            counts_cossim[j, i] = counts_cossim[i, j]
+
+    return counts_cossim
+
+
+def get_feat_counts_correlation(trees, d):
+    count_matrix = get_feat_counts_matrix(trees, d)
     counts_correlation = pd.DataFrame(count_matrix).corr()
 
     return counts_correlation
