@@ -230,13 +230,13 @@ def godst_comparison():
         performance['GOSDT'][dset_name] = {}
         performance['hsGOSDT'][dset_name] = {}
 
-        ds_path = f"/Users/omerronen/Documents/Phd/tree_shrinkage/imodels-experiments/results/shrinkage/{dset_name}/train-test"
+        ds_path = f"/Users/omerronen/Documents/Phd/tree_shrinkage/imodels-experiments/results/shrinkage_o/{dset_name}/train-test"
         n_leaves = []
         for reg in regularization_range:
 
             files = glob(os.path.join(ds_path, f"*_{reg}/*"))
             if reg == 0:
-                files = glob(os.path.join(ds_path, f"*_0.0"))
+                files = glob(os.path.join(ds_path, f"*_0.0/*"))
             perf_gosdt = [pkl_load(f)["df"].iloc[0, 2] for f in files if pkl_load(f) is not None]
             perf_hsgosdt = [pkl_load(f)["df"].iloc[1, 2] for f in files if pkl_load(f) is not None]
             performance['GOSDT'][dset_name][reg] = perf_gosdt
@@ -255,11 +255,7 @@ def godst_comparison():
         n_leaves = np.array(n_leaves)
         ax.errorbar(n_leaves[srt], mean_gosdt_ds[srt], yerr=std_gosdt_ds[srt], c=clr, label="GOSDT", alpha=0.3)
         ax.errorbar(n_leaves[srt], mean_hsgosdt_ds[srt], yerr=std_hsgosdt_ds[srt], c=clr, label="hsGOSDT")
-        # ax.errorbar(r_rng, s_bart_l_perf[0], yerr=s_bart_l_perf[1], c="green", label="Shrunk BART Leaf")
-        # ax.errorbar(r_rng, s_bart_c_perf[0], yerr=s_bart_c_perf[1], c="purple", label="Shrunk BART Constant")
-        # ax.errorbar(actual_range, s_tree_perf[0], yerr=s_tree_perf[1], c="green", label=f"Shrunk CART")
-        # ax.set_title(f"{dset_name.capitalize().replace('-', ' ')} (n = {X.shape[0]}, p = {X.shape[1]})", style='italic',
-        #              fontsize=8)
+
         X, y, feat_names = get_clean_dataset(dset[1], data_source=dset[2])
 
         ax.set_title(f"{dset_name} (n = {X.shape[0]}, p = {X.shape[1]})", style='italic',
@@ -269,22 +265,6 @@ def godst_comparison():
         if i == 0:
             ax.legend(fontsize=8, loc="upper left")
 
-        # ax = plt.subplot(R, C, i + 1)
-        #
-        # # print(performance)
-        #
-        # bp1 = ax.boxplot(perf_ds['godst']["auc"], positions=[1], widths=0.35,
-        #                  patch_artist=True, boxprops=dict(facecolor="C0"))
-        # bp2 = ax.boxplot(perf_ds['godst shrunk']["auc"], positions=[2], widths=0.35,
-        #                  patch_artist=True, boxprops=dict(facecolor="C2"))
-        #
-        # ax.legend([bp1["boxes"][0], bp2["boxes"][0]], ['godst', 'godst shrunk'], loc='upper right')
-        #
-        # ax.set_ylabel(
-        #     dset_name.capitalize().replace('-', ' ') + ' ' + metric.upper().replace('ROC', '').replace('R2',
-        #                                                                                                '$R^2$'))
-        # if i == 0:
-        #     ax.legend(fontsize=8, loc="upper left")
     savefig(os.path.join(R_PATH, "gosdt"))
     # pkl_save(os.path.join(R_PATH, save_name), expr_data)
 
