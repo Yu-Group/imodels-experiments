@@ -11,6 +11,7 @@ import sys
 from imodels.tree.saps import SaplingSumRegressor
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
 from xgboost import XGBRegressor
 from pygam import LinearGAM, s
 
@@ -105,5 +106,7 @@ def get_saps_trees_sim(y_gen, d, n, n_avg, seed, sim_name, sigma, **kwargs):
 # get_sim_results(model_dict, sum_of_polys, n_train, n_test, d, n_avg, seed, "poly", sigma, m=m, r=r)
 # get_sim_results(model_dict, linear_model, n_train, n_test, d, n_avg, seed, "linear", sigma, beta=beta, s=sparsity)
 
+get_sim_results(model_dict, lss_model, n_train, n_test, d, n_avg, seed, "single_interaction", sigma, m=1, r=8, tau=0.1)
+
 #get_saps_trees_sim(lss_model, d, 2500, n_avg, seed, "LSS", sigma, m=m, r=r, tau=0.5)
-get_saps_trees_sim(sum_of_polys, d, 2500, n_avg, seed, "poly", sigma, m=m, r=r)
+#get_saps_trees_sim(sum_of_polys, d, 2500, n_avg, seed, "poly", sigma, m=m, r=r)
