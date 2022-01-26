@@ -5,11 +5,11 @@ DATASETS_CLASSIFICATION = [
     ("heart", "heart", 'imodels'),
     ("breast-cancer", "breast_cancer", 'imodels'),
     ("haberman", "haberman", 'imodels'),
-    # ("ionosphere", "ionosphere", 'pmlb'),
-    # ("diabetes", "diabetes", "pmlb"),
+    ("ionosphere", "ionosphere", 'pmlb'),
+    ("diabetes", "diabetes", "pmlb"),
     # #("liver", "8", "openml"), # note: we omit this dataset bc it's label was found to be incorrect (see caveat here: https://archive.ics.uci.edu/ml/datasets/liver+disorders#:~:text=The%207th%20field%20(selector)%20has%20been%20widely%20misinterpreted%20in%20the%20past%20as%20a%20dependent%20variable%20representing%20presence%20or%20absence%20of%20a%20liver%20disorder.)
     # #("credit-g", "credit_g", 'imodels'), # like german-credit, but more feats
-    # ("german-credit", "german", "pmlb"),
+    ("german-credit", "german", "pmlb"),
 
     #clinical-decision rules
     #("iai-pecarn", "iai_pecarn.csv", "imodels"),
@@ -17,7 +17,7 @@ DATASETS_CLASSIFICATION = [
     #popular classification datasets used in rule-based modeling / fairness
     # page 7: http://proceedings.mlr.press/v97/wang19a/wang19a.pdf
     ("juvenile", "juvenile_clean", 'imodels'),
-    # ("recidivism", "compas_two_year_clean", 'imodels'),
+    ("recidivism", "compas_two_year_clean", 'imodels'),
     # ("credit", "credit_card_clean", 'imodels'),
     # ("readmission", 'readmission_clean', 'imodels'),  # v big
 ]
