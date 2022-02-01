@@ -5,7 +5,7 @@ from math import ceil
 from os.path import dirname
 from os.path import join as oj
 from typing import List, Dict, Any, Union, Tuple
-
+# import adjustText
 import dvu
 import matplotlib as mpl
 import matplotlib.patches as patches
@@ -27,17 +27,23 @@ cy = '#d8b365'
 cg = '#5ab4ac'
 
 DIR_FIGS = oj(dirname(os.path.realpath(__file__)), 'figs')
-
+DSET_METADATA = {'sonar': (208, 60), 'heart': (270, 15), 'breast-cancer': (277, 17), 'haberman': (306, 3), 'ionosphere': (351, 34), 'diabetes': (768, 8), 'german-credit': (1000, 20), 'juvenile': (3640, 286), 'recidivism': (6172, 20), 'credit': (30000, 33), 'readmission': (101763, 150), 'friedman1': (200, 10), 'friedman2': (200, 4), 'friedman3': (200, 4), 'abalone': (4177, 8), 'diabetes-regr': (442, 10), 'california-housing': (20640, 8), 'satellite-image': (6435, 36), 'echo-months': (17496, 9), 'breast-tumor': (116640, 9)}
 
 def plot_comparisons(metric='rocauc', datasets=[],
-                     models_to_include=['SAPS', 'CART'], seed=None,
-                     save_name='fig', show_train=False):
+                     models_to_include=['SAPS', 'CART'],
+                     models_to_include_dashed=[],
+                     color_legend=True,
+                     seed=None,
+                     eps_legend_sep=0.01,
+                     save_name='fig', show_train=False, xlim=20):
     """Plots curves for different models as a function of complexity
+    Note: for best legends, pass models_to_include from top to bottom
 
     Params
     ------
     metric: str
         Which metric to plot on y axis
+    
     """
     R, C = ceil(len(datasets) / 3), 3
     plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
@@ -51,6 +57,8 @@ def plot_comparisons(metric='rocauc', datasets=[],
         'CART_(MAE)': cg,
         'SAPS_(Reweighted)': cg,
         'SAPS_(Include_Linear)': cb,
+        'GBDT-1': cp,
+        'GBDT-2': 'gray',
     }
 
     for i, dset in enumerate(tqdm(datasets)):
@@ -70,46 +78,96 @@ def plot_comparisons(metric='rocauc', datasets=[],
             pkl_file = oj('results', 'saps', dset_name, 'train-test/seed0/results_aggregated.pkl')
             df = pkl.load(open(pkl_file, 'rb'))['df']
             suffix = ''
-        for _, (name, g) in enumerate(df.groupby('estimator')):
-            if name in models_to_include:
+        texts = []
+        ys = []
+        for name in models_to_include_dashed + models_to_include:
+            try:
+                g = df.groupby('estimator').get_group(name)
+            except:
+                raise Exception(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
+#             print(g)
+#             .get_group(name)
+#         for _, (name, g) in enumerate(df.groupby('estimator')):
+#             if name in models_to_include + models_to_include_dashed:
                 # print('g keys', g.keys())
-                x = g['complexity' + suffix].values
-                y = g[f'{metric}_test' + suffix].values
-                yerr = g[f'{metric}_test' + '_std'].values
-                args = np.argsort(x)
-                #                 print(x[args])
-                #                 if i % C == C - 1:
-                #                     for cutoff in args:
-                #                         if args[cutoff] >= 20:
-                #                             break
-                #                     args = args[:cutoff - 1]
-                alpha = 1.0 if 'SAPS' == name else 0.35
-                lw = 2 if 'SAPS' == name else 1.5
-                kwargs = dict(color=COLORS.get(name, 'gray'),
-                              alpha=alpha,
-                              lw=lw,
-                              label=name.replace('_', ' ').replace('C45', 'C4.5'),
-                              zorder=-5,
-                         )
-                #                 print(g.keys())
-                #                 plt.plot(x[args], y[args], '.-', **kwargs)
-                plt.errorbar(x[args], y[args], yerr=yerr[args], fmt='.-', **kwargs)
-                if show_train:
-                    plt.plot(g[f'complexity_train'][args], g[f'{dset_name}_{metric}_train'][args], '.--', **kwargs,
-                             label=name + ' (Train)')
-                plt.xlabel('Number of rules')
-                plt.xlim((0, 20))
-                plt.ylabel(
-                    dset_name.capitalize().replace('-', ' ') + ' ' + metric.upper().replace('ROC', '').replace('R2',
-                                                                                                               '$R^2$'))
+            x = g['complexity' + suffix].values
+            y = g[f'{metric}_test' + suffix].values
+            yerr = g[f'{metric}_test' + '_std'].values
+            args = np.argsort(x)
+            alpha = 1.0 if 'SAPS' == name else 0.35
+            lw = 2 if 'SAPS' == name else 1.5
+            name_lab = (
+                name.replace('_', ' ')
+                .replace('C45', 'C4.5')
+                .replace('SAPS', 'FIGS')
+                .replace('GBDT-1', 'Boosted Stumps')
+            )
+            kwargs = dict(color=COLORS.get(name, 'gray'),
+                          alpha=alpha,
+                          lw=lw,
+                          zorder=-5,
+                     )
+            #                 print(g.keys())
+            #                 plt.plot(x[args], y[args], '.-', **kwargs)
+
+            def select_y(y, ys, eps_legend_sep, delta=0.005):
+                """Select y that doesn't overlap with previous ys by pushing things down
+                """
+                min_dist = 0
+                while min_dist < eps_legend_sep:
+                    min_dist = 1e10
+                    for yy in ys:
+                        if np.abs(y - yy) < min_dist:
+                            min_dist = np.abs(y - yy)
+                    if min_dist < eps_legend_sep:
+                        y = y - delta
+                return y
+
+            if name in models_to_include:
+                plt.errorbar(x[args], y[args], yerr=yerr[args], fmt='.-', 
+                             label=name_lab, **kwargs)
+                if color_legend and i % C == C - 1 and i / C < 1: # top-right
+                    arg_rightmost_less_than_xlim = np.sum(x < xlim)
+                    y = select_y(y[args][arg_rightmost_less_than_xlim], # - eps_legend_sep / 2,
+                                 ys, eps_legend_sep)
+                    ys.append(y)
+                    texts.append(plt.text(xlim, y,
+                                          name_lab,
+                                          color=COLORS.get(name, 'gray'),
+                                         fontsize='medium'))
+
+            elif name in models_to_include_dashed:
+                assert x.size == 1, 'Dashed models should only have 1 complexity value!'
+                plt.axhline(y[args], **kwargs, linestyle='--')
+                if i % C == C - 1 and i / C < 1: # top-right
+                    ys.append(y[args])
+                    texts.append(plt.text(xlim, y[args], 'Random Forest', color='gray', fontsize='medium'))
+            if show_train:
+                plt.plot(g[f'complexity_train'][args], g[f'{dset_name}_{metric}_train'][args], '.--', **kwargs,
+                         label=name + ' (Train)')
+            plt.xlabel('Number of splits')
+            if xlim is not None:
+                plt.xlim((0, xlim))
+
+            plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA[dset_name][0]}$)', fontsize='medium')
         #         if i % C == C - 1:
-        if i % C == C - 1:
-#             rect = patches.Rectangle((18, 0), 100, 1, linewidth=1, edgecolor='w', facecolor='w', zorder=-4)
-#             dvu.line_legend(fontsize=10, xoffset_spacing=0.1, adjust_text_labels=True)
-#             ax.add_patch(rect)
-            plt.legend()
-    #         except:
-    #             print('skipping', dset_name)
+        if i % C == 0: # left col
+            plt.ylabel(metric.upper()
+                       .replace('ROC', '')
+                       .replace('R2', '$R^2$')
+                      )
+        if i % C == C - 1 and i / C < 1: # top-right
+            if color_legend: 
+                ax.set_xlim(right=xlim * 1.5)
+    #             adjustText.adjust_text(texts, only_move={'points':'', 'text':'y', 'objects':''}, 
+    #                                    avoid_points=False, va='center')            
+                rect = patches.Rectangle((xlim, 0), 100, 1, linewidth=1, edgecolor='w', facecolor='w', zorder=-4)
+                ylim = ax.get_ylim()
+    #             dvu.line_legend(fontsize=10, xoffset_spacing=0.1, adjust_text_labels=True)
+                ax.add_patch(rect)
+                ax.set_ylim(ylim)
+            else:
+                plt.legend()
     savefig(save_name)
 
 

@@ -1,0 +1,79 @@
+<html>
+<head>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <style>
+        div.gallery {
+            margin: 5px;
+            border: 1px solid #ccc;
+            float: left;
+            width: 180px;
+        }
+
+        div.gallery:hover {
+            border: 1px solid #777;
+            align-content: center;
+        }
+
+        div.gallery img {
+            width: 100%;
+            height: auto;
+        }
+
+        div.desc {
+            padding: 15px;
+            text-align: center;
+        }
+
+        body {
+            background-image: linear-gradient(rgba(255, 0, 0, 0), rgba(255, 100, 0, 0.07));
+        }
+    </style>
+</head>
+<body>
+
+<div class="d-flex justify-content-center no-padding">
+    <img src="logo_experiments.svg" width="600" height="400">
+</div>
+<div class="d-flex justify-content-center no-padding">
+    <p align="center">Demos for easily comparing different experimental aspects of the <a
+            href="https://github.com/csinva/imodels">imodels package.</a></p>
+</div>
+
+
+<div class="d-flex justify-content-center">
+    <div class="gallery">
+        <a target="_blank" href="/shrinkage" class="desc">
+            <!--        <img src="logo_saps.png" alt="Forest" width="600" height="400">-->
+            <div class="desc">
+                <b>Tree shrinkage</b> <br/>
+                Posthoc regularization for trees
+            </div>
+        </a>
+
+    </div>
+
+    <div class="gallery">
+        <a target="_blank" href="figs/" class="desc">
+            <img src="figs/logo_figs.svg" alt="Northern Lights" width="600" height="400">
+
+            <div class="desc">
+                <b>FIGS</b> <br/>
+                Greedily learn a concise sum of trees
+            </div>
+        </a>
+
+
+    </div>
+
+    <div class="gallery">
+        <a target="_blank" href="stablerules.html">
+            <img src="stablerules.jpg" alt="Mountains" width="600" height="400">
+            Stable Rules
+
+        </a>
+        <div class="desc">Finding a stable set of rules across different models</div>
+    </div>
+</div>
+</body>
+</html>

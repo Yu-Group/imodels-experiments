@@ -1,5 +1,5 @@
 <p align="center">
-	<img align="center" width=75% src="https://yu-group.github.io/imodels-experiments/docs/logo_experiments.svg?sanitize=True"> </img> 	 <br/>
+	<img align="center" width=75% src="https://yu-group.github.io/imodels-experiments/logo_experiments.svg?sanitize=True"> </img> 	 <br/>
 	Scripts for easily comparing different experimental aspects of the <a href="https://github.com/csinva/imodels">imodels package.</a>
 </p>
 
@@ -7,10 +7,10 @@
 
 # Experimental models
 
-| ![](docs/logo_saps.png)               | Tree shrinkage 🌱 | Stable rules                 |
-| ------------------------------------- | ---------------- | ---------------------------- |
-| Greedily learn a concise sum of trees | Shrunk trees ([demo](https://yu-group.github.io/imodels-experiments/notebooks/shrinkage/demo_main.html))    | Learn a set of stable models |
-
+- SAPS <img align="center" style="height:30px;" src="https://yu-group.github.io/imodels-experiments/figs/logo_figs.svg?sanitize=True"> </img> - greedily learn a concise sum of trees
+- Hierarchical tree shrinkage 🌱
+  - [demo](https://yu-group.github.io/imodels-experiments/notebooks/shrinkage/demo_main.html)
+- Stable rules - finding a stable set of rules across different models
 
 
 # Documentation
@@ -24,6 +24,7 @@ Follow these steps to benchmark a new model:
 3. run `01_fit_models.py`
     - pass the appropriate cmdline args (e.g. model, dataset, config)
     - example command: `python 01_fit_models.py --config saps --classification_or_regression regression --split_seed 0`
+    - another example command: `python 01_fit_models.py --config saps --classification_or_regression regression --model randomforest --split_seed 0`
     - running everything: loop over `split_seed` + `classification_or_regression`
     - alternatively, to parallelize over a slurm cluster, run `01_submit_fitting.py` with the appropriate loops
 4. run `02_aggregate_results.py` (which just combines the output of `01_run_comparisons.py` into a `combined.pkl` file across datasets) for plotting
@@ -31,7 +32,7 @@ Follow these steps to benchmark a new model:
 
 
 ## Config
-- Note that any hyperparameters not passed in ModelConfig cannot be aggregated over seeds later on
+- Note that any hyperparameters not passed in `ModelConfig ` cannot be aggregated over seeds later on
 
 
 # Testing

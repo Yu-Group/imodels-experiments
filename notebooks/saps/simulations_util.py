@@ -9,7 +9,6 @@ def sample_boolean_X(n, d):
     X = np.random.randint(0, 2.0, (n, d))
     return X
 
-
 def linear_model(X, sigma, s, beta):
     '''
     This method is used to crete responses from a linear model with hard sparsity
@@ -119,7 +118,6 @@ def sum_of_polys(X, sigma, m, r):
 def get_best_fit_line(x, y):
     m, b = np.polyfit(x, y, 1)
     return [m, b]
-
 
 def is_leaf(node):
     return node.left is None and node.right is None
