@@ -67,7 +67,7 @@ if __name__ == '__main__':
                     y_train = linear_model(X_train, s, beta, sigma)
                     y_test = linear_model(X_test, s, beta, 0)
 
-                for k, m in zip(['SAPS', 'CART', 'RF'], [SaplingSumRegressor(),
+                for k, m in zip(['FIGS', 'CART', 'RF'], [SaplingSumRegressor(),
                                                          DecisionTreeRegressor(min_samples_leaf=5),
                                                          RandomForestRegressor(n_estimators=100, max_features=0.33)]):
                     m.fit(X_train, y_train)

@@ -7,7 +7,7 @@ from util import ModelConfig
 
 RULEFIT_DEFAULT_KWARGS_CLASSIFICATION = {'random_state': 0, 'max_rules': None, 'include_linear': False, 'alpha': 1}
 ESTIMATORS_CLASSIFICATION = [
-    [ModelConfig('SAPS', SaplingSumClassifier, 'max_rules', n)
+    [ModelConfig('FIGS', SaplingSumClassifier, 'max_rules', n)
      for n in cat((np.arange(1, 19, 3), [25, 30]))],
     [ModelConfig('SAPS_(Include_Linear)', SaplingSumClassifier, 'max_rules', n, {'include_linear': True})
      for n in cat((np.arange(1, 19, 3), [25, 30]))],
@@ -33,6 +33,6 @@ ESTIMATORS_REGRESSION = [
      for n in np.arange(1, 6, 1)],
     [ModelConfig('CART_(MAE)', GreedyTreeRegressor, 'max_depth', n, {'criterion': 'absolute_error'})
      for n in np.arange(1, 6, 1)],
-    [ModelConfig('SAPS', SaplingSumRegressor, 'max_rules', n)
+    [ModelConfig('FIGS', SaplingSumRegressor, 'max_rules', n)
      for n in cat((np.arange(1, 19, 3), [25, 30]))],
 ]

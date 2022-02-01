@@ -5,6 +5,7 @@ from math import ceil
 from os.path import dirname
 from os.path import join as oj
 from typing import List, Dict, Any, Union, Tuple
+
 # import adjustText
 import dvu
 import matplotlib as mpl
@@ -27,11 +28,18 @@ cy = '#d8b365'
 cg = '#5ab4ac'
 
 DIR_FIGS = oj(dirname(os.path.realpath(__file__)), 'figs')
-DSET_METADATA = {'sonar': (208, 60), 'heart': (270, 15), 'breast-cancer': (277, 17), 'haberman': (306, 3), 'ionosphere': (351, 34), 'diabetes': (768, 8), 'german-credit': (1000, 20), 'juvenile': (3640, 286), 'recidivism': (6172, 20), 'credit': (30000, 33), 'readmission': (101763, 150), 'friedman1': (200, 10), 'friedman2': (200, 4), 'friedman3': (200, 4), 'abalone': (4177, 8), 'diabetes-regr': (442, 10), 'california-housing': (20640, 8), 'satellite-image': (6435, 36), 'echo-months': (17496, 9), 'breast-tumor': (116640, 9)}
+DSET_METADATA = {'sonar': (208, 60), 'heart': (270, 15), 'breast-cancer': (277, 17), 'haberman': (306, 3),
+                 'ionosphere': (351, 34), 'diabetes': (768, 8), 'german-credit': (1000, 20), 'juvenile': (3640, 286),
+                 'recidivism': (6172, 20), 'credit': (30000, 33), 'readmission': (101763, 150), 'friedman1': (200, 10),
+                 'friedman2': (200, 4), 'friedman3': (200, 4), 'abalone': (4177, 8), 'diabetes-regr': (442, 10),
+                 'california-housing': (20640, 8), 'satellite-image': (6435, 36), 'echo-months': (17496, 9),
+                 'breast-tumor': (116640, 9)}
+
 
 def plot_comparisons(metric='rocauc', datasets=[],
-                     models_to_include=['SAPS', 'CART'],
+                     models_to_include=['FIGS', 'CART'],
                      models_to_include_dashed=[],
+                     config_name='figs',
                      color_legend=True,
                      seed=None,
                      eps_legend_sep=0.01,
@@ -49,14 +57,14 @@ def plot_comparisons(metric='rocauc', datasets=[],
     plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
 
     COLORS = {
-        'SAPS': 'black',
+        'FIGS': 'black',
         'CART': 'orange',  # cp,
         'Rulefit': 'green',
         'C45': cb,
         'CART_(MSE)': 'orange',
         'CART_(MAE)': cg,
-        'SAPS_(Reweighted)': cg,
-        'SAPS_(Include_Linear)': cb,
+        'FIGS_(Reweighted)': cg,
+        'FIGS_(Include_Linear)': cb,
         'GBDT-1': cp,
         'GBDT-2': 'gray',
     }
@@ -71,11 +79,11 @@ def plot_comparisons(metric='rocauc', datasets=[],
 
         suffix = '_mean'
         if seed is None:
-            pkl_file = oj('results', 'saps', dset_name, 'train-test/results_aggregated.pkl')
+            pkl_file = oj('results', config_name, dset_name, 'train-test/results_aggregated.pkl')
             df = pkl.load(open(pkl_file, 'rb'))['df_mean']
             # print('ks', df.keys())
         else:
-            pkl_file = oj('results', 'saps', dset_name, 'train-test/seed0/results_aggregated.pkl')
+            pkl_file = oj('results', config_name, dset_name, 'train-test/seed0/results_aggregated.pkl')
             df = pkl.load(open(pkl_file, 'rb'))['df']
             suffix = ''
         texts = []
@@ -85,28 +93,28 @@ def plot_comparisons(metric='rocauc', datasets=[],
                 g = df.groupby('estimator').get_group(name)
             except:
                 raise Exception(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
-#             print(g)
-#             .get_group(name)
-#         for _, (name, g) in enumerate(df.groupby('estimator')):
-#             if name in models_to_include + models_to_include_dashed:
-                # print('g keys', g.keys())
+            #             print(g)
+            #             .get_group(name)
+            #         for _, (name, g) in enumerate(df.groupby('estimator')):
+            #             if name in models_to_include + models_to_include_dashed:
+            # print('g keys', g.keys())
             x = g['complexity' + suffix].values
             y = g[f'{metric}_test' + suffix].values
             yerr = g[f'{metric}_test' + '_std'].values
             args = np.argsort(x)
-            alpha = 1.0 if 'SAPS' == name else 0.35
-            lw = 2 if 'SAPS' == name else 1.5
+            alpha = 1.0 if 'FIGS' == name else 0.35
+            lw = 2 if 'FIGS' == name else 1.5
             name_lab = (
                 name.replace('_', ' ')
-                .replace('C45', 'C4.5')
-                .replace('SAPS', 'FIGS')
-                .replace('GBDT-1', 'Boosted Stumps')
+                    .replace('C45', 'C4.5')
+                    .replace('GBDT-1', 'Boosted Stumps')
             )
             kwargs = dict(color=COLORS.get(name, 'gray'),
                           alpha=alpha,
                           lw=lw,
                           zorder=-5,
-                     )
+                          )
+
             #                 print(g.keys())
             #                 plt.plot(x[args], y[args], '.-', **kwargs)
 
@@ -124,22 +132,22 @@ def plot_comparisons(metric='rocauc', datasets=[],
                 return y
 
             if name in models_to_include:
-                plt.errorbar(x[args], y[args], yerr=yerr[args], fmt='.-', 
+                plt.errorbar(x[args], y[args], yerr=yerr[args], fmt='.-',
                              label=name_lab, **kwargs)
-                if color_legend and i % C == C - 1 and i / C < 1: # top-right
+                if color_legend and i % C == C - 1 and i / C < 1:  # top-right
                     arg_rightmost_less_than_xlim = np.sum(x < xlim)
-                    y = select_y(y[args][arg_rightmost_less_than_xlim], # - eps_legend_sep / 2,
+                    y = select_y(y[args][arg_rightmost_less_than_xlim],  # - eps_legend_sep / 2,
                                  ys, eps_legend_sep)
                     ys.append(y)
                     texts.append(plt.text(xlim, y,
                                           name_lab,
                                           color=COLORS.get(name, 'gray'),
-                                         fontsize='medium'))
+                                          fontsize='medium'))
 
             elif name in models_to_include_dashed:
                 assert x.size == 1, 'Dashed models should only have 1 complexity value!'
                 plt.axhline(y[args], **kwargs, linestyle='--')
-                if i % C == C - 1 and i / C < 1: # top-right
+                if i % C == C - 1 and i / C < 1:  # top-right
                     ys.append(y[args])
                     texts.append(plt.text(xlim, y[args], 'Random Forest', color='gray', fontsize='medium'))
             if show_train:
@@ -149,21 +157,22 @@ def plot_comparisons(metric='rocauc', datasets=[],
             if xlim is not None:
                 plt.xlim((0, xlim))
 
-            plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA[dset_name][0]}$)', fontsize='medium')
+            plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA[dset_name][0]}$)',
+                      fontsize='medium')
         #         if i % C == C - 1:
-        if i % C == 0: # left col
+        if i % C == 0:  # left col
             plt.ylabel(metric.upper()
                        .replace('ROC', '')
                        .replace('R2', '$R^2$')
-                      )
-        if i % C == C - 1 and i / C < 1: # top-right
-            if color_legend: 
+                       )
+        if i % C == C - 1 and i / C < 1:  # top-right
+            if color_legend:
                 ax.set_xlim(right=xlim * 1.5)
-    #             adjustText.adjust_text(texts, only_move={'points':'', 'text':'y', 'objects':''}, 
-    #                                    avoid_points=False, va='center')            
+                #             adjustText.adjust_text(texts, only_move={'points':'', 'text':'y', 'objects':''},
+                #                                    avoid_points=False, va='center')
                 rect = patches.Rectangle((xlim, 0), 100, 1, linewidth=1, edgecolor='w', facecolor='w', zorder=-4)
                 ylim = ax.get_ylim()
-    #             dvu.line_legend(fontsize=10, xoffset_spacing=0.1, adjust_text_labels=True)
+                #             dvu.line_legend(fontsize=10, xoffset_spacing=0.1, adjust_text_labels=True)
                 ax.add_patch(rect)
                 ax.set_ylim(ylim)
             else:

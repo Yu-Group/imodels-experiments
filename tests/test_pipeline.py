@@ -7,9 +7,8 @@ from os.path import join
 import pytest
 import sh
 
-
-
 repo_dir = dirname(dirname(os.path.abspath(__file__)))
+print('repo_dir', repo_dir)
 sys.path.append(repo_dir)
 from config import get_configs
 import shutil
