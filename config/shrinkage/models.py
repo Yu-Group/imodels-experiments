@@ -1,5 +1,6 @@
 from functools import partial
 
+import numpy as np
 from sklearn.ensemble import (
     RandomForestClassifier, RandomForestRegressor,
     GradientBoostingClassifier, GradientBoostingRegressor,
@@ -46,3 +47,28 @@ ESTIMATORS_REGRESSION = [
                  partial(HSTreeRegressorCV, estimator_=GradientBoostingRegressor(n_estimators=n)))
      for n in ENSEMBLE_ESTIMATOR_NUMS],
 ]
+
+"""
+# gosdt experiments
+from imodels import OptimalTreeClassifier
+from imodels.experimental import HSOptimalTreeClassifierCV
+
+ESTIMATORS_CLASSIFICATION = [
+    [ModelConfig("OptimalTreeClassifier", OptimalTreeClassifier, "regularization", 0.3)],
+    [ModelConfig("ShrunkOptimalTreeClassifierCV", HSOptimalTreeClassifierCV, "reg_param", r)
+     for r in np.arange(0, 0.0051, 0.001)]
+]
+
+# bart experiments
+from bartpy import BART, HSBARTCV
+ESTIMATORS_CLASSIFICATION = [
+    [ModelConfig("BART", BART,
+                 other_params={"classification": True, "n_trees": 30, "n_samples": 100, "n_chains": 4})],
+    [ModelConfig("HSBARTCV", HSBARTCV)]
+]
+
+ESTIMATORS_REGRESSION = [
+    [ModelConfig("BART", BART,
+                 other_params={"classification": False, "n_trees": 30, "n_samples": 100, "n_chains": 4})]
+]
+"""

@@ -63,7 +63,8 @@ def compare_estimators(estimators: List[ModelConfig],
 
             sklearn_baselines = {
                 RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
-                RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor}
+                RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor
+            }
 
             start = time.time()
             if type(est) in sklearn_baselines:
@@ -89,7 +90,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 y_pred = est.predict(X_)
                 # print('best param', est.reg_param)
                 if args.classification_or_regression == 'classification':
-                    y_pred_proba = est.predict_proba(X_)[:, 1]
+                    y_pred_proba = est.predict_proba(X_)[..., 1]
                 for i, (met_name, met) in enumerate(metrics):
                     if met is not None:
                         if args.classification_or_regression == 'regression' \
