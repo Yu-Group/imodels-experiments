@@ -10,18 +10,19 @@ import sh
 repo_dir = dirname(dirname(os.path.abspath(__file__)))
 print('repo_dir', repo_dir)
 sys.path.append(repo_dir)
-from config import get_configs
+import config
 import shutil
 
 
 def test_valid_configs():
+    print('TESTSTSE\n\n', config.X)
     config_dir = join(repo_dir, 'config')
     configs = [d for d in os.listdir(config_dir)
                if os.path.isdir(join(config_dir, d))
                and not d.startswith('_')
                and not d == 'stablerules']
     for c in configs:
-        DATASETS_CLASSIFICATION, DATASETS_REGRESSION, ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = get_configs(c)
+        DSETS_CLASSIFICATION, DSETS_REGRESSION, ESTS_CLASSIFICATION, ESTS_REGRESSION = config.get_configs(c)
 
 
 def test_fit_models():
