@@ -18,7 +18,7 @@ ESTIMATORS_CLASSIFICATION = [
      for n in np.concatenate((np.arange(1, 19, 3), [25, 30]))],
     [ModelConfig('CART', GreedyTreeClassifier, 'max_depth', n)
      for n in np.arange(1, 6, 3)],
-    [ModelConfig('hsCART', HSTreeClassifier, 'max_depth', n)
+    [ModelConfig('HSCART', HSTreeClassifier, 'max_depth', n)
      for n in np.arange(1, 6, 3)],
     [ModelConfig('Rulefit', RuleFitClassifier, 'n_estimators', n, RULEFIT_DEFAULT_KWARGS_CLASSIFICATION)
      for n in [1, 3]],  # can also vary n_estimators and get a good spread
@@ -36,7 +36,7 @@ ESTIMATORS_REGRESSION = [
      for n in np.arange(1, 6, 3)],
     [ModelConfig('CART_(MAE)', GreedyTreeRegressor, 'max_depth', n, {'criterion': 'absolute_error'})
      for n in np.arange(1, 6, 3)],
-    [ModelConfig('hsCART', HSTreeRegressor, 'max_depth', n)
+    [ModelConfig('HSCART', HSTreeRegressor, 'max_depth', n)
      for n in np.arange(1, 6, 3)],
     [ModelConfig('FIGS', FIGSRegressor, 'max_rules', n)
      for n in cat((np.arange(1, 19, 3), [25, 30]))],

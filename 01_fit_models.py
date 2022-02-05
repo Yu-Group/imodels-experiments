@@ -10,9 +10,11 @@ from typing import Callable, List, Tuple
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
-    RandomForestRegressor
+    RandomForestRegressor, BaggingRegressor, BaggingClassifier
+from sklearn.linear_model import RidgeCV, LogisticRegressionCV
 from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score, f1_score, recall_score, \
     precision_score, r2_score, explained_variance_score, mean_squared_error
+from sklearn.model_selection import GridSearchCV
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from tqdm import tqdm
 
@@ -63,7 +65,8 @@ def compare_estimators(estimators: List[ModelConfig],
 
             sklearn_baselines = {
                 RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
-                RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor
+                RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor,
+                BaggingClassifier, BaggingRegressor, GridSearchCV, LogisticRegressionCV, RidgeCV
             }
 
             start = time.time()

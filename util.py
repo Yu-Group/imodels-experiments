@@ -8,6 +8,7 @@ from typing import Any, Dict, Tuple
 import numpy as np
 from sklearn import model_selection
 from sklearn.base import BaseEstimator
+from sklearn.model_selection import GridSearchCV
 
 from imodels.util.tree import compute_tree_complexity
 
@@ -145,9 +146,13 @@ def merge_overlapping_curves(test_mul_curves, y_col):
 def get_complexity(estimator: BaseEstimator) -> float:
     """Get complexity for any given estimator
     """
+    if isinstance(estimator, GridSearchCV):
+        estimator = estimator.best_estimator_
     if hasattr(estimator, 'complexity_'):
         return estimator.complexity_
-    else:
+    elif hasattr(estimator, 'tree_'):
+        return compute_tree_complexity(estimator.tree_)
+    elif hasattr(estimator, 'estimators_') or hasattr(estimator, 'estimator_'):
         # sklearn ensembles have estimator.estimators_
         # RandomForestClassifier, GradientBoostingClassifier, RandomForestRegressor, GradientBoostingRegressor
         estimators = None
@@ -170,6 +175,9 @@ def get_complexity(estimator: BaseEstimator) -> float:
                 tree = tree[0]
             complexity += compute_tree_complexity(tree.tree_)
         return complexity
+    else:
+        warnings.warn('Dont know how to compute complexity for ' + str(estimator))
+        return 0
 
 
 def apply_splitting_strategy(X: np.ndarray,

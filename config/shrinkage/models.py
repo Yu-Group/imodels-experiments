@@ -16,7 +16,7 @@ RANDOM_FOREST_DEFAULT_KWARGS = {'random_state': 0}
 ESTIMATORS_CLASSIFICATION = [
     [ModelConfig('CART', GreedyTreeClassifier, 'max_depth', n)
      for n in [1, 2, 3, 5, 7, 10]],
-    [ModelConfig('ShrunkCART', partial(HSTreeClassifierCV, estimator=DecisionTreeClassifier(max_depth=n)),
+    [ModelConfig('HSCART', partial(HSTreeClassifierCV, estimator=DecisionTreeClassifier(max_depth=n)),
                  'max_depth', n)
      for n in [1, 2, 3, 5, 7, 10]],
     [ModelConfig('Random_Forest', RandomForestClassifier, 'n_estimators', n, other_params=RANDOM_FOREST_DEFAULT_KWARGS)
@@ -33,17 +33,17 @@ ESTIMATORS_REGRESSION = [
      for n in TREE_DEPTHS],
     # [Model('CART_(MAE)', GreedyTreeRegressor, 'max_depth', n, other_params={'criterion': 'absolute_error'})
     #  for n in TREE_DEPTHS],
-    [ModelConfig('ShrunkCART', partial(HSTreeRegressorCV, estimator_=DecisionTreeRegressor(max_depth=n)))
+    [ModelConfig('HSCART', partial(HSTreeRegressorCV, estimator_=DecisionTreeRegressor(max_depth=n)))
      for n in TREE_DEPTHS],
     [ModelConfig('Random_Forest', RandomForestRegressor, other_params={'n_estimators': n})
      for n in ENSEMBLE_ESTIMATOR_NUMS],
-    [ModelConfig('Shrunk_Random_Forest',
+    [ModelConfig('HSRandom_Forest',
                  partial(HSTreeRegressorCV, estimator_=RandomForestRegressor(n_estimators=n)))
      for n in ENSEMBLE_ESTIMATOR_NUMS],
     [ModelConfig('Gradient_Boosting', GradientBoostingRegressor, 'n_estimators', n,
                  other_params=RANDOM_FOREST_DEFAULT_KWARGS)
      for n in ENSEMBLE_ESTIMATOR_NUMS],
-    [ModelConfig('Shrunk_Gradient_Boosting',
+    [ModelConfig('HSGradient_Boosting',
                  partial(HSTreeRegressorCV, estimator_=GradientBoostingRegressor(n_estimators=n)))
      for n in ENSEMBLE_ESTIMATOR_NUMS],
 ]
@@ -55,12 +55,12 @@ from imodels.experimental import HSOptimalTreeClassifierCV
 
 ESTIMATORS_CLASSIFICATION = [
     [ModelConfig("OptimalTreeClassifier", OptimalTreeClassifier, "regularization", 0.3)],
-    [ModelConfig("ShrunkOptimalTreeClassifierCV", HSOptimalTreeClassifierCV, "reg_param", r)
+    [ModelConfig("HSOptimalTreeClassifierCV", HSOptimalTreeClassifierCV, "reg_param", r)
      for r in np.arange(0, 0.0051, 0.001)]
 ]
 
 # bart experiments
-from bartpy import BART, HSBARTCV
+from imodels.experimental.bartpy import BART, HSBARTCV
 ESTIMATORS_CLASSIFICATION = [
     [ModelConfig("BART", BART,
                  other_params={"classification": True, "n_trees": 30, "n_samples": 100, "n_chains": 4})],

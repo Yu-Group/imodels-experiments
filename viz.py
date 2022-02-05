@@ -27,7 +27,7 @@ cp = '#cc3399'
 cy = '#d8b365'
 cg = '#5ab4ac'
 
-DIR_FIGS = oj(dirname(os.path.realpath(__file__)), 'figs')
+DIR_FIGS = oj(dirname(os.path.realpath(__file__)), 'figures')
 DSET_METADATA = {'sonar': (208, 60), 'heart': (270, 15), 'breast-cancer': (277, 17), 'haberman': (306, 3),
                  'ionosphere': (351, 34), 'diabetes': (768, 8), 'german-credit': (1000, 20), 'juvenile': (3640, 286),
                  'recidivism': (6172, 20), 'credit': (30000, 33), 'readmission': (101763, 150), 'friedman1': (200, 10),

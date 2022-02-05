@@ -3,7 +3,7 @@ from slurmpy import Slurm
 import config
 from itertools import product
 
-config_name = 'saps'
+config_name = 'figs_ensembles'
 DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
 ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(config_name)
 partition = 'high'
@@ -39,7 +39,7 @@ for split_seed in range(0, 6):
 """
 
 
-for split_seed in range(1, 6):
+for split_seed in range(1):
     for dset, est in list(product(DATASETS_CLASSIFICATION, ESTIMATORS_CLASSIFICATION)) \
                    + list(product(DATASETS_REGRESSION, ESTIMATORS_REGRESSION)):
         param_str = ''

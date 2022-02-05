@@ -26,7 +26,7 @@ colors = prop_cycle.by_key()['color']
 
 
 def make_comparison_grid(metric='rocauc', num_dsets=7, datasets=[],
-                         models_to_include=['SAPS', 'CART'], save_name='fig', data_type='reg_data'):
+                         models_to_include=['FIGS', 'CART'], save_name='fig', data_type='reg_data'):
     R, C = ceil(num_dsets / 3), 3
     plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
 
@@ -41,7 +41,7 @@ def make_comparison_grid(metric='rocauc', num_dsets=7, datasets=[],
         'Rulefit': 'green',
         'CART': 'orange',  # cp
         'C45': cb,
-        'SAPS': 'black',
+        'FIGS': 'black',
         'CART_(MAE)': cp,
         'SAPS_(Reweighted)': cg,
         'SAPS_(Include_Linear)': cb,
