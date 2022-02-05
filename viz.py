@@ -5,6 +5,7 @@ from math import ceil
 from os.path import dirname
 from os.path import join as oj
 from typing import List, Dict, Any, Union, Tuple
+import warnings
 
 # import adjustText
 import dvu
@@ -235,13 +236,15 @@ def plot_bests(metric='rocauc', datasets=[],
             try:
                 g = df.groupby('estimator').get_group(name)
             except:
-                raise Exception(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
+                warnings.warn(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
+#                 raise Exception(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
 
             x = g['complexity' + suffix].values
             y = g[f'{metric}_test' + suffix].values[0]
             yerr = g[f'{metric}_test' + '_std'].values
             vals.append(y)
-        plt.bar(models_to_include, vals)
+            names.append(name)
+        plt.bar(names, vals)
 #         plt.bar(np.arange(len(vals)), vals)
 
         # plot editing
@@ -252,6 +255,8 @@ def plot_bests(metric='rocauc', datasets=[],
                        .replace('ROC', '')
                        .replace('R2', '$R^2$')
                        )
+        if metric.upper() == 'ROCAUC':
+            plt.ylim(bottom=0.5)
 
 #         plt.legend()
     savefig(save_name)
