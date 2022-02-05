@@ -76,6 +76,8 @@ def plot_comparisons(metric='rocauc', datasets=[],
             dset_name = dset[0]
         #         try:
         ax = plt.subplot(R, C, i + 1)
+        plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA[dset_name][0]}$)',
+                  fontsize='medium')
 
         suffix = '_mean'
         if seed is None:
@@ -156,9 +158,6 @@ def plot_comparisons(metric='rocauc', datasets=[],
             plt.xlabel('Number of splits')
             if xlim is not None:
                 plt.xlim((0, xlim))
-
-            plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA[dset_name][0]}$)',
-                      fontsize='medium')
         #         if i % C == C - 1:
         if i % C == 0:  # left col
             plt.ylabel(metric.upper()
@@ -177,6 +176,84 @@ def plot_comparisons(metric='rocauc', datasets=[],
                 ax.set_ylim(ylim)
             else:
                 plt.legend()
+    savefig(save_name)
+
+
+def plot_bests(metric='rocauc', datasets=[],
+               models_to_include=['FIGS', 'CART'],
+               models_to_include_dashed=[],
+               config_name='figs',
+               color_legend=True,
+               seed=None,
+               eps_legend_sep=0.01,
+               save_name='fig', show_train=False, xlim=20):
+    """Plot bests for different models as a function of complexity
+    Note: for best legends, pass models_to_include from top to bottom
+
+    Params
+    ------
+    metric: str
+        Which metric to plot on y axis
+
+    """
+    R, C = ceil(len(datasets) / 3), 3
+    plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
+
+    COLORS = {
+        'FIGS': 'black',
+        'CART': 'orange',  # cp,
+        'Rulefit': 'green',
+        'C45': cb,
+        'CART_(MSE)': 'orange',
+        'CART_(MAE)': cg,
+        'FIGS_(Reweighted)': cg,
+        'FIGS_(Include_Linear)': cb,
+        'GBDT-1': cp,
+        'GBDT-2': 'gray',
+    }
+
+    # iterate over datasets
+    for i, dset in enumerate(tqdm(datasets)):
+        if isinstance(dset, str):
+            dset_name = dset
+        elif isinstance(dset, tuple):
+            dset_name = dset[0]
+        ax = plt.subplot(R, C, i + 1)
+        suffix = '_mean'
+        if seed is None:
+            pkl_file = oj('results', config_name, dset_name, 'train-test/results_aggregated.pkl')
+            df = pkl.load(open(pkl_file, 'rb'))['df_mean']
+        else:
+            pkl_file = oj('results', config_name, dset_name, 'train-test/seed0/results_aggregated.pkl')
+            df = pkl.load(open(pkl_file, 'rb'))['df']
+            suffix = ''
+
+        # iterate over models
+        vals = []
+        names = []
+        for name in models_to_include:
+            try:
+                g = df.groupby('estimator').get_group(name)
+            except:
+                raise Exception(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
+
+            x = g['complexity' + suffix].values
+            y = g[f'{metric}_test' + suffix].values[0]
+            yerr = g[f'{metric}_test' + '_std'].values
+            vals.append(y)
+        plt.bar(models_to_include, vals)
+#         plt.bar(np.arange(len(vals)), vals)
+
+        # plot editing
+        plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA[dset_name][0]}$)',
+                  fontsize='medium')
+        if i % C == 0:  # left col
+            plt.ylabel(metric.upper()
+                       .replace('ROC', '')
+                       .replace('R2', '$R^2$')
+                       )
+
+#         plt.legend()
     savefig(save_name)
 
 
