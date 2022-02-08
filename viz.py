@@ -14,6 +14,7 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from tqdm import tqdm
 
 from util import remove_x_axis_duplicates, merge_overlapping_curves
@@ -96,6 +97,7 @@ def plot_comparisons(metric='rocauc', datasets=[],
                 g = df.groupby('estimator').get_group(name)
             except:
                 raise Exception(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
+                continue
             #             print(g)
             #             .get_group(name)
             #         for _, (name, g) in enumerate(df.groupby('estimator')):
@@ -238,13 +240,15 @@ def plot_bests(metric='rocauc', datasets=[],
             except:
                 warnings.warn(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
 #                 raise Exception(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
+                continue
 
             x = g['complexity' + suffix].values
             y = g[f'{metric}_test' + suffix].values[0]
             yerr = g[f'{metric}_test' + '_std'].values
             vals.append(y)
             names.append(name)
-        plt.bar(names, vals)
+#         plt.bar(names, vals)
+        sns.barplot(names, vals)
 #         plt.bar(np.arange(len(vals)), vals)
 
         # plot editing

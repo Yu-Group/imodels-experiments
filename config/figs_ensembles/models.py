@@ -22,8 +22,9 @@ ESTIMATORS_CLASSIFICATION = [
 #     [ModelConfig('BaggingFIGS', partial(BaggingClassifier, base_estimator=FIGSExtClassifier()),
 #                  other_params={'n_estimators': 100})],
     [ModelConfig('RFFIGS', partial(BaggingClassifier,
+                                   max_samples=1, # 1 is same as normal RF....
                                    base_estimator=FIGSExtClassifier(max_features='auto')),
-                 other_params={'n_estimators': 100})],    
+                 other_params={'n_estimators': 10})],    
 ]
 
 ESTIMATORS_REGRESSION = [
@@ -39,7 +40,7 @@ ESTIMATORS_REGRESSION = [
 #                                  param_grid={'max_rules': [1, 2**3, 2**5, 2**7, 2**9]}))],
 #     [ModelConfig('BaggingFIGS', partial(BaggingRegressor, base_estimator=FIGSExtRegressor()),
 #                  other_params={'n_estimators': 100})],
-    [ModelConfig('RFFIGS', partial(BaggingRegressor,
-                                   base_estimator=FIGSExtRegressor(max_features='auto')),
-                 other_params={'n_estimators': 100})],        
+#     [ModelConfig('RFFIGS', partial(BaggingRegressor,
+#                                    base_estimator=FIGSExtRegressor(max_features='auto')),
+#                  other_params={'n_estimators': 100})],        
 ]
