@@ -21,6 +21,6 @@ for split_seed in split_seeds:
         param_str += f'--model "{est[0]}" '
         param_str += f'--config {config_name} '
         param_str += f'--split_seed {split_seed} '            
-#         param_str += '--ignore_cache'
+        param_str += '--ignore_cache'
         s.run(param_str)
         print(param_str)

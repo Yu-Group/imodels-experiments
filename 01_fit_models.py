@@ -210,7 +210,6 @@ if __name__ == '__main__':
     DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
     ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(args.config)
 
-    print('dset', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
     if args.classification:
         args.classification_or_regression = 'classification'
     elif args.regression:
@@ -256,7 +255,8 @@ if __name__ == '__main__':
         print('running',
               'datasets', [d[0] for d in datasets],
               'ests', ests)
-        print('saving to', args.results_path)
+        print('\tsaving to', args.results_path)
+#         print('\tinput arguments:', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
 
     for dataset in tqdm(datasets):
         path = util.get_results_path_from_args(args, dataset[0])

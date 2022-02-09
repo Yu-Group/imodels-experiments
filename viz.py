@@ -202,17 +202,11 @@ def plot_bests(metric='rocauc', datasets=[],
     R, C = ceil(len(datasets) / 3), 3
     plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
 
-    COLORS = {
-        'FIGS': 'black',
-        'CART': 'orange',  # cp,
-        'Rulefit': 'green',
-        'C45': cb,
-        'CART_(MSE)': 'orange',
-        'CART_(MAE)': cg,
-        'FIGS_(Reweighted)': cg,
-        'FIGS_(Include_Linear)': cb,
-        'GBDT-1': cp,
-        'GBDT-2': 'gray',
+    COLORS = { # cg, cp, cb, cp
+        'FIGS': cb,
+        'RFFIGS': '#0033cc',
+        'CART': 'orange',
+        'RF': '#ff6600',
     }
 
     # iterate over datasets
@@ -246,9 +240,11 @@ def plot_bests(metric='rocauc', datasets=[],
             y = g[f'{metric}_test' + suffix].values[0]
             yerr = g[f'{metric}_test' + '_std'].values
             vals.append(y)
-            names.append(name)
-#         plt.bar(names, vals)
-        sns.barplot(names, vals)
+            names.append(name.replace('RandomForest', 'RF'))
+        plt.bar(names, vals, color=[COLORS.get(name, 'grey') for name in names])
+#         plt.grid(zorder=100000)
+        
+        plt.xticks(rotation=15) 
 #         plt.bar(np.arange(len(vals)), vals)
 
         # plot editing
