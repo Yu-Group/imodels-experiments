@@ -1,6 +1,6 @@
-import numpy as np
 from collections import Counter
 
+import numpy as np
 import pandas as pd
 from scipy.spatial.distance import cosine
 
@@ -8,6 +8,7 @@ from scipy.spatial.distance import cosine
 def sample_boolean_X(n, d):
     X = np.random.randint(0, 2.0, (n, d))
     return X
+
 
 def linear_model(X, sigma, s, beta):
     '''
@@ -118,6 +119,7 @@ def sum_of_polys(X, sigma, m, r):
 def get_best_fit_line(x, y):
     m, b = np.polyfit(x, y, 1)
     return [m, b]
+
 
 def is_leaf(node):
     return node.left is None and node.right is None
