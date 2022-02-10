@@ -204,7 +204,10 @@ def plot_bests(metric='rocauc', datasets=[],
 
     COLORS = { # cg, cp, cb, cp
         'FIGS': cb,
-        'RFFIGS': '#0033cc',
+        'RFFIGS-10': '#0033cc',
+#         'RFFIGS': '#0033cc',
+#         'RFFIGS-depth4': cp,
+#         'RFFIGS-log2': 'blue',
         'CART': 'orange',
         'RF': '#ff6600',
     }

@@ -8,6 +8,7 @@ DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
 ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(config_name)
 split_seeds = range(1)
 partition = 'high'
+# partition = 'low'
 s = Slurm("fit", {"partition": partition})
 
 for split_seed in split_seeds:
