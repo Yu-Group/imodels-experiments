@@ -15,10 +15,10 @@
 
 # Documentation
 
-Follow these steps to benchmark a new model:
+Follow these steps to benchmark a new (supervised) model. If you want to benchmark something like feature importance or unsupervised learning, you will have to make more substantial changes (mostly in `01_fit_models.py`)
 
-1. Write the sklearn-compliant model (init, fit, predict, predict_proba for classifiers) and add it somewhere in imodels
-2. Update configs - create a new folder mimicking an existing folder (e.g. `config.saps`)
+1. Write the sklearn-compliant model (init, fit, predict, predict_proba for classifiers) and add it somewhere in a local folder or in `imodels`
+2. Update configs - create a new folder mimicking an existing folder (e.g. `config.shrinkage`)
    1. Select which datasets you want by modifying `datasets.py` (datasets will be downloaded locally automatically later)
    2. Select which models you want by editing a list similar to `models.py`
 3. run `01_fit_models.py`
@@ -28,7 +28,7 @@ Follow these steps to benchmark a new model:
     - running everything: loop over `split_seed` + `classification_or_regression`
     - alternatively, to parallelize over a slurm cluster, run `01_submit_fitting.py` with the appropriate loops
 4. run `02_aggregate_results.py` (which just combines the output of `01_run_comparisons.py` into a `combined.pkl` file across datasets) for plotting
-5. look at the results in the `notebooks` folder
+5. put scripts/notebooks into a subdirectory of the `notebooks` folder (e.g. `notebooks/shrinkage`)
 
 
 ## Config
