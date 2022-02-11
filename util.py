@@ -17,15 +17,56 @@ DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
 class ModelConfig:
     def __init__(self,
-                 name: str, cls,
+                 name: str, cls, model_type: str = None,
                  vary_param: str = None, vary_param_val: Any = None,
                  other_params: Dict[str, Any] = {}):
         """
+        model_type: str
+            Either "tree", "linear", or None
         vary_param: str
             Name of the parameter to be varied
         """
+        assert model_type in {"tree", "linear", None}
+
         self.name = name
         self.cls = cls
+        self.model_type = model_type
+        self.vary_param = vary_param
+        self.vary_param_val = vary_param_val
+        self.kwargs = {}
+        if self.vary_param is not None:
+            self.kwargs[self.vary_param] = self.vary_param_val
+        self.kwargs = {**self.kwargs, **other_params}
+
+    def __repr__(self):
+        return self.name
+
+
+class FIModelConfig:
+    def __init__(self,
+                 name: str, cls, model_type: str = None,
+                 splitting_strategy: str = None, pval: bool = False,
+                 vary_param: str = None, vary_param_val: Any = None,
+                 other_params: Dict[str, Any] = {}):
+        """
+        model_type: str
+            Either "tree", "linear", or None
+        splitting_strategy: str
+            See util.apply_splitting_strategy(). Common inputs are "train-test" and None
+        pval: bool
+            Set to True if method returns a p-value and False otherwise
+        vary_param: str
+            Name of the parameter to be varied
+        """
+        assert model_type in {"tree", "linear", None}
+        assert splitting_strategy in {
+            'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata', None}
+
+        self.name = name
+        self.cls = cls
+        self.model_type = model_type
+        self.splitting_strategy = splitting_strategy
+        self.pval = pval
         self.vary_param = vary_param
         self.vary_param_val = vary_param_val
         self.kwargs = {}
@@ -174,7 +215,7 @@ def get_complexity(estimator: BaseEstimator) -> float:
             if isinstance(tree, np.ndarray):
                 tree = tree[0]
             if hasattr(estimator, 'complexity_'): # e.g. FIGSEnsemble
-                complexity += estimatr.complexity_
+                complexity += estimator.complexity_
             if hasattr(tree, 'tree_'):
                 complexity += compute_tree_complexity(tree.tree_)
         return complexity
@@ -202,3 +243,13 @@ def apply_splitting_strategy(X: np.ndarray,
             X_train, y_train, test_size=0.2, random_state=split_seed)
 
     return X_train, X_tune, X_test, y_train, y_tune, y_test
+
+
+def get_rejected_features(fi_score, alpha = 0.05):
+    """
+    Convert p-values to indicators. 1 if H0 is rejected and 0 if H0 is not rejected.
+    """
+    fi_score["importance"] = (fi_score["importance"] <= alpha).astype(int)
+    return fi_score
+
+#%%
