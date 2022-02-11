@@ -103,7 +103,7 @@ def aggregate_over_seeds(path: str):
                 ks.append(k)
         ks.remove('split_seed')
 
-        # mean
+        # mean / std error of the mean
         grouped = df.fillna(-1).groupby(ks)
         dm = grouped.mean().drop(columns='split_seed')
         ds = grouped.sem().drop(columns='split_seed')

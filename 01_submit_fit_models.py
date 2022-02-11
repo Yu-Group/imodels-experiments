@@ -6,8 +6,9 @@ from itertools import product
 config_name = 'figs_ensembles'
 DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
 ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(config_name)
-split_seeds = range(1)
+split_seeds = range(4)
 partition = 'high'
+# partition = 'low'
 s = Slurm("fit", {"partition": partition})
 
 for split_seed in split_seeds:
@@ -21,6 +22,6 @@ for split_seed in split_seeds:
         param_str += f'--model "{est[0]}" '
         param_str += f'--config {config_name} '
         param_str += f'--split_seed {split_seed} '            
-        param_str += '--ignore_cache'
+#         param_str += '--ignore_cache'
         s.run(param_str)
         print(param_str)
