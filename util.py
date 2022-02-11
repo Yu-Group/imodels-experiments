@@ -17,9 +17,10 @@ DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
 class ModelConfig:
     def __init__(self,
-                 name: str, cls, model_type: str = None,
+                 name: str, cls,
                  vary_param: str = None, vary_param_val: Any = None,
-                 other_params: Dict[str, Any] = {}):
+                 other_params: Dict[str, Any] = {},
+                 model_type: str = None):
         """
         model_type: str
             Either "tree", "linear", or None
@@ -44,10 +45,11 @@ class ModelConfig:
 
 class FIModelConfig:
     def __init__(self,
-                 name: str, cls, model_type: str = None,
+                 name: str, cls,
                  splitting_strategy: str = None, pval: bool = False,
                  vary_param: str = None, vary_param_val: Any = None,
-                 other_params: Dict[str, Any] = {}):
+                 other_params: Dict[str, Any] = {},
+                 model_type: str = None):
         """
         model_type: str
             Either "tree", "linear", or None

@@ -17,9 +17,9 @@ from util_metrics import MDI
 
 RANDOM_FOREST_DEFAULT_KWARGS = {'random_state': 0}
 ESTIMATORS_CLASSIFICATION = [
-    [ModelConfig('CART', GreedyTreeClassifier, 'tree', 'max_depth', n)
+    [ModelConfig('CART', GreedyTreeClassifier, 'max_depth', n, model_type='tree')
      for n in [1, 2, 3, 5, 7, 10]],
-    [ModelConfig('OLS', GreedyTreeClassifier, 'linear')],
+    [ModelConfig('OLS', GreedyTreeClassifier, model_type='linear')],
     # [ModelConfig('HSCART', partial(HSTreeClassifierCV, estimator=DecisionTreeClassifier(max_depth=n)),
     #              'max_depth', n)
     #  for n in [1, 2, 3, 5, 7, 10]],
@@ -31,14 +31,14 @@ ESTIMATORS_CLASSIFICATION = [
 ]
 
 FI_ESTIMATORS_CLASSIFICATION = [
-    [FIModelConfig('MDI', MDI, 'tree', 'train-test', False)],
-    [FIModelConfig('T-Test', MDI, 'linear', None, True)],
+    [FIModelConfig('MDI', MDI, 'train-test', False, model_type='tree')],
+    [FIModelConfig('T-Test', MDI, None, True, model_type='linear')],
 ]
 
 ENSEMBLE_ESTIMATOR_NUMS = [3, 10, 25, 50]
 TREE_DEPTHS = [1, 2, 3, 4, 5, 7, 8, 10, 15, 20, 25]
 ESTIMATORS_REGRESSION = [
-    [ModelConfig('CART_(MSE)', GreedyTreeRegressor, 'tree', 'max_depth', n)
+    [ModelConfig('CART_(MSE)', GreedyTreeRegressor, 'max_depth', n, model_type='tree')
      for n in TREE_DEPTHS],
     # [Model('CART_(MAE)', GreedyTreeRegressor, 'max_depth', n, other_params={'criterion': 'absolute_error'})
     #  for n in TREE_DEPTHS],
@@ -58,8 +58,8 @@ ESTIMATORS_REGRESSION = [
 ]
 
 FI_ESTIMATORS_REGRESSION = [
-    [FIModelConfig('MDI', MDI, 'tree', 'train-test', False)],
-    [FIModelConfig('T-Test', MDI, 'linear', None, True)],
+    [FIModelConfig('MDI', MDI, 'train-test', False, model_type='tree')],
+    [FIModelConfig('T-Test', MDI, None, True, model_type='linear')],
 ]
 
 """
