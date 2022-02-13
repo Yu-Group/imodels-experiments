@@ -231,6 +231,7 @@ def plot_bests(metric='rocauc', datasets=[],
         # iterate over models
         vals = []
         names = []
+        errs = []
         for name in models_to_include:
             try:
                 g = df.groupby('estimator').get_group(name)
@@ -241,10 +242,13 @@ def plot_bests(metric='rocauc', datasets=[],
 
             x = g['complexity' + suffix].values
             y = g[f'{metric}_test' + suffix].values[0]
-            yerr = g[f'{metric}_test' + '_std'].values
+            yerr = g[f'{metric}_test' + '_std'].values[0]
             vals.append(y)
+            errs.append(yerr)
             names.append(name.replace('RandomForest', 'RF'))
-        plt.bar(names, vals, color=[COLORS.get(name, 'grey') for name in names])
+        plt.bar(names, vals,
+                yerr=yerr,
+                color=[COLORS.get(name, 'grey') for name in names])
 #         plt.grid(zorder=100000)
         
         plt.xticks(rotation=15) 
