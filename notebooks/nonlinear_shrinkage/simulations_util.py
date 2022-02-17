@@ -1,8 +1,4 @@
-from collections import Counter
-
 import numpy as np
-import pandas as pd
-from scipy.spatial.distance import cosine
 
 
 def sample_boolean_X(n, d):
@@ -28,7 +24,7 @@ def generate_coef(beta, s):
     return beta
 
 
-def linear_model(X, sigma, s, beta):
+def linear_model(X, sigma, s, beta, return_support=False):
     '''
     This method is used to crete responses from a linear model with hard sparsity
     Parameters:
@@ -49,10 +45,14 @@ def linear_model(X, sigma, s, beta):
     beta = generate_coef(beta, s)
     y_train = np.array([create_y(X[i, :], s, beta) for i in range(len(X))])
     y_train = y_train + sigma * np.random.randn((len(X)))
-    return y_train
+    if return_support:
+        support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
+        return y_train, support, beta
+    else:
+        return y_train
 
 
-def sum_of_squares(X, sigma, s, beta):
+def sum_of_squares(X, sigma, s, beta, return_support=False):
     '''
     This method is used to create responses from a sum of squares model with hard sparsity
     Parameters:
@@ -73,7 +73,11 @@ def sum_of_squares(X, sigma, s, beta):
     beta = generate_coef(beta, s)
     y_train = np.array([create_y(X[i, :], s, beta) for i in range(len(X))])
     y_train = y_train + sigma * np.random.randn((len(X)))
-    return y_train
+    if return_support:
+        support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
+        return y_train, support, beta
+    else:
+        return y_train
 
 
 def lss_model(X, sigma, m, r, tau, beta):
@@ -138,4 +142,3 @@ def sum_of_polys(X, sigma, m, r, beta):
     y_train = y_train + sigma * np.random.randn(n)
 
     return y_train
-

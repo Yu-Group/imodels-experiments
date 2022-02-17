@@ -1,3 +1,4 @@
+import numpy as np
 from sklearn.metrics import confusion_matrix, precision_recall_curve, auc
 import pandas as pd
 
@@ -32,4 +33,5 @@ def pr_auc_score(y_true, y_score):
 
 
 def MDI(X, y, fit):
-    return pd.DataFrame(data={"var": ["a", "b", "c"], "importance": [1, 2, 3]})
+    return pd.DataFrame(data={"var": list(range(X.shape[1])),
+                              "importance": np.random.randn(X.shape[1])})
