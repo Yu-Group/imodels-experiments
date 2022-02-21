@@ -4,7 +4,7 @@ from typing import Tuple
 import numpy as np
 import pandas as pd
 from scipy.interpolate import interp1d
-from sklearn.metrics import accuracy_score
+from sklearn import metrics as skmetrics
 
 from util import remove_x_axis_duplicates
 
@@ -83,5 +83,22 @@ def get_best_accuracy(ytest, yscore):
     thrs = np.unique(yscore)
     accs = []
     for thr in thrs:
-        accs.append(accuracy_score(ytest, yscore > thr))
+        accs.append(skmetrics.accuracy_score(ytest, yscore > thr))
     return np.max(accs)
+
+def make_best_spec_high_sens_scorer(min_sensitivity: float = 0.98):
+
+    def get_best_spec_high_sens(ytest, yscore):
+        thrs = np.unique(yscore)
+        best_spec = 0
+        for thr in thrs:
+            preds = yscore > thr
+            tn, fp, fn, tp = skmetrics.confusion_matrix(ytest, preds).ravel()
+            specificity = tn / (tn + fp)
+            sensitivity = tp / (tp + fn)
+
+            if sensitivity >= min_sensitivity:
+                best_spec = max(specificity, best_spec)
+        return best_spec
+
+    return get_best_spec_high_sens
