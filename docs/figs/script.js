@@ -14,9 +14,9 @@ const emojis = [
 // "https://assets.codepen.io/t-1043/hmph.png",
 // "https://assets.codepen.io/t-1043/okei.png",
 //     "https://demos.csinva.io/logo_figs.svg",
-    "logo_figs.svg",
-    "logo_figs (1).svg",
-    "logo_figs (2).svg",
+    "https://demos.csinva.io/figs/logo_figs.svg",
+    "https://demos.csinva.io/figs/logo_figs_1.svg",
+    "https://demos.csinva.io/figs/logo_figs_2.svg",
   // "https://csinva.io/imodels/img/model_table.png",
   //   "https://csinva.io/imodels/img/imodels_logo.svg",
 // "https://assets.codepen.io/t-1043/whew.png"
