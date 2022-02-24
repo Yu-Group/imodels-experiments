@@ -173,11 +173,13 @@ def get_complexity(estimator: BaseEstimator) -> float:
         for tree in estimators:
             if isinstance(tree, np.ndarray):
                 tree = tree[0]
-            if hasattr(estimator, 'complexity_'): # e.g. FIGSEnsemble
-                complexity += estimatr.complexity_
+            if hasattr(estimator, 'complexity_'):  # e.g. FIGSEnsemble
+                complexity += estimator.complexity_
             if hasattr(tree, 'tree_'):
                 complexity += compute_tree_complexity(tree.tree_)
         return complexity
+    elif hasattr(estimator, 'student'):
+        return get_complexity(estimator.student)
     else:
         warnings.warn('Dont know how to compute complexity for ' + str(estimator))
         return 0

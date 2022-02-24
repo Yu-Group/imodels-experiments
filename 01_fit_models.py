@@ -21,6 +21,7 @@ from tqdm import tqdm
 import config
 import util
 from imodels.util.data_util import get_clean_dataset
+import imodels
 from util import ModelConfig
 from validate import get_best_accuracy
 
@@ -66,7 +67,8 @@ def compare_estimators(estimators: List[ModelConfig],
             sklearn_baselines = {
                 RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
                 RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor,
-                BaggingClassifier, BaggingRegressor, GridSearchCV, LogisticRegressionCV, RidgeCV
+                BaggingClassifier, BaggingRegressor, GridSearchCV, LogisticRegressionCV, RidgeCV,
+                imodels.DistilledRegressor
             }
 
             start = time.time()
