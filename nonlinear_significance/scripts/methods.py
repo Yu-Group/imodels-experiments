@@ -25,8 +25,8 @@ def lin_reg_t_test(X, y, fit):
         lin_reg = sm.OLS(y, X)
         fit = lin_reg.fit()
     results = fit.pvalues
-    results = pd.DataFrame(data=results, columns=['Importance'])
-    results.index.name = 'Var'
+    results = pd.DataFrame(data=results, columns=['importance'])
+    results.index.name = 'var'
     results.reset_index(inplace=True)
 
     return results
@@ -44,12 +44,12 @@ def tree_mdi(X,y,fit):
                          Importance: MDI or avg MDI
     '''
     results = fit.feature_importances_
-    results = pd.DataFrame(data=results, columns=['Importance'])
+    results = pd.DataFrame(data=results, columns=['importance'])
 
     # Use column names from dataframe if possible
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
-    results.index.name = 'Var'
+    results.index.name = 'var'
     results.reset_index(inplace=True)
 
     return results
@@ -68,12 +68,12 @@ def perm_importance(X,y,fit,n_repeats = 10):
     '''
     results = permutation_importance(fit, X, y, n_repeats=n_repeats,random_state = 0)
     results = results.importances_mean
-    results = pd.DataFrame(data=results, columns=['Importance'])
+    results = pd.DataFrame(data=results, columns=['importance'])
 
     # Use column names from dataframe if possible
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
-    results.index.name = 'Var'
+    results.index.name = 'var'
     results.reset_index(inplace=True)
 
     return results
@@ -95,11 +95,11 @@ def knockpy_swap_integral(X,y,model,fdr=0.2):
     model_fstat = kpy.knockoff_stats.FeatureStatistic(model=model)
     kfilter = KnockoffFilter(ksampler='gaussian', fstat=model_fstat)
     rejections = kfilter.forward(X, y, fdr=fdr)
-    results = pd.DataFrame(data=rejections, columns=['Rejected'])
+    results = pd.DataFrame(data=rejections, columns=['importance'])
     # Use column names from dataframe if possible
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
-    results.index.name = 'Var'
+    results.index.name = 'var'
     results.reset_index(inplace=True)
 
     return results
@@ -118,11 +118,11 @@ def tree_shap_mean(X,y,fit):
     shap_values = explainer.shap_values(X)
     results = abs(shap_values)
     results = results.mean(axis = 0)
-    results = pd.DataFrame(data=results, columns=['Importance'])
+    results = pd.DataFrame(data=results, columns=['importance'])
     # Use column names from dataframe if possible
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
-    results.index.name = 'Var'
+    results.index.name = 'var'
     results.reset_index(inplace=True)
 
     return results
