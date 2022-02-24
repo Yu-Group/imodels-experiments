@@ -40,20 +40,15 @@ def compare_estimators(estimators: List[ModelConfig],
     if type(metrics) != list:
         raise Exception("Argument metrics needs to be a list containing ('name', callable) pairs")
 
-    # initialize results with metadata
-    results = defaultdict(lambda: [])
-    for e in estimators:
-        kwargs: dict = e.kwargs  # dict
-        for k in kwargs:
-            results[k].append(kwargs[k])
-    rules = results.copy()
-
     sklearn_baselines = {
         # insert models here
         RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
         RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor,
         BaggingClassifier, BaggingRegressor, GridSearchCV, LogisticRegressionCV, RidgeCV
     }
+
+    # initialize results
+    results = defaultdict(lambda: [])
 
     # loop over datasets
     for d in datasets:
@@ -97,9 +92,6 @@ def compare_estimators(estimators: List[ModelConfig],
                     est.fit(X_train, y_train, feature_names=feat_names)
                 end = time.time()
 
-                # things for saving
-                rules[d[0]].append(vars(est))
-
                 # loop over fi estimators
                 for fi_est in fi_ests:
                     metric_results = {
@@ -117,9 +109,13 @@ def compare_estimators(estimators: List[ModelConfig],
                     metric_results['complexity'] = util.get_complexity(est)
                     metric_results['time'] = end - start
 
+                    # initialize results with metadata and metric results
+                    kwargs: dict = model.kwargs  # dict
+                    for k in kwargs:
+                        results[k].append(kwargs[k])
                     for met_name, met_val in metric_results.items():
                         results[met_name].append(met_val)
-    return results, rules
+    return results
 
 
 def run_comparison(path: str,
@@ -137,11 +133,11 @@ def run_comparison(path: str,
         print(f'{estimator_name} results already computed and cached. use --ignore_cache to recompute')
         return
 
-    results, rules = compare_estimators(estimators=estimators,
-                                        fi_estimators=fi_estimators,
-                                        datasets=datasets,
-                                        metrics=metrics,
-                                        args=args)
+    results = compare_estimators(estimators=estimators,
+                                 fi_estimators=fi_estimators,
+                                 datasets=datasets,
+                                 metrics=metrics,
+                                 args=args)
 
     estimators_list = [e.name for e in estimators]
     fi_estimators_list = [f.name for f in itertools.chain(*fi_estimators)]
@@ -150,6 +146,11 @@ def run_comparison(path: str,
     df = pd.DataFrame.from_dict(results)
     df['split_seed'] = args.split_seed
 
+    rules = defaultdict(lambda: [])
+    for e in estimators:
+        kwargs: dict = e.kwargs  # dict
+        for k in kwargs:
+            rules[k].append(kwargs[k])
     df_rules = pd.DataFrame.from_dict(rules)
     df_rules['split_seed'] = args.split_seed
     df_rules['estimator'] = estimators_list

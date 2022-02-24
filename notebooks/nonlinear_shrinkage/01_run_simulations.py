@@ -47,12 +47,8 @@ def compare_estimators(estimators: List[ModelConfig],
     if type(metrics) != list:
         raise Exception("Argument metrics needs to be a list containing ('name', callable) pairs")
 
-    # initialize results with metadata
+    # initialize results
     results = defaultdict(lambda: [])
-    for e in estimators:
-        kwargs: dict = e.kwargs  # dict
-        for k in kwargs:
-            results[k].append(kwargs[k])
 
     # loop over model estimators
     for model in tqdm(estimators, leave=False):
@@ -98,6 +94,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 metric_results['fi_scores'] = fi_score
                 reject_features = None
                 if fi_est.pval:
+                    fi_score['importance'] = -fi_score['importance']
                     reject_features = get_rejected_features(fi_score, args.alpha)
                 metric_results['est_support'] = reject_features
                 for i, (met_name, met) in enumerate(metrics):
@@ -112,6 +109,10 @@ def compare_estimators(estimators: List[ModelConfig],
                 metric_results['complexity'] = util.get_complexity(est)
                 metric_results['time'] = end - start
 
+                # initialize results with metadata and metric results
+                kwargs: dict = model.kwargs  # dict
+                for k in kwargs:
+                    results[k].append(kwargs[k])
                 for met_name, met_val in metric_results.items():
                     results[met_name].append(met_val)
     return results
