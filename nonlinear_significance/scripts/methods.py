@@ -21,8 +21,12 @@ def lin_reg_t_test(X, y, fit):
     '''
 
     # check if using statsmodels fit (better to extract p-values)
-    if not isinstance(fit,sm.regression.linear_model.RegressionResultsWrapper):
+    # refit if using sklearn
+    if isinstance(fit,LinearRegression):
         lin_reg = sm.OLS(y, X)
+        fit = lin_reg.fit()
+    if isinstance(fit,LogisticRegression):
+        lin_reg = sm.Logit(y, X)
         fit = lin_reg.fit()
     results = fit.pvalues
     results = pd.DataFrame(data=results, columns=['importance'])
