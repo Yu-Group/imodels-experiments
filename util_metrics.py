@@ -30,8 +30,3 @@ def specificity_score(y_true, y_pred):
 def pr_auc_score(y_true, y_score):
     precision, recall, _ = precision_recall_curve(y_true, y_score)
     return auc(recall, precision)
-
-
-def MDI(X, y, fit):
-    return pd.DataFrame(data={"var": list(range(X.shape[1])),
-                              "importance": np.random.randn(X.shape[1])})
