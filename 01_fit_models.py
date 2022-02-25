@@ -105,6 +105,7 @@ def compare_estimators(estimators: List[ModelConfig],
                             metric_results[met_name + suffix] = met(y_, y_pred_proba)
             metric_results['complexity'] = util.get_complexity(est)
             metric_results['time'] = end - start
+            metric_results.update(model.extra_aggregate_keys) # add extra keys to aggregate over
 
             for met_name, met_val in metric_results.items():
                 colname = met_name

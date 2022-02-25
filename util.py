@@ -19,10 +19,22 @@ class ModelConfig:
     def __init__(self,
                  name: str, cls,
                  vary_param: str = None, vary_param_val: Any = None,
-                 other_params: Dict[str, Any] = {}):
-        """
+                 other_params: Dict[str, Any] = {},
+                 extra_aggregate_keys: Dict[str, Any] = {}):
+        """A small wrapper to help specify configurations of models.
+        name
+            The name for this run (e.g. "FIGS")
+        cls
+            The (uninitialized) model class. (e.g. imodels.FIGSRegressor)
         vary_param: str
             Name of the parameter to be varied
+        vary_param_val: Any
+            The value of the parameter to be varied
+        other_params: Dict
+            Any other parameters - these are all passed to the model when it is initialized
+        extra_aggregate_keys: Dict
+            Dictionary of other keys to be stored for this run (not passed to __init__)
+            Runs with different values won't be averaged over even if they have different seeds
         """
         self.name = name
         self.cls = cls
@@ -32,6 +44,7 @@ class ModelConfig:
         if self.vary_param is not None:
             self.kwargs[self.vary_param] = self.vary_param_val
         self.kwargs = {**self.kwargs, **other_params}
+        self.extra_aggregate_keys = extra_aggregate_keys # extra keys used to aggregate over non-keyword args, should be unique
 
     def __repr__(self):
         return self.name

@@ -3,13 +3,18 @@ from slurmpy import Slurm
 import config
 from itertools import product
 
-config_name = 'figs_ensembles'
+config_name = 'figs_distillation'
 DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
 ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(config_name)
-split_seeds = range(4)
+split_seeds = range(2)
 partition = 'high'
 # partition = 'low'
 s = Slurm("fit", {"partition": partition})
+
+
+# individual alterations
+# DATASETS_CLASSIFICATION = []
+# ESTIMATORS_CLASSIFICATION = []
 
 for split_seed in split_seeds:
     for dset, est in list(product(DATASETS_CLASSIFICATION, ESTIMATORS_CLASSIFICATION)) \

@@ -69,6 +69,11 @@ def plot_comparisons(metric='rocauc', datasets=[],
         'FIGS_(Include_Linear)': cb,
         'GBDT-1': cp,
         'GBDT-2': 'gray',
+        'Dist-GB-FIGS': cg,
+        'Dist-RF-FIGS': cp,
+        'Dist-RF-FIGS-3': 'green',
+        'RandomForest': 'gray',
+        'GBDT': 'black',
     }
 
     for i, dset in enumerate(tqdm(datasets)):
@@ -120,6 +125,8 @@ def plot_comparisons(metric='rocauc', datasets=[],
                           zorder=-5,
                           )
 
+#             if name == 'Dist-GB-FIGS':
+#                 print(g)
             #                 print(g.keys())
             #                 plt.plot(x[args], y[args], '.-', **kwargs)
 
@@ -154,7 +161,9 @@ def plot_comparisons(metric='rocauc', datasets=[],
                 plt.axhline(y[args], **kwargs, linestyle='--')
                 if i % C == C - 1 and i / C < 1:  # top-right
                     ys.append(y[args])
-                    texts.append(plt.text(xlim, y[args], 'Random Forest', color='gray', fontsize='medium'))
+                    texts.append(plt.text(xlim, y[args],
+                                          name.replace('RandomForest', 'Random Forest').replace('GBDT', 'GBDT'),
+                                          color=COLORS.get(name, 'gray'), fontsize='medium'))
             if show_train:
                 plt.plot(g[f'complexity_train'][args], g[f'{dset_name}_{metric}_train'][args], '.--', **kwargs,
                          label=name + ' (Train)')
