@@ -4,7 +4,9 @@ from collections import defaultdict
 from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.decomposition import PCA
 from sklearn.ensemble import BaseEnsemble
-
+import statistics
+import statsmodels.api as sm
+from sklearn.model_selection import train_test_split
 
 def compare(query, feature, threshold, sign=True):
     if sign:
@@ -146,8 +148,11 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
             if n_stumps_for_k > self.max_components:
                 self.pca_transformers[k] = PCA(n_components=self.max_components)
                 self.pca_transformers[k].fit(transformed_feature_vectors)
-
-            n_new_feats_for_k = min(self.max_components, n_stumps_for_k)
+            if self.max_components <= 1.0:
+                n_new_feats_for_k = min(self.pca_transformers[k].explained_variance_.shape[0], n_stumps_for_k)
+            else:
+                n_new_feats_for_k = min(self.max_components, n_stumps_for_k)
+            #print(self.pca_transformers[k].explained_variance_.shape)            
             self.original_feat_to_transformed_mapping[k] = np.arange(counter, counter + n_new_feats_for_k)
             counter += n_new_feats_for_k
 
@@ -161,3 +166,28 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
             transformed_feature_vectors_sets.append(transformed_feature_vectors)
 
         return np.hstack(transformed_feature_vectors_sets)
+    
+     
+    def get_transformed_X_for_feat(self,X_transformed,feature,max_components):
+        '''
+        This method takes in the transformed X matrix (applying the node basis) and returns the X matrix restricted to a particular feature. 
+        '''
+        X_transformed_feat = X_transformed[:,self.original_feat_to_transformed_mapping[feature]]
+        if max_components <= X_transformed_feat.shape[1]:
+            return X_transformed[:,self.original_feat_to_transformed_mapping[feature]]
+        else:
+            return X_transformed[:,self.original_feat_to_stump_mapping[feature]]
+        
+    
+    #def multiple_test_correction
+        
+    
+    #def get_subspace_correlation(self,X_transformed,feat_1,feat_2,max_components = np.inf):
+    #    '''
+    #    This method takes in the transformed X matrix and returns the subspace correlation matrix. 
+    #    '''
+    #    feat_1_X =  self.get_transformed_X_for_feat(X_transformed,feat_1,max_components)
+    #    feat_2_X =  self.get_transformed_X_for_feat(X_transformed,feat_2,max_components)
+    #    feat12_angles = subspace_angles(feat_1_X,feat_2_X)
+    #    return np.sum(np.cos(feat12_angles)**2)/len(feat12_angles)
+    
