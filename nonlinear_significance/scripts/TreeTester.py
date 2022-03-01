@@ -34,6 +34,7 @@ class TreeTester(TransformerMixin, BaseEstimator):
                 for feat in tree_transformer.original_feat_to_transformed_mapping[j]:
                     P_j[feat,feat] = 1
                 p_vals[i,j] = OLS_results.wald_test(P_j,scalar = False).pvalue
+        p_vals[np.isnan(p_vals)] = 1.0
         return np.median(p_vals,axis=0)
     
     def multiple_testing_correction(self,p_vals,method = 'bonferroni',alpha = 0.05):
