@@ -28,12 +28,19 @@ class TreeTester(TransformerMixin, BaseEstimator):
             tree_transformer.fit(X_test) 
             transformed_feats = tree_transformer.transform(X_test) #apply tree mapping on X_test 
             OLS_results = sm.OLS(y_test,transformed_feats).fit() #fit decision tree on honest sample
+            #OLS_results = sm.OLS(y_test,transformed_feats).fit_regularized(method='elastic_net', alpha=0.1, L1_wt=1.0, start_params=None, profile_scale=False, refit=False)
             for j in range(X.shape[1]):
                 num_stumps = transformed_feats.shape[1]
-                P_j = np.zeros((num_stumps,num_stumps))
-                for feat in tree_transformer.original_feat_to_transformed_mapping[j]:
-                    P_j[feat,feat] = 1
-                p_vals[i,j] = OLS_results.wald_test(P_j,scalar = False).pvalue
+                #P_j = np.zeros((num_stumps,num_stumps))
+                num_regressors = len(tree_transformer.original_feat_to_transformed_mapping[j])
+                P_j = np.zeros((num_regressors,num_stumps))
+                if num_regressors == 0: 
+                    p_vals[i,j] = 1.0
+                else:
+                    for (row_num,feat) in enumerate(tree_transformer.original_feat_to_transformed_mapping[j]):
+                    #P_j[feat,feat] = 1
+                        P_j[row_num,feat] = 1.0
+                    p_vals[i,j] = OLS_results.wald_test(P_j,scalar = False).pvalue
         p_vals[np.isnan(p_vals)] = 1.0
         return np.median(p_vals,axis=0)
     
