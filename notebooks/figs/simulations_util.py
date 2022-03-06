@@ -2,7 +2,9 @@ from collections import Counter
 
 import numpy as np
 import pandas as pd
+
 from scipy.spatial.distance import cosine
+
 
 
 def sample_boolean_X(n, d):
@@ -122,6 +124,9 @@ def get_best_fit_line(x, y):
 
 
 def is_leaf(node):
+    if hasattr(node, "right_child"):
+        return node.right_child is None and node.left_child is None
+
     return node.left is None and node.right is None
 
 
@@ -180,7 +185,6 @@ def get_feat_cooccurence(trees, d):
         cooccurence_matrix += split_mat
 
     return cooccurence_matrix / num_trees
-
 
 def get_split_feats_counts(node):
     if node is None:

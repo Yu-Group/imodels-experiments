@@ -1,14 +1,18 @@
 import argparse
+import itertools
 import os
 import pickle as pkl
 import time
 import warnings
 from collections import defaultdict
 from os.path import join as oj
-from typing import Callable, List, Tuple
+from typing import Callable, List, Tuple, Set
 
 import numpy as np
 import pandas as pd
+# from bartpy import BART
+from imodels.util.tree_interaction_utils import (get_gt, interaction_fpr, interaction_f1,
+                                                 interaction_tpr, get_interacting_features, get_important_features)
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
     RandomForestRegressor, BaggingRegressor, BaggingClassifier
 from sklearn.linear_model import RidgeCV, LogisticRegressionCV
@@ -22,17 +26,20 @@ import config
 import util
 from imodels.util.data_util import get_clean_dataset
 import imodels
-from util import ModelConfig
+
+from util import ModelConfig, get_interaction_score, get_importances
 from validate import get_best_accuracy
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
 
+
+
 def compare_estimators(estimators: List[ModelConfig],
-                       datasets: List[Tuple],
+                       dataset: Tuple,
                        metrics: List[Tuple[str, Callable]],
                        args, ) -> Tuple[dict, dict]:
-    """Calculates results given estimators, datasets, and metrics.
+    """Calculates results given estimators, dataset, and metrics.
     Called in run_comparison
     """
     if type(estimators) != list:
@@ -48,73 +55,100 @@ def compare_estimators(estimators: List[ModelConfig],
             results[k].append(kwargs[k])
     rules = results.copy()
 
-    # loop over datasets
-    for d in datasets:
-        if args.verbose:
-            print("\tdataset", d[0], 'ests', estimators)
-        X, y, feat_names = get_clean_dataset(d[1], data_source=d[2])
+    # scores = results.copy()
 
-        # implement provided splitting strategy
-        X_train, X_tune, X_test, y_train, y_tune, y_test = (
-            util.apply_splitting_strategy(X, y, args.splitting_strategy, args.split_seed))
+    # loop over dataset
+    d = dataset
+    if args.verbose:
+        print("\tdataset", d[0], 'ests', estimators)
+    X, y, feat_names = get_clean_dataset(d[1], data_source=d[2])
 
-        # loop over estimators
-        for model in tqdm(estimators, leave=False):
-            # print('kwargs', model.kwargs)
-            est = model.cls(**model.kwargs)
-            # print(est.criterion)
+    # implement provided splitting strategy
+    X_train, X_tune, X_test, y_train, y_tune, y_test = (
+        util.apply_splitting_strategy(X, y, args.splitting_strategy, args.split_seed))
 
-            sklearn_baselines = {
-                RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
-                RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor,
-                BaggingClassifier, BaggingRegressor, GridSearchCV, LogisticRegressionCV, RidgeCV,
-                imodels.DistilledRegressor
-            }
+    # loop over estimators
+    for model in tqdm(estimators, leave=False):
+        # print('kwargs', model.kwargs)
+        est = model.cls(**model.kwargs)
+        # print(est.criterion)
 
-            start = time.time()
-            if type(est) in sklearn_baselines:
-                est.fit(X_train, y_train)
-            else:
-                est.fit(X_train, y_train, feature_names=feat_names)
-            end = time.time()
+        sklearn_baselines = {
+            RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
+            RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor,
+            BaggingClassifier, BaggingRegressor, GridSearchCV, LogisticRegressionCV, RidgeCV,
+            imodels.DistilledRegressor
+        }
 
-            # things to save
-            rules[d[0]].append(vars(est))
+        start = time.time()
+        if type(est) in sklearn_baselines:
+            est.fit(X_train, y_train)
+        else:
+            est.fit(X_train, y_train, feature_names=feat_names)
+        end = time.time()
 
-            # loop over metrics
-            suffixes = ['_train', '_test']
-            datas = [(X_train, y_train), (X_test, y_test)]
+        # things to save
+        rules[d[0]].append(vars(est))
 
-            if args.splitting_strategy in {'train-tune-test', 'train-tune-test-lowdata'}:
-                suffixes.append('_tune')
-                datas.append([X_tune, y_tune])
+        # loop over metrics
+        suffixes = ['_train', '_test']
+        datas = [(X_train, y_train), (X_test, y_test)]
 
-            metric_results = {}
-            for suffix, (X_, y_) in zip(suffixes, datas):
+        if args.splitting_strategy in {'train-tune-test', 'train-tune-test-lowdata'}:
+            suffixes.append('_tune')
+            datas.append([X_tune, y_tune])
 
-                y_pred = est.predict(X_)
-                # print('best param', est.reg_param)
-                if args.classification_or_regression == 'classification':
-                    y_pred_proba = est.predict_proba(X_)[..., 1]
-                for i, (met_name, met) in enumerate(metrics):
-                    if met is not None:
-                        if args.classification_or_regression == 'regression' \
-                                or met_name in ['accuracy', 'f1', 'precision', 'recall']:
-                            metric_results[met_name + suffix] = met(y_, y_pred)
-                        else:
-                            metric_results[met_name + suffix] = met(y_, y_pred_proba)
-            metric_results['complexity'] = util.get_complexity(est)
-            metric_results['time'] = end - start
-            metric_results.update(model.extra_aggregate_keys) # add extra keys to aggregate over
+        metric_results = {}
+        gt_importance, gt_interaction = get_gt(d[0])
 
-            for met_name, met_val in metric_results.items():
-                colname = met_name
-                results[colname].append(met_val)
+        for suffix, (X_, y_) in zip(suffixes, datas):
+
+            y_pred = est.predict(X_)
+            importance = get_importances(est, X_, y_)
+            important_features = get_important_features(importance, 5)
+
+            interaction = get_interaction_score(est, X_, y_)
+            interacting_features = get_interacting_features(interaction, 5)
+            # print('best param', est.reg_param)
+            if args.classification_or_regression == 'classification':
+                y_pred_proba = est.predict_proba(X_)[..., 1]
+            for i, (met_name, met) in enumerate(metrics):
+                if met is not None:
+                    if met_name.startswith("interaction"):
+                        metric_results[met_name + suffix] = met(gt_interaction, interacting_features)
+                        metric_results[met_name.replace("interaction", "importance") + suffix] = met(gt_importance,
+                                                                                                     important_features)
+
+                    elif args.classification_or_regression == 'regression' \
+                            or met_name in ['accuracy', 'f1', 'precision', 'recall']:
+                        metric_results[met_name + suffix] = met(y_, y_pred)
+                    else:
+                        metric_results[met_name + suffix] = met(y_, y_pred_proba)
+
+            # metric_results['interaction' + suffix] = len(interacting_features.difference(gt_interaction)) / len(
+            #     interacting_features)
+            # metric_results['importance' + suffix] = len(important_features.difference(gt_importance)) / len(
+            #     important_features)
+
+        metric_results['complexity'] = util.get_complexity(est)
+        metric_results['time'] = end - start
+        metric_results.update(model.extra_aggregate_keys)  # add extra keys to aggregate over
+
+        #
+        #
+        #
+        # scores["values"].append((,
+        #                      ))
+        # scores[d[0]]['interactions'].append(get_interaction_score(est, X_train, y_train))
+
+        for met_name, met_val in metric_results.items():
+            colname = met_name
+            results[colname].append(met_val)
     return results, rules
 
 
 def run_comparison(path: str,
-                   datasets: List[Tuple],
+                   dataset: Tuple,
                    metrics: List[Tuple[str, Callable]],
                    estimators: List[ModelConfig],
                    args):
@@ -128,7 +162,7 @@ def run_comparison(path: str,
         return
 
     results, rules = compare_estimators(estimators=estimators,
-                                        datasets=datasets,
+                                        dataset=dataset,
                                         metrics=metrics,
                                         args=args)
 
@@ -140,6 +174,10 @@ def run_comparison(path: str,
     df_rules = pd.DataFrame.from_dict(rules)
     df_rules['split_seed'] = args.split_seed
     df_rules['estimator'] = estimators_list
+
+    # scores_vals = scores["values"]
+    # importance = np.stack([s[0] for s in scores_vals], axis=-1)
+    # interaction = np.stack([s[1] for s in scores_vals], axis=-1)
 
     """
     # note: this is only actually a mean when using multiple cv folds
@@ -153,8 +191,10 @@ def run_comparison(path: str,
     output_dict = {
         # metadata
         'estimators': estimators_list,
-        'comparison_datasets': datasets,
+        'comparison_datasets': dataset,
         'metrics': metrics_list,
+        # "importance":importance,
+        # "interaction": interaction,
 
         # actual values
         'df': df,
@@ -164,7 +204,8 @@ def run_comparison(path: str,
 
 
 def get_metrics(classification_or_regression: str = 'classification'):
-    mutual = [('complexity', None), ('time', None)]
+    mutual = [('complexity', None), ('time', None), ("interaction_tpr", interaction_tpr),
+              ("interaction_fpr", interaction_fpr), ("interaction_f1", interaction_f1)]
     if classification_or_regression == 'classification':
         return [
                    ('rocauc', roc_auc_score),
@@ -238,7 +279,7 @@ if __name__ == '__main__':
     # filter based on args
     if args.dataset:
         datasets = list(filter(lambda x: args.dataset.lower() == x[0].lower(), datasets))  # strict
-        # datasets = list(filter(lambda x: args.dataset.lower() in x[0].lower(), datasets)) # flexible
+        # dataset = list(filter(lambda x: args.dataset.lower() in x[0].lower(), dataset)) # flexible
     if args.model:
         #         ests = list(filter(lambda x: args.model.lower() in x[0].name.lower(), ests))
         ests = list(filter(lambda x: args.model.lower() == x[0].name.lower(), ests))
@@ -253,20 +294,20 @@ if __name__ == '__main__':
     if len(ests) == 0:
         raise ValueError('No valid estimators', 'dset', args.dataset, 'models', args.model)
     if len(datasets) == 0:
-        raise ValueError('No valid datasets!')
+        raise ValueError('No valid dataset!')
     if args.verbose:
         print('running',
-              'datasets', [d[0] for d in datasets],
+              'dataset', [d[0] for d in datasets],
               'ests', ests)
         print('\tsaving to', args.results_path)
-#         print('\tinput arguments:', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
+    #         print('\tinput arguments:', args.dataset, [d[0] for d in DATASETS_CLASSIFICATION])
 
     for dataset in tqdm(datasets):
         path = util.get_results_path_from_args(args, dataset[0])
         for est in ests:
             np.random.seed(1)
             run_comparison(path=path,
-                           datasets=[dataset],
+                           dataset=dataset,
                            metrics=metrics,
                            estimators=est,
                            args=args)
