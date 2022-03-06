@@ -5,7 +5,7 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.model_selection import GridSearchCV
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 
-from imodels.experimental.tao import TaoClassifier, TaoRegressor
+# from imodels import TaoTreeClassifier, TaoTreeRegressor
 from util import ModelConfig
 
 # python 01_fit_models.py --config tao --classification_or_regression regression --model BaggingTao --split_seed 0
@@ -18,9 +18,10 @@ ESTIMATORS_CLASSIFICATION = [
                                  param_grid={'max_leaf_nodes': [15]}))],
     [ModelConfig('RandomForest', RandomForestClassifier,
                  other_params={'n_estimators': 100})],
-    [ModelConfig('BaggingTao', partial(BaggingClassifier,
-                                       base_estimator=TaoClassifier(model_args={'max_leaf_nodes': 15})),
-                 other_params={'n_estimators': 100})],
+    # [ModelConfig('BaggingTao', partial(BaggingClassifier,
+    #                                    base_estimator=TaoTreeClassifier(model_args={'max_leaf_nodes': 15},
+    #                                                                     randomize_tree=True)),
+    #              other_params={'n_estimators': 100})],
 ]
 
 ESTIMATORS_REGRESSION = [
@@ -29,9 +30,10 @@ ESTIMATORS_REGRESSION = [
                                  scoring='r2',
                                  param_grid={'max_depth': [1, 2, 3, 4, 5, 7]}))],
     [ModelConfig('RandomForest', RandomForestRegressor, other_params={'n_estimators': 100})],
-    [ModelConfig('BaggingTao', partial(BaggingRegressor,
-                                       base_estimator=TaoRegressor(model_args={'max_leaf_nodes': 15})),
-                 other_params={'n_estimators': 100})],
+    # [ModelConfig('BaggingTao', partial(BaggingRegressor,
+    #                                    base_estimator=TaoTreeRegressor(model_args={'max_leaf_nodes': 15},
+    #                                                                    randomize_tree=True)),
+    #              other_params={'n_estimators': 100})],
 ]
 
 ################# Old Configurations Classification
