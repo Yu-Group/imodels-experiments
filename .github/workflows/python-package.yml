@@ -24,8 +24,8 @@ jobs:
         python -m pip install --upgrade pip
         pyversion=$(python -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
         if [[ $pyversion == '3.6' ]]; then pip install 'numpy<1.20' 'scipy<1.6'; fi
-        pip install -r requirements.txt
         pip install git+https://github.com/csinva/imodels.git
+        pip install scikit-learn dvu jupyter matplotlib slurmpy tqdm pmlb pytest sh numpy
     - name: Test with pytest
       run: |
         pytest
