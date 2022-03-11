@@ -52,7 +52,8 @@ class TreeTester(TransformerMixin, BaseEstimator):
                     p_vals[i,j] = OLS_results.wald_test(P_j,scalar = False).pvalue
         median_p_vals = 2*np.median(p_vals,axis=0)
         median_p_vals[median_p_vals > 1.0] = 1.0
-        return self.multiple_testing_correction(median_p_vals)
+        return median_p_vals
+        #return self.multiple_testing_correction(median_p_vals)
 
 
     
@@ -62,23 +63,24 @@ class TreeTester(TransformerMixin, BaseEstimator):
     
 class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying to improve the power of TreeTester by implementing an optimal weighting scheme that favors big nodes...
 
-    def __init__(self, estimator, max_components=np.inf, normalize=True):
+    def __init__(self, estimator, normalize=True):
         self.estimator = estimator
-        self.max_components = max_components
         self.normalize = normalize
     
-    def get_feature_significance(self,X,y,num_splits = 10,eta = None,lr = .1,n_steps = 3000,num_reps = 10000):
+    def get_feature_significance(self,X,y,num_splits = 10,eta = None,lr = .1,n_steps = 3000,num_reps = 10000,max_components = 0.5):
         p_vals = np.zeros((num_splits,X.shape[1]))
         for i in tqdm(range(num_splits)):
             X_sel, X_inf, y_sel, y_inf = train_test_split(X,y,test_size = 0.5)
             self.estimator.fit(X_sel,y_sel) #fit on half of sample to learn tree structure and features 
-            tree_transformer_sel = TreeTransformer(estimator = self.estimator, max_components=self.max_components) 
+            tree_transformer_sel = TreeTransformer(estimator = self.estimator, max_components= X_sel.shape[0]/2 )
             tree_transformer_sel.fit(X_sel) 
             transformed_feats_sel = tree_transformer_sel.transform(X_sel)
 
-            tree_transformer_inf = TreeTransformer(estimator = self.estimator, max_components=self.max_components) 
+            tree_transformer_inf = TreeTransformer(estimator = self.estimator, max_components=X_inf.shape[0]/2) 
             tree_transformer_inf.fit(X_inf) 
             transformed_feats_inf = tree_transformer_inf.transform(X_inf) 
+            
+            print("done transforming stumps")
             
             sigma_sel = (np.sum((y_sel - np.mean(y_sel))**2))/(len(y_sel)-1)
             sigma_inf = (np.sum((y_inf - np.mean(y_inf))**2))/(len(y_inf)-1)
@@ -86,12 +88,12 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
             if eta is None:
                 eta = sigma_sel
             for j in range(X.shape[1]):
-                stumps_sel_for_feat = tree_transformer_sel.original_feat_to_stump_mapping[j]
+                stumps_sel_for_feat = tree_transformer_sel.original_feat_to_transformed_mapping[j]
                 num_splits_for_feat = len(stumps_sel_for_feat)
-                if(num_splits_for_feat) == 0:
+                if num_splits_for_feat == 0:
                     p_vals[i,j] = 1.0
                 else:
-                    stumps_inf_for_feat = tree_transformer_inf.original_feat_to_stump_mapping[j]
+                    stumps_inf_for_feat = tree_transformer_inf.original_feat_to_transformed_mapping[j]
                     X_sel_for_feat = transformed_feats_sel[:,stumps_sel_for_feat]
                     X_inf_for_feat = transformed_feats_inf[:,stumps_inf_for_feat]
                     optimal_lambda_for_feat = self.get_optimal_lambda(X_sel_for_feat,y_sel,eta,sigma_sel,lr,n_steps)
@@ -100,7 +102,7 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         median_p_vals = 2*np.median(p_vals,axis=0)
         median_p_vals[median_p_vals > 1.0] = 1.0
 
-        return self.multiple_testing_correction(median_p_vals)
+        return median_p_vals#self.multiple_testing_correction(median_p_vals)
     
     def multiple_testing_correction(self,p_vals,method = 'bonferroni',alpha = 0.05):
         return smt.multipletests(p_vals, method=method)[1] 
@@ -110,7 +112,7 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         optimal_weights = optimal_lambda#optimal_lambda.cpu().detach().numpy()
         weighted_chi_squared_samples = np.sort(np.array(self.get_weighted_chi_squared(optimal_weights,num_reps)))
         test_statistic = (np.sum((optimal_weights*(np.transpose(u_inf) @ y_inf))**2))/sigma_inf
-        quantile = stats.percentileofscore(weighted_chi_squared_samples, test_statistic, 'weak') / 100
+        quantile = stats.percentileofscore(weighted_chi_squared_samples, test_statistic, 'rank') / 100
         return 1.0 - quantile
         
         
@@ -143,14 +145,12 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         gradients = []
         betas = np.transpose(u_sel) @ y_sel
         g = np.dot(weights**2,betas**2) - eta*LA.norm(weights)**2
-        g = g[0]
         h = sigma_sel*np.sqrt(np.sum(weights**4))
         for i in range(len(weights)):
-            g_prime = 2.0*weights[i]*(LA.norm(betas)**2) - (2.0*eta*weights[i])
+            g_prime = 2.0*weights[i]*(betas[i]**2) - (2.0*eta*weights[i])
             h_prime = ((2*(weights[i]**3))*(sigma_sel))/(np.sqrt(np.sum(weights**4)))
             grad_weight = (g_prime*h - h_prime*g)/(h**2)
             gradients.append(grad_weight)
-        #print(gradients)
         return np.array(gradients)
     
             
