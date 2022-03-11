@@ -12,6 +12,7 @@ import statsmodels.stats.multitest as smt
 from tqdm import tqdm
 import torch 
 from torch import nn
+from numpy import linalg as LA
 from torch.functional import F
 from copy import copy
 from torch.autograd import Variable
@@ -106,7 +107,7 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
              
     def compute_p_val(self,optimal_lambda,X_inf,y_inf,sigma_inf,num_reps):
         u_inf, s_inf, vh_inf = np.linalg.svd(X_inf, full_matrices=False)
-        optimal_weights = optimal_lambda.cpu().detach().numpy()
+        optimal_weights = optimal_lambda#optimal_lambda.cpu().detach().numpy()
         weighted_chi_squared_samples = np.sort(np.array(self.get_weighted_chi_squared(optimal_weights,num_reps)))
         test_statistic = (np.sum((optimal_weights*(np.transpose(u_inf) @ y_inf))**2))/sigma_inf
         quantile = stats.percentileofscore(weighted_chi_squared_samples, test_statistic, 'weak') / 100
@@ -115,33 +116,70 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         
     def get_optimal_lambda(self,X,y,eta,sigma_sel,lr,n_steps):
         u_sel, s_sel, vh_sel = np.linalg.svd(X, full_matrices=False)
-        tns = torch.distributions.Uniform(0, 1.0).sample((u_sel.shape[1],))
-        weights = Variable(tns, requires_grad=True)
-        opt = torch.optim.SGD([weights], lr=lr)
+        weights = []
+        for i in range(u_sel.shape[1]):
+            weights.append(np.random.uniform())
+        weights = np.array(weights)
+        
+        #tns = torch.distributions.Uniform(0,1.0).sample((u_sel.shape[1],))
+        #weights = Variable(tns, requires_grad=True)
+        #opt = torch.optim.SGD([weights], lr=lr)
         for i in range(n_steps):
-            opt.zero_grad()
-            z = self.forward(weights,u_sel,y,eta,sigma_sel)#torch.linalg.vector_norm(x)#x*x
-            z.sum().backward() # Calculate gradients
-            opt.step()
+            gradient = self.compute_gradient(weights,u_sel,y,eta,sigma_sel)
+            weights = np.add(weights, lr*gradient)
+            #print(weights)
+            if all(gradient == 0.0): 
+                break
+            #opt.zero_grad()
+            #z = self.forward(weights,u_sel,y,eta,sigma_sel)#torch.linalg.vector_norm(x)#x*x
+            #z.sum().backward()
+            #z.sum().backward()
+            #print(weights.grad.data)
+#            z.sum().backward() # Calculate gradients
+            #opt.step()
         return weights
-            
-    def forward(self,weights,u_sel,y_sel,eta,sigma_sel):
-        T1 = torch.from_numpy(np.transpose(u_sel) @ y_sel)
-        T1 = T1.type(torch.FloatTensor)
-        T1 = weights * T1
-        T1 = torch.linalg.vector_norm(T1)**2
-        T2 = eta*torch.sum(weights**2)
-        T3 = sigma_sel*torch.sqrt(torch.sum(weights**4))
-        return torch.divide(torch.subtract(T2,T1),T3)
     
+    def compute_gradient(self,weights,u_sel,y_sel,eta,sigma_sel):
+        gradients = []
+        betas = np.transpose(u_sel) @ y_sel
+        g = np.dot(weights**2,betas**2) - eta*LA.norm(weights)**2
+        g = g[0]
+        h = sigma_sel*np.sqrt(np.sum(weights**4))
+        for i in range(len(weights)):
+            g_prime = 2.0*weights[i]*(LA.norm(betas)**2) - (2.0*eta*weights[i])
+            h_prime = ((2*(weights[i]**3))*(sigma_sel))/(np.sqrt(np.sum(weights**4)))
+            grad_weight = (g_prime*h - h_prime*g)/(h**2)
+            gradients.append(grad_weight)
+        #print(gradients)
+        return np.array(gradients)
+    
+            
     def get_weighted_chi_squared(self,weights,num_reps = 10000):
         k = len(weights)
         samples = []
         for n in range(num_reps):
             sample = 0.0
             for i in range(k):
-                sample += weights[i]*np.random.chisquare(1, size=None)
+                sample += (weights[i]**2)*np.random.chisquare(1, size=None)
             samples.append(sample)
         return samples 
         
     
+    
+    
+            
+    #def forward(self,weights,u_sel,y_sel,eta,sigma_sel):
+    #    T1 = torch.from_numpy(np.transpose(u_sel) @ y_sel)
+    #    T1 = T1.type(torch.FloatTensor)
+    #    T1 = weights * T1
+    #    T1 = torch.linalg.vector_norm(T1)**2
+    #    T2 = eta*torch.sum(weights**2)
+     #   T3 = sigma_sel*torch.sqrt(torch.sum(weights**4))
+     #   return torch.divide(torch.subtract(T2,T1),T3)
+      #print("g_prime" + str(g_prime))
+            #print("g" + str(g))
+            #print("h_prime:" + str(h_prime))
+            ##print("h" + str(h))
+            #print("grad weight numerator:" + str(g_prime*h - h_prime*g))
+            #print("grad_weight:" + str(grad_weight))
+            #print(g_prime*h - h_prime*g[0])
