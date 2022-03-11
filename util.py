@@ -1,3 +1,4 @@
+import itertools
 import os
 import warnings
 from functools import partial
@@ -6,11 +7,18 @@ from os.path import join as oj
 from typing import Any, Dict, Tuple
 
 import numpy as np
+from imodels.experimental.bartpy import BART
+from imodels.tree.figs import Node
 from sklearn import model_selection
 from sklearn.base import BaseEstimator
+from sklearn.inspection import permutation_importance
 from sklearn.model_selection import GridSearchCV
 
 from imodels.util.tree import compute_tree_complexity
+from bartpy.initializers.sklearntreeinitializer import get_bartpy_tree_from_sklearn
+from bartpy.node import DecisionNode as BARTDecisionNode
+from bartpy.node import LeafNode as BARTLeafNode
+from notebooks.figs.simulations_util import is_leaf
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
@@ -217,3 +225,97 @@ def apply_splitting_strategy(X: np.ndarray,
             X_train, y_train, test_size=0.2, random_state=split_seed)
 
     return X_train, X_tune, X_test, y_train, y_tune, y_test
+
+
+def get_paths_features(node: Node, paths: set, features: list, indx: iter):
+    leaf_node = is_leaf(node)
+
+    if not hasattr(node, "feature"):
+        split = node.split
+        feature = split._combined_condition.splitting_variable if hasattr(split, "_combined_condition") else None
+
+        if feature is not None:
+            features.append(feature)
+    elif not leaf_node:
+        features.append(node.feature)
+
+    if leaf_node:
+        # try:
+        n = np.sum(node.idxs) if hasattr(node, "idxs") else node.n_obs
+        # except AttributeError:
+        #     n = 100
+        #     print("shit")
+        paths.add((tuple(features), n))
+        return
+
+    right_child = node.right if hasattr(node, "right") else node.right_child
+    left_child = node.left if hasattr(node, "left") else node.left_child
+
+    get_paths_features(right_child, paths, list(features), indx)
+    get_paths_features(left_child, paths, list(features), indx)
+
+
+def get_paths(figs):
+    paths = {}
+    for i, tree in enumerate(figs.trees_):
+        paths_t = set()
+        indx = iter(range(100000))
+        get_paths_features(figs.trees_[0], paths_t, [], indx)
+        paths[i] = paths_t
+    return paths
+
+
+def _get_trees(model):
+    if type(model) == BART:
+        trees = []
+        samples = model._model_samples
+        for s in samples:
+            trees += [t.nodes[0] for t in s.trees]
+        return trees
+    elif hasattr(model, "trees_"):
+        return list(model.trees_)
+    elif hasattr(model, "estimators_"):
+        estimators = model.estimators_
+        if type(estimators) == np.ndarray:
+            estimators = list(estimators.flatten())
+
+        if hasattr(estimators[0], "trees_"):
+            trees = []
+            for e in estimators:
+                trees += e.trees_
+            return trees
+        return estimators
+
+
+def get_interaction_score(model, X, y):
+    interactions = []
+    # estimators = [model.trees_] if hasattr(model, "trees_") else model.estimators_
+    d = X.shape[1]
+    n = len(y)
+    trees = _get_trees(model)
+    # for est in estimators:
+    for tree in trees:
+        if not isinstance(tree, Node) and not (isinstance(tree, BARTDecisionNode) | isinstance(tree, BARTLeafNode)):
+            tree = tree.tree_
+            tree = get_bartpy_tree_from_sklearn(tree, X, y)
+        paths_t = set()
+        indx = iter(range(1000000))
+        get_paths_features(tree, paths_t, [], indx)
+        interaction_count = np.zeros(shape=(d, d))
+        for f_1, f_2 in itertools.combinations(range(d), 2):
+            for path, n_samples in paths_t:
+                if f_1 in path and f_2 in path:
+                    interaction_count[f_1, f_2] += n_samples / n
+                    interaction_count[f_2, f_1] += n_samples / n
+
+        interactions.append(interaction_count)
+    return np.mean(np.stack(interactions, axis=-1), axis=2)
+
+
+def get_importances(model, X, y):
+    r = permutation_importance(model, X, y,
+                               n_repeats=30,
+                               random_state=0, scoring='neg_mean_squared_error')
+    importance_score = r.importances_mean
+    return importance_score
+

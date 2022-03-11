@@ -35,7 +35,7 @@ DSET_METADATA = {'sonar': (208, 60), 'heart': (270, 15), 'breast-cancer': (277, 
                  'recidivism': (6172, 20), 'credit': (30000, 33), 'readmission': (101763, 150), 'friedman1': (200, 10),
                  'friedman2': (200, 4), 'friedman3': (200, 4), 'abalone': (4177, 8), 'diabetes-regr': (442, 10),
                  'california-housing': (20640, 8), 'satellite-image': (6435, 36), 'echo-months': (17496, 9),
-                 'breast-tumor': (116640, 9)}
+                 'breast-tumor': (116640, 9), "vo_pati": (100, 100), "radchenko_james": (300, 50)}
 
 
 def plot_comparisons(metric='rocauc', datasets=[],
@@ -125,8 +125,8 @@ def plot_comparisons(metric='rocauc', datasets=[],
                           zorder=-5,
                           )
 
-#             if name == 'Dist-GB-FIGS':
-#                 print(g)
+            #             if name == 'Dist-GB-FIGS':
+            #                 print(g)
             #                 print(g.keys())
             #                 plt.plot(x[args], y[args], '.-', **kwargs)
 
@@ -211,12 +211,12 @@ def plot_bests(metric='rocauc', datasets=[],
     R, C = ceil(len(datasets) / 3), 3
     plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
 
-    COLORS = { # cg, cp, cb, cp
+    COLORS = {  # cg, cp, cb, cp
         'FIGS': cb,
         'RFFIGS-10': '#0033cc',
-#         'RFFIGS': '#0033cc',
-#         'RFFIGS-depth4': cp,
-#         'RFFIGS-log2': 'blue',
+        #         'RFFIGS': '#0033cc',
+        #         'RFFIGS-depth4': cp,
+        #         'RFFIGS-log2': 'blue',
         'CART': 'orange',
         'RF': '#ff6600',
     }
@@ -246,7 +246,7 @@ def plot_bests(metric='rocauc', datasets=[],
                 g = df.groupby('estimator').get_group(name)
             except:
                 warnings.warn(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
-#                 raise Exception(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
+                #                 raise Exception(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
                 continue
 
             x = g['complexity' + suffix].values
@@ -258,10 +258,10 @@ def plot_bests(metric='rocauc', datasets=[],
         plt.bar(names, vals,
                 yerr=yerr,
                 color=[COLORS.get(name, 'grey') for name in names])
-#         plt.grid(zorder=100000)
-        
-        plt.xticks(rotation=15) 
-#         plt.bar(np.arange(len(vals)), vals)
+        #         plt.grid(zorder=100000)
+
+        plt.xticks(rotation=15)
+        #         plt.bar(np.arange(len(vals)), vals)
 
         # plot editing
         plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA[dset_name][0]}$)',
@@ -274,7 +274,7 @@ def plot_bests(metric='rocauc', datasets=[],
         if metric.upper() == 'ROCAUC':
             plt.ylim(bottom=0.5)
 
-#         plt.legend()
+    #         plt.legend()
     savefig(save_name)
 
 
