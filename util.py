@@ -1,3 +1,4 @@
+import copy
 import os
 import warnings
 from functools import partial
@@ -251,7 +252,8 @@ def get_rejected_features(fi_score, alpha = 0.05):
     """
     Convert p-values to indicators. 1 if H0 is rejected and 0 if H0 is not rejected.
     """
-    fi_score["importance"] = (fi_score["importance"] <= alpha).astype(int)
-    return fi_score
+    rejected_df = copy.deepcopy(fi_score)
+    rejected_df["importance"] = (rejected_df["importance"] <= alpha).astype(int)
+    return rejected_df
 
 #%%

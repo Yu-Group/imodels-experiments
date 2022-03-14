@@ -11,7 +11,7 @@ Y_DGP = linear_model
 Y_PARAMS_DICT = {
     "beta": 1,
     "sigma": 0.1,
-    "s": 10
+    "s": 5
 }
 VARY_PARAM_NAME = "n"
 VARY_PARAM_VALS = {'100': 100, '250': 250, '500': 500}

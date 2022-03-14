@@ -3,10 +3,14 @@ import statsmodels.api as sm
 import pandas as pd
 from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.inspection import permutation_importance
 import knockpy as kpy
 from knockpy.knockoff_filter import KnockoffFilter
 import shap
+
+from nonlinear_significance.scripts.TreeTester import TreeTester, optimalTreeTester
+
 
 def lin_reg_t_test(X, y, fit):
     '''
@@ -22,10 +26,10 @@ def lin_reg_t_test(X, y, fit):
 
     # check if using statsmodels fit (better to extract p-values)
     # refit if using sklearn
-    if isinstance(fit,LinearRegression):
+    if isinstance(fit, LinearRegression):
         lin_reg = sm.OLS(y, X)
         fit = lin_reg.fit()
-    if isinstance(fit,LogisticRegression):
+    if isinstance(fit, LogisticRegression):
         lin_reg = sm.Logit(y, X)
         fit = lin_reg.fit()
     results = fit.pvalues
@@ -35,7 +39,8 @@ def lin_reg_t_test(X, y, fit):
 
     return results
 
-def tree_mdi(X,y,fit):
+
+def tree_mdi(X, y, fit):
     '''
     Extract MDI values for a given tree
     OR
@@ -58,7 +63,8 @@ def tree_mdi(X,y,fit):
 
     return results
 
-def perm_importance(X,y,fit,n_repeats = 10):
+
+def perm_importance(X, y, fit, n_repeats=10):
     '''
     Compute average permutation importance values from a given model (fit)
     Can be a regression model or tree, anything compatible with scorer
@@ -70,7 +76,7 @@ def perm_importance(X,y,fit,n_repeats = 10):
                          Var: variable name
                          Importance: average permutation importance
     '''
-    results = permutation_importance(fit, X, y, n_repeats=n_repeats,random_state = 0)
+    results = permutation_importance(fit, X, y, n_repeats=n_repeats, random_state=0)
     results = results.importances_mean
     results = pd.DataFrame(data=results, columns=['importance'])
 
@@ -82,7 +88,8 @@ def perm_importance(X,y,fit,n_repeats = 10):
 
     return results
 
-def knockpy_swap_integral(X,y,model,fdr=0.2):
+
+def knockpy_swap_integral(X, y, model, fdr=0.2):
     '''
     TODO: find a way to extract importances of variables + knockoffs
     Performs knockoff filtering based on a given model (lasso, tree, etc.)
@@ -108,7 +115,8 @@ def knockpy_swap_integral(X,y,model,fdr=0.2):
 
     return results
 
-def tree_shap_mean(X,y,fit):
+
+def tree_shap_mean(X, y, fit):
     '''
     Compute average treeshap value across observations
     :param X: design matrix
@@ -121,9 +129,61 @@ def tree_shap_mean(X,y,fit):
     explainer = shap.TreeExplainer(fit)
     shap_values = explainer.shap_values(X)
     results = abs(shap_values)
-    results = results.mean(axis = 0)
+    results = results.mean(axis=0)
     results = pd.DataFrame(data=results, columns=['importance'])
     # Use column names from dataframe if possible
+    if isinstance(X, pd.DataFrame):
+        results.index = X.columns
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+
+    return results
+
+
+def tree_feature_significance(X, y, fit, max_components=0.85, normalize=True, num_splits=10):
+    '''
+    Compute feature signficance for trees
+    :param X: full X data
+    :param y: full response vector
+    :param fit: estimator
+    :param max_components: proportion of variance explained for pca
+    :param normalize: whether or not to normalize
+    :param num_splits: number of sample splits/repetitions
+    :return:
+    '''
+
+    tree_tester = TreeTester(fit, max_components=max_components, normalize=normalize)
+    median_p_vals = tree_tester.get_feature_significance(X, y, num_splits=num_splits)
+
+    results = pd.DataFrame(data=median_p_vals, columns=['importance'])
+    if isinstance(X, pd.DataFrame):
+        results.index = X.columns
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+
+    return results
+
+
+def optimal_tree_feature_significance(X, y, fit, normalize=True, num_splits=10,
+                                      eta=None, lr=0.1, n_steps=3000, num_reps=10000):
+    '''
+    Compute feature signficance for trees
+    :param X: full X data
+    :param y: full response vector
+    :param fit: estimator
+    :param num_splits: number of sample splits/repetitions
+    :param eta
+    :param lr
+    :param n_steps
+    :param num_reps
+    :return:
+    '''
+
+    tree_tester = optimalTreeTester(fit, normalize=normalize)
+    median_p_vals = tree_tester.get_feature_significance(X, y, num_splits=num_splits, eta=eta,
+                                                         lr=lr, n_steps=n_steps, num_reps=num_reps)
+
+    results = pd.DataFrame(data=median_p_vals, columns=['importance'])
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
     results.index.name = 'var'

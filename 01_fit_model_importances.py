@@ -1,3 +1,7 @@
+# Example usage: run in command line
+# python 01_fit_model_importances.py --config nonlinear_significance --classification_or_regression regression --split_seed 331 --ignore_cache
+# python 01_fit_model_importances.py --config nonlinear_significance --classification_or_regression classification --split_seed 331 --ignore_cache
+
 import argparse
 import os
 import pickle as pkl
@@ -11,7 +15,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
     RandomForestRegressor, BaggingRegressor, BaggingClassifier
-from sklearn.linear_model import RidgeCV, LogisticRegressionCV
+from sklearn.linear_model import RidgeCV, LogisticRegressionCV, LinearRegression, LogisticRegression
 from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
@@ -42,6 +46,7 @@ def compare_estimators(estimators: List[ModelConfig],
 
     sklearn_baselines = {
         # insert models here
+        LinearRegression, LogisticRegression,
         RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
         RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor,
         BaggingClassifier, BaggingRegressor, GridSearchCV, LogisticRegressionCV, RidgeCV
