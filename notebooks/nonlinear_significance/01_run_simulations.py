@@ -1,3 +1,9 @@
+# Example usage: run in command line
+# cd notebooks/nonlinear_significance
+# python 01_run_simulations.py --nreps 2 --config normal_linear_dgp --split_seed 331 --ignore_cache
+# python 01_run_simulations.py --nreps 2 --config normal_linear_dgp --split_seed 331 --ignore_cache --create_rmd
+
+import copy
 import os
 from os.path import join as oj
 import glob
@@ -6,14 +12,15 @@ import pickle as pkl
 import time
 import warnings
 
-
 from tqdm import tqdm
 import sys
+
 sys.path.append('.')
 from simulations_util import *
 
 sys.path.append('..')
 import sim_config
+
 sys.path.append('../..')
 sys.path.append('../../..')
 
@@ -91,17 +98,17 @@ def compare_estimators(estimators: List[ModelConfig],
                     'splitting_strategy': splitting_strategy
                 }
                 fi_score = fi_est.cls(X_test, y_test, est)
-                metric_results['fi_scores'] = fi_score
+                metric_results['fi_scores'] = copy.deepcopy(fi_score)
                 reject_features = None
                 if fi_est.pval:
-                    fi_score['importance'] = -fi_score['importance']
                     reject_features = get_rejected_features(fi_score, args.alpha)
+                    fi_score['importance'] = -fi_score['importance']  # because lower p-value is more significant
                 metric_results['est_support'] = reject_features
                 for i, (met_name, met) in enumerate(metrics):
                     if met is not None:
                         if met_name in ['f1', 'precision', 'recall', 'specificity', 'fp', 'tp', 'neg', 'pos']:
                             if fi_est.pval:
-                                metric_results[met_name] = met(support, reject_features)
+                                metric_results[met_name] = met(support, reject_features['importance'])
                             else:
                                 metric_results[met_name] = None
                         else:
@@ -176,6 +183,16 @@ def get_metrics():
            ] + mutual
 
 
+def reformat_results(results):
+    results = results.reset_index().drop(columns=['index'])
+    fi_scores = pd.concat(results.pop('fi_scores').to_dict()). \
+        reset_index(level=0).rename(columns={'level_0': 'index'})
+    est_support = pd.concat(results.pop('est_support').to_dict()). \
+        reset_index(level=0).rename(columns={'level_0': 'index', 'importance': 'support'})
+    joined_df = pd.merge(fi_scores, est_support, how="outer", on=['index', 'var'])
+    results_df = pd.merge(results, joined_df, left_index=True, right_on="index")
+    return results_df
+
 
 if __name__ == '__main__':
 
@@ -194,6 +211,11 @@ if __name__ == '__main__':
     parser.add_argument('--split_seed', type=int, default=0)
     parser.add_argument('--results_path', type=str,
                         default=oj(os.path.dirname(os.path.realpath(__file__)), 'results'))
+
+    # arguments for rmd output of results
+    parser.add_argument('--create_rmd', action='store_true', default=False)
+    parser.add_argument('--show_vars', type=int, default=None)
+
     args = parser.parse_args()
 
     ests, fi_ests, \
@@ -224,7 +246,6 @@ if __name__ == '__main__':
     eval_out = defaultdict(list)
 
     for val_name, val in vary_param_vals.items():
-        print(vary_param_name, ":", val_name)
         if vary_param_name in X_params_dict.keys() and vary_param_name in y_params_dict.keys():
             raise ValueError('Cannot vary over parameter in both X and y DGPs.')
         elif vary_param_name in X_params_dict.keys():
@@ -235,13 +256,13 @@ if __name__ == '__main__':
             raise ValueError('Invalid vary_param_name.')
 
         for i in tqdm(range(args.nreps)):
-            os.makedirs(oj(path, val_name, "rep"+str(i)), exist_ok=True)
+            os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
             np.random.seed(i)
             X = X_dgp(**X_params_dict)
             y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
 
             for est in ests:
-                results = run_comparison(path=oj(path, val_name, "rep"+str(i)),
+                results = run_comparison(path=oj(path, val_name, "rep" + str(i)),
                                          X=X, y=y, support=support,
                                          metrics=metrics,
                                          estimators=est,
@@ -254,11 +275,11 @@ if __name__ == '__main__':
     results_list = []
     for val_name, val in vary_param_vals.items():
         for i in range(args.nreps):
-            all_files = glob.glob(oj(path, val_name, 'rep'+str(i), '*'))
+            all_files = glob.glob(oj(path, val_name, 'rep' + str(i), '*'))
             model_files = sorted([f for f in all_files if '_comparisons' in f])
 
             if len(model_files) == 0:
-                print('No files found at ', oj(path, val_name, 'rep'+str(i)))
+                print('No files found at ', oj(path, val_name, 'rep' + str(i)))
                 continue
 
             results = pd.concat(
@@ -271,7 +292,24 @@ if __name__ == '__main__':
             results_list.append(results)
     results_merged = pd.concat(results_list, axis=0)
     pkl.dump(results_merged, open(oj(path, 'results.pkl'), 'wb'))
+    results_df = reformat_results(results_merged)
+    results_df.to_csv(oj(path, 'results.csv'), index=False)
 
     print('merged and saved all experiment results successfully!')
 
+    if args.create_rmd:
+        if args.show_vars is None:
+            show_vars = 'NULL'
+        else:
+            show_vars = args.show_vars
+        os.system(
+            'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\')"'.format(
+                "02_simulation_results.Rmd",
+                oj(args.results_path, args.config), vary_param_name, str(args.split_seed), str(show_vars),
+                oj(path, "simulation_results.html"))
+        )
 
+        os.system('open {}'.format(oj(path, "simulation_results.html")))
+        print("created rmd of simulation results successfully!")
+
+# %%

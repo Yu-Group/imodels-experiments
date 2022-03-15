@@ -1,0 +1,212 @@
+---
+title: "Simulation Results"
+author: ""
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: vthemes::vmodern
+params:
+  results_dir: 
+    label: "Results directory"
+    value: "results/normal_linear_dgp"
+  vary_param_name:
+    label: "Name of varying parameter"
+    value: NULL
+  seed:
+    label: "Seed"
+    value: 331
+  keep_vars:
+    label: "Max variables to keep in rejection probability plots"
+    value: NULL
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(tidyverse)
+library(plotly)
+library(vthemes)  # devtools::install_github("Yu-Group/vthemes")
+
+chunk_idx <- 1
+
+# set parameters
+results_dir <- params$results_dir
+vary_param_name <- params$vary_param_name
+seed <- params$seed
+if (!is.null(params$keep_vars)) {
+  keep_vars <- 0:params$keep_vars
+} else {
+  keep_vars <- params$keep_vars
+}
+```
+
+```{r helper-functions, echo = FALSE}
+# reformat results
+reformat_results <- function(results) {
+  results_grouped <- results %>%
+    dplyr::group_by(index) %>%
+    tidyr::nest(fi_scores = c(var, importance, support)) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(-index)
+  return(results_grouped)
+}
+
+# plot metrics (mean value across repetitions with error bars)
+plot_metrics <- function(results, vary_param_name, show_errbars = TRUE) {
+  plt_df <- results %>%
+    tidyr::unite(col = "model", 
+                 fi, model, #min_samples_leaf, 
+                 na.rm = TRUE) %>%
+    dplyr::mutate(model = as.factor(model)) %>%
+    dplyr::select(rep, model, 
+                  tidyselect::all_of(c(vary_param_name, metrics))) %>%
+    tidyr::pivot_longer(cols = tidyselect::all_of(metrics), 
+                        names_to = "metric")  %>%
+    dplyr::group_by(.data[[vary_param_name]], model, metric) %>%
+    dplyr::summarise(mean = mean(value), sd = sd(value), .groups = "keep")
+  
+  plt <- ggplot2::ggplot(plt_df) +
+    ggplot2::aes(x = .data[[vary_param_name]], y = mean, color = model)  +
+    ggplot2::facet_wrap(~ metric, scales = "free_y", nrow = 4, ncol = 3) +
+    ggplot2::geom_point() +
+    ggplot2::geom_line() +
+    vthemes::theme_vmodern() +
+    vthemes::scale_color_vmodern(discrete = TRUE)
+  if (show_errbars) {
+    plt <- plt + 
+      ggplot2::geom_errorbar(
+        mapping = ggplot2::aes(x = .data[[vary_param_name]],
+                               ymin = mean - sd, ymax = mean + sd)
+      )
+  }
+  return(plt)
+}
+
+# plot rejection probability curves
+plot_reject_prob <- function(results, sim_name, keep_vars = NULL) {
+  plt_df <- results %>%
+    tidyr::unite(col = "model", 
+                 fi, model, #min_samples_leaf, 
+                 na.rm = TRUE) %>%
+    dplyr::mutate(model = as.factor(model)) %>%
+    tidyr::unnest(fi_scores) %>%
+    dplyr::filter(!is.na(support)) %>%
+    dplyr::select(tidyselect::all_of(vary_param_name), 
+                  rep, model, var, importance) %>%
+    dplyr::group_by(.data[[vary_param_name]], model, var)  %>%
+    dplyr::summarise(.alpha = sort(unique(c(0, importance, 1))),
+                     reject_prob = (stats::ecdf(importance))(.alpha),
+                     .groups = "keep")
+  if (!is.null(keep_vars)) {
+    plt_df <- plt_df %>%
+      dplyr::filter(var %in% keep_vars)
+  }
+  plt_ls <- list()
+  for (val in unique(plt_df[[vary_param_name]])) {
+    plt_ls[[as.character(val)]] <- plt_df %>%
+      dplyr::filter(.data[[vary_param_name]] == !!val) %>%
+      ggplot2::ggplot() +
+      ggplot2::aes(x = .alpha, y = reject_prob, color = model) +
+      ggplot2::geom_abline(slope = 1, intercept = 0, color = "grey") +
+      ggplot2::geom_line() +
+      ggplot2::facet_wrap(~ var) +
+      ggplot2::coord_cartesian(xlim = c(0, 1), ylim = c(0, 1)) +
+      ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
+                    x = "alpha", y = "rejection probability") +
+      vthemes::theme_vmodern() +
+      vthemes::scale_color_vmodern(discrete = TRUE)
+  }
+  return(plt_ls)
+}
+
+# view results in Rmarkdown
+# notes: need to set 'results = "asis"' in the code chunk header
+view_results <- function(results_ls, metrics_plt_ls, metrics_errbar_plt_ls,
+                         power_plt_ls, interactive = TRUE) {
+  cat(sprintf("\n\n# %s {.tabset .tabset-vmodern}\n\n", 
+              basename(results_dir)))
+  
+  for (sim_name in names(results_ls)) {
+    vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
+    cat(sprintf("\n\n## %s {.tabset .tabset-pills}\n\n", sim_name))
+    
+    cat(sprintf("\n\n### Tables\n\n"))
+    vthemes::subchunkify(vthemes::pretty_DT(results_ls[[sim_name]]), 
+                         i = chunk_idx)
+    chunk_idx <<- chunk_idx + 1
+    
+    cat(sprintf("\n\n### Plots {.tabset .tabset-pills .tabset-square}\n\n"))
+    if (interactive) {
+      vthemes::subchunkify(plotly::ggplotly(metrics_plt_ls[[sim_name]]), 
+                           i = chunk_idx, other_args = "out.width = '100%'",
+                           add_class = "panel panel-default padded-panel")
+      chunk_idx <<- chunk_idx + 1
+      vthemes::subchunkify(plotly::ggplotly(metrics_errbar_plt_ls[[sim_name]]), 
+                           i = chunk_idx, other_args = "out.width = '100%'",
+                           add_class = "panel panel-default padded-panel")
+    } else {
+      vthemes::subchunkify(metrics_plt_ls[[sim_name]], i = chunk_idx)
+      chunk_idx <<- chunk_idx + 1
+      vthemes::subchunkify(metrics_errbar_plt_ls[[sim_name]], i = chunk_idx)
+    }
+    chunk_idx <<- chunk_idx + 1
+    
+    for (param_val in names(power_plt_ls[[sim_name]])) {
+      cat(sprintf("\n\n#### %s = %s\n\n\n", vary_param_name, param_val))
+      if (interactive) {
+        vthemes::subchunkify(plotly::ggplotly(power_plt_ls[[sim_name]][[param_val]]), 
+                             i = chunk_idx, other_args = "out.width = '100%'",
+                             add_class = "panel panel-default padded-panel")
+      } else {
+        vthemes::subchunkify(power_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+      }
+      chunk_idx <<- chunk_idx + 1
+    }
+  }
+}
+```
+
+```{r}
+# read in results
+results_ls <- list()
+for (results_subdir in list.dirs(results_dir, full.names = T, recursive = F)) {
+  if (!is.null(vary_param_name)) {
+    if (!(results_subdir %in% file.path(results_dir, 
+                                        paste0("varying_", vary_param_name)))) {
+      next
+    }
+  }
+  fname <- file.path(results_subdir, paste0("seed", seed), "results.csv")
+  if (file.exists(fname)) {
+    results_ls[[basename(results_subdir)]] <- data.table::fread(fname) %>%
+      reformat_results()
+  }
+}
+
+# plot evaluation metrics
+metrics <- c("rocauc", "prauc", "f1", "precision", "recall", "specificity", 
+             "fp", "tp", "neg", "pos")
+metrics_plt_ls <- list()
+metrics_errbar_plt_ls <- list()
+for (sim_name in names(results_ls)) {
+  vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
+  metrics_plt_ls[[sim_name]] <- plot_metrics(
+    results_ls[[sim_name]], vary_param_name, show_errbars = FALSE
+  )
+  metrics_errbar_plt_ls[[sim_name]] <- plot_metrics(
+    results_ls[[sim_name]], vary_param_name
+  )
+}
+
+# plot rejection probability curves
+power_plt_ls <- list()
+for (sim_name in names(results_ls)) {
+  vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
+  power_plt_ls[[sim_name]] <- plot_reject_prob(
+    results_ls[[sim_name]], vary_param_name, keep_vars
+  )
+}
+```
+
+```{r results = "asis"}
+# display plots nicely in knitted html document
+view_results(results_ls, metrics_plt_ls, metrics_errbar_plt_ls, power_plt_ls)
+```
+

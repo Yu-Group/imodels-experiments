@@ -18,8 +18,7 @@ from copy import copy
 from sklearn.model_selection import GridSearchCV
 from torch.autograd import Variable
 
-
-from scripts.util import *
+from nonlinear_significance.scripts.util import *
 
 
 class TreeTester(TransformerMixin, BaseEstimator):
@@ -32,7 +31,7 @@ class TreeTester(TransformerMixin, BaseEstimator):
     def get_feature_significance(self,X,y,num_splits = 10):
         p_vals = np.zeros((num_splits,X.shape[1]))
         for i in tqdm(range(num_splits)):
-            X_train, X_test, y_train, y_test = train_test_split(X,y,test_size = 0.5) #perform sample splitting 
+            X_train, X_test, y_train, y_test = train_test_split(X,y,test_size = 0.5) #perform sample splitting
             self.estimator.fit(X_train,y_train) #fit on half of sample to learn tree structure and features 
             tree_transformer = TreeTransformer(estimator = self.estimator, max_components=self.max_components) 
             tree_transformer.fit(X_test) 

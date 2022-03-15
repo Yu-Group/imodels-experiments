@@ -13,13 +13,11 @@ def fp(y_true, y_pred):
 
 
 def neg(y_true, y_pred):
-    conf_mat = confusion_matrix(y_true, y_pred)
-    return conf_mat[0][0] + conf_mat[0][1]
+    return sum(y_pred == 0)
 
 
 def pos(y_true, y_pred):
-    conf_mat = confusion_matrix(y_true, y_pred)
-    return conf_mat[1][0] + conf_mat[1][1]
+    return sum(y_pred == 1)
 
 
 def specificity_score(y_true, y_pred):

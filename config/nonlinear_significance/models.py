@@ -1,5 +1,3 @@
-# Note: This is currently just a test file with dummy/placeholder functions
-
 from functools import partial
 
 import numpy as np
@@ -9,7 +7,7 @@ from sklearn.ensemble import (
 )
 from sklearn.tree import DecisionTreeRegressor, DecisionTreeClassifier
 
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LinearRegression, LogisticRegression
 from statsmodels.api import OLS
 from imodels import (
     GreedyTreeClassifier, GreedyTreeRegressor, HSTreeClassifierCV, HSTreeRegressorCV
@@ -18,12 +16,15 @@ from util import ModelConfig, FIModelConfig
 
 import sys
 sys.path.append("../../")
-from nonlinear_significance.scripts.methods import lin_reg_t_test, tree_mdi, perm_importance, knockpy_swap_integral, tree_shap_mean
+from nonlinear_significance.scripts.methods import lin_reg_t_test, tree_mdi, perm_importance, knockpy_swap_integral, \
+    tree_shap_mean, tree_feature_significance
 
 RANDOM_FOREST_DEFAULT_KWARGS = {'random_state': 0}
 ESTIMATORS_CLASSIFICATION = [
-    [ModelConfig('CART', GreedyTreeClassifier, 'max_depth', n, model_type='tree')
-     for n in [1, 2, 3, 5, 7, 10]],
+    [ModelConfig('CART', GreedyTreeClassifier, model_type='tree')],
+    # [ModelConfig('Logistic', LogisticRegression, model_type='linear')],
+    # [ModelConfig('CART', GreedyTreeClassifier, 'max_depth', n, model_type='tree')
+    #  for n in [1, 2, 3, 5, 7, 10]],
     # [ModelConfig('OLS', LinearRegression, model_type='linear')],
     # [ModelConfig('HSCART', partial(HSTreeClassifierCV, estimator=DecisionTreeClassifier(max_depth=n)),
     #              'max_depth', n)
@@ -36,18 +37,20 @@ ESTIMATORS_CLASSIFICATION = [
 ]
 
 FI_ESTIMATORS_CLASSIFICATION = [
-    # [FIModelConfig('T-Test', log_reg_t_test, None, True, model_type='linear')],
+    [FIModelConfig('TreeSig', tree_feature_significance, None, True, model_type='tree')],
+    # [FIModelConfig('T-Test', lin_reg_t_test, None, True, model_type='linear')],
     [FIModelConfig('MDI', tree_mdi, None, False, model_type='tree')],
     [FIModelConfig('Permutation', perm_importance, None, False, model_type='tree')],
-    [FIModelConfig('Knockoff', knockpy_swap_integral, None, True, model_type='linear')],
+    # [FIModelConfig('Knockoff', knockpy_swap_integral, None, True, model_type='linear')],
     # [FIModelConfig('TreeSHAP', tree_shap_mean, None, False, model_type='tree')],
 ]
 
 ENSEMBLE_ESTIMATOR_NUMS = [3, 10, 25, 50]
 TREE_DEPTHS = [1, 2, 3, 4, 5, 7, 8, 10, 15, 20, 25]
 ESTIMATORS_REGRESSION = [
-    [ModelConfig('CART_(MSE)', GreedyTreeRegressor, 'max_depth', n, model_type='tree')
-     for n in TREE_DEPTHS],
+    [ModelConfig('CART_(MSE)', GreedyTreeRegressor, other_params={'min_samples_leaf': 5}, model_type='tree')],
+    # [ModelConfig('CART_(MSE)', GreedyTreeRegressor, 'max_depth', n, model_type='tree')
+    #  for n in TREE_DEPTHS],
     [ModelConfig('OLS', LinearRegression, model_type='linear')],
     # [Model('CART_(MAE)', GreedyTreeRegressor, 'max_depth', n, other_params={'criterion': 'absolute_error'})
     #  for n in TREE_DEPTHS],
@@ -67,9 +70,10 @@ ESTIMATORS_REGRESSION = [
 ]
 
 FI_ESTIMATORS_REGRESSION = [
+    [FIModelConfig('TreeSig', tree_feature_significance, None, True, model_type='tree')],
     [FIModelConfig('T-Test', lin_reg_t_test, None, True, model_type='linear')],
     [FIModelConfig('MDI', tree_mdi, None, False, model_type='tree')],
     [FIModelConfig('Permutation', perm_importance, None, False, model_type='tree')],
-    [FIModelConfig('Knockoff', knockpy_swap_integral, None, True, model_type='linear')],
+    # [FIModelConfig('Knockoff', knockpy_swap_integral, None, True, model_type='linear')],
     # [FIModelConfig('TreeSHAP', tree_shap_mean, None, False, model_type='tree')],
 ]
