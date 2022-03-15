@@ -1,5 +1,6 @@
 import numpy as np
 from collections import defaultdict
+from joblib import delayed, Parallel
 
 from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.decomposition import PCA
@@ -8,16 +9,34 @@ import statistics
 import statsmodels.api as sm
 from sklearn.model_selection import train_test_split
 
-def compare(query, feature, threshold, sign=True):
+
+def compare(data, feature, threshold, sign=True):
+    """
+    :param data: A 2D array of size (n_sample, n_feat)
+    :param feature:
+    :param threshold:
+    :param sign:
+    :return:
+    """
     if sign:
-        return query[feature] > threshold
+        return data[:, feature] > threshold
     else:
-        return not query[feature] > threshold
+        return data[:, feature] <= threshold
 
 
 class LocalDecisionStump:
 
     def __init__(self, feature, threshold, left_val, right_val, a_features, a_thresholds, a_signs):
+        """
+
+        :param feature:
+        :param threshold:
+        :param left_val:
+        :param right_val:
+        :param a_features: list, comprising ancestor features
+        :param a_thresholds: list, comprising ancestor thresholds
+        :param a_signs: list, comprising ancestor signs (0: left, 1: right)
+        """
 
         self.feature = feature
         self.threshold = threshold
@@ -27,22 +46,33 @@ class LocalDecisionStump:
         self.a_thresholds = a_thresholds
         self.a_signs = a_signs
 
-    def __call__(self, query):
+    def __call__(self, data):
+        """
 
-        in_node = all([compare(query, f, t, g) for f, t, g in zip(self.a_features,
-                                                                  self.a_thresholds,
-                                                                  self.a_signs)])
-        if not in_node:
-            return 0.0
-        else:
-            is_right = compare(query, self.feature, self.threshold)
-            if is_right:
-                return self.right_val
-            else:
-                return self.left_val
+        :param data: A 2D array of query values
+        :return:
+        """
+
+        root_to_stump_path_indicators = np.zeros((data.shape[0], len(self.a_features))).astype(bool)
+        for idx, (f, t, g) in enumerate(zip(self.a_features, self.a_thresholds, self.a_signs)):
+            root_to_stump_path_indicators[:, idx] = compare(data, f, t, g)
+        in_node = np.all(root_to_stump_path_indicators, axis=1).astype(int)
+        # in_node = all([compare(data, f, t, g) for f, t, g in zip(self.a_features,
+        #                                                          self.a_thresholds,
+        #                                                          self.a_signs)])
+        is_right = compare(data, self.feature, self.threshold).astype(int)
+        result = in_node * (is_right * self.right_val + (1 - is_right) * self.left_val)
+        # if not in_node:
+        #     return 0.0
+        # else:
+        #     is_right = compare(data, self.feature, self.threshold)
+        #     if is_right:
+        #         return self.right_val
+        #     else:
+        #         return self.left_val
+        return result
 
     def __repr__(self):
-
         return f"LocalDecisionStump(feature={self.feature}, threshold={self.threshold}, left_val={self.left_val}, " \
                f"right_val={self.right_val}, a_features={self.a_features}, a_thresholds={self.a_thresholds}, " \
                f"a_signs={self.a_signs})"
@@ -114,7 +144,7 @@ def make_stumps(tree_struct, normalize=False):
 def tree_feature_transform(stumps, X):
     transformed_feature_vectors = []
     for stump in stumps:
-        transformed_feature_vec = np.apply_along_axis(stump, 1, X)
+        transformed_feature_vec = stump(X)
         transformed_feature_vectors.append(transformed_feature_vec)
 
     return np.vstack(transformed_feature_vectors).T
@@ -138,7 +168,6 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
         self.pca_transformers = defaultdict(lambda: None)
         self.original_feat_to_transformed_mapping = defaultdict(list)
 
-
     def fit(self, X, y=None):
         counter = 0
         for k, v in self.original_feat_to_stump_mapping.items():
@@ -152,7 +181,7 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
                 n_new_feats_for_k = min(self.pca_transformers[k].explained_variance_.shape[0], n_stumps_for_k)
             else:
                 n_new_feats_for_k = min(self.max_components, n_stumps_for_k)
-            #print(self.pca_transformers[k].explained_variance_.shape)            
+            # print(self.pca_transformers[k].explained_variance_.shape)
             self.original_feat_to_transformed_mapping[k] = np.arange(counter, counter + n_new_feats_for_k)
             counter += n_new_feats_for_k
 
@@ -166,23 +195,20 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
             transformed_feature_vectors_sets.append(transformed_feature_vectors)
 
         return np.hstack(transformed_feature_vectors_sets)
-    
-     
-    def get_transformed_X_for_feat(self,X_transformed,feature,max_components):
+
+    def get_transformed_X_for_feat(self, X_transformed, feature, max_components):
         '''
         This method takes in the transformed X matrix (applying the node basis) and returns the X matrix restricted to a particular feature. 
         '''
-        X_transformed_feat = X_transformed[:,self.original_feat_to_transformed_mapping[feature]]
+        X_transformed_feat = X_transformed[:, self.original_feat_to_transformed_mapping[feature]]
         if max_components <= X_transformed_feat.shape[1]:
-            return X_transformed[:,self.original_feat_to_transformed_mapping[feature]]
+            return X_transformed[:, self.original_feat_to_transformed_mapping[feature]]
         else:
-            return X_transformed[:,self.original_feat_to_stump_mapping[feature]]
-        
-    
-    #def multiple_test_correction
-        
-    
-    #def get_subspace_correlation(self,X_transformed,feat_1,feat_2,max_components = np.inf):
+            return X_transformed[:, self.original_feat_to_stump_mapping[feature]]
+
+    # def multiple_test_correction
+
+    # def get_subspace_correlation(self,X_transformed,feat_1,feat_2,max_components = np.inf):
     #    '''
     #    This method takes in the transformed X matrix and returns the subspace correlation matrix. 
     #    '''
@@ -190,4 +216,3 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
     #    feat_2_X =  self.get_transformed_X_for_feat(X_transformed,feat_2,max_components)
     #    feat12_angles = subspace_angles(feat_1_X,feat_2_X)
     #    return np.sum(np.cos(feat12_angles)**2)/len(feat12_angles)
-    
