@@ -11,6 +11,7 @@ from sklearn.model_selection import train_test_split
 import statsmodels.stats.multitest as smt
 from tqdm import tqdm
 import torch 
+import sys,os
 from torch import nn
 from numpy import linalg as LA
 from torch.functional import F
@@ -18,8 +19,8 @@ from copy import copy
 from sklearn.model_selection import GridSearchCV
 from torch.autograd import Variable
 
-from nonlinear_significance.scripts.util import *
-
+#from nonlinear_significance.scripts.util import *
+from util import *
 
 class TreeTester(TransformerMixin, BaseEstimator):
 
@@ -71,11 +72,26 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         p_vals = np.ones((num_splits,X.shape[1]))
         for i in tqdm(range(num_splits)):
             X_sel, X_inf, y_sel, y_inf = train_test_split(X,y,test_size = 0.5)
+            
+            gs_estimator = GridSearchCV(self.estimator,param_grid = params, scoring = 'r2', cv = 5)
+            gs_estimator.fit(X_sel, y_sel)
+            
+            self.estimator = gs_estimator.best_estimator_
+            
+            
             self.estimator.fit(X_sel,y_sel) #fit on half of sample to learn tree structure and features 
+            
+            print(self.estimator.get_params)
+    
+            
+            
             tree_transformer_sel = TreeTransformer(estimator = self.estimator, max_components= X_sel.shape[0]*max_components )
             tree_transformer_sel.fit(X_sel) 
             transformed_feats_sel = tree_transformer_sel.transform(X_sel)
 
+            
+            
+            
             tree_transformer_inf = TreeTransformer(estimator = self.estimator, max_components=X_inf.shape[0]*max_components) 
             tree_transformer_inf.fit(X_inf) 
             transformed_feats_inf = tree_transformer_inf.transform(X_inf) 
