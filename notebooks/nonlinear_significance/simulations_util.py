@@ -18,6 +18,15 @@ def sample_normal_X(n, d, mean=0, scale=1, corr=0, Sigma=None):
     return X
 
 
+def sample_normal_X_reorder(support, n, d, mean=0, scale=1, corr=0, Sigma=None):
+    X = sample_normal_X(n=n, d=d, mean=mean, scale=scale, corr=corr, Sigma=Sigma)
+    for i in range(d):
+        if i not in support:
+            support.append(i)
+    X[:] = X[:, support]
+    return X
+
+
 def generate_coef(beta, s):
     if isinstance(beta, int) or isinstance(beta, float):
         beta = np.repeat(beta, repeats=s)
@@ -80,7 +89,7 @@ def sum_of_squares(X, sigma, s, beta, return_support=False):
         return y_train
 
 
-def lss_model(X, sigma, m, r, tau, beta):
+def lss_model(X, sigma, m, r, tau, beta, return_support=False):
     """
     This method creates response from an LSS model
 
@@ -110,10 +119,14 @@ def lss_model(X, sigma, m, r, tau, beta):
     y_train = np.array([lss_func(X[i, :], beta) for i in range(n)])
     y_train = y_train + sigma * np.random.randn(n)
 
-    return y_train
+    if return_support:
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+        return y_train, support, beta
+    else:
+        return y_train
 
 
-def sum_of_polys(X, sigma, m, r, beta):
+def sum_of_polys(X, sigma, m, r, beta, return_support=False):
     """
     This method creates response from an LSS model
 
@@ -141,4 +154,9 @@ def sum_of_polys(X, sigma, m, r, beta):
     y_train = np.array([poly_func(X[i, :], beta) for i in range(n)])
     y_train = y_train + sigma * np.random.randn(n)
 
-    return y_train
+    if return_support:
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+        return y_train, support, beta
+    else:
+        return y_train
+
