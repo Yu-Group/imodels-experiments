@@ -168,22 +168,38 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
         self.pca_transformers = defaultdict(lambda: None)
         self.original_feat_to_transformed_mapping = defaultdict(list)
 
-    def fit(self, X, y=None):
-        counter = 0
-        for k, v in self.original_feat_to_stump_mapping.items():
-            restricted_stumps = [self.all_stumps[idx] for idx in v]
-            transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
-            n_stumps_for_k = transformed_feature_vectors.shape[1]
-            if n_stumps_for_k > self.max_components:
-                self.pca_transformers[k] = PCA(n_components=self.max_components)
-                self.pca_transformers[k].fit(transformed_feature_vectors)
-            if self.max_components <= 1.0:
-                n_new_feats_for_k = min(self.pca_transformers[k].explained_variance_.shape[0], n_stumps_for_k)
+    def fit(self, X, y=None, parallelize=False):
+
+        def pca_on_stumps(origin_feat):
+            restricted_stumps = [self.all_stumps[idx] for idx in self.original_feat_to_stump_mapping[origin_feat]]
+            n_stumps = len(restricted_stumps)
+            if n_stumps > self.max_components:
+                transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
+                pca = PCA(n_components=self.max_components)
+                pca.fit(transformed_feature_vectors)
             else:
-                n_new_feats_for_k = min(self.max_components, n_stumps_for_k)
-            # print(self.pca_transformers[k].explained_variance_.shape)
-            self.original_feat_to_transformed_mapping[k] = np.arange(counter, counter + n_new_feats_for_k)
-            counter += n_new_feats_for_k
+                pca = None
+            if self.max_components <= 1.0:
+                n_new_feats = min(pca.explained_variance_.shape[0], n_stumps)
+            else:
+                n_new_feats = min(self.max_components, n_stumps)
+            return pca, n_new_feats
+
+        n_orig_feats = X.shape[1]
+        if parallelize:
+            results = Parallel(n_jobs=8)(delayed(pca_on_stumps)(k) for k in np.arange(n_orig_feats))
+            counter = 0
+            for k in np.arange(n_orig_feats):
+                self.pca_transformers[k], n_new_feats_for_k = results[k]
+                self.original_feat_to_transformed_mapping[k] = np.arange(counter, counter + n_new_feats_for_k)
+                counter += n_new_feats_for_k
+
+        else:
+            counter = 0
+            for k in np.arange(n_orig_feats):
+                self.pca_transformers[k], n_new_feats_for_k = pca_on_stumps(k)
+                self.original_feat_to_transformed_mapping[k] = np.arange(counter, counter + n_new_feats_for_k)
+                counter += n_new_feats_for_k
 
     def transform(self, X):
         transformed_feature_vectors_sets = []
