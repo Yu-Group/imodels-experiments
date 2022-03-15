@@ -15,6 +15,7 @@ from torch import nn
 from numpy import linalg as LA
 from torch.functional import F
 from copy import copy
+from sklearn.model_selection import GridSearchCV
 from torch.autograd import Variable
 
 
@@ -52,8 +53,8 @@ class TreeTester(TransformerMixin, BaseEstimator):
                     p_vals[i,j] = OLS_results.wald_test(P_j,scalar = False).pvalue
         median_p_vals = 2*np.median(p_vals,axis=0)
         median_p_vals[median_p_vals > 1.0] = 1.0
-        return median_p_vals
-        #return self.multiple_testing_correction(median_p_vals)
+        #return median_p_vals
+        return self.multiple_testing_correction(median_p_vals)
 
 
     
@@ -67,23 +68,26 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         self.estimator = estimator
         self.normalize = normalize
     
-    def get_feature_significance(self,X,y,num_splits = 10,eta = None,lr = .1,n_steps = 3000,num_reps = 10000,max_components = 0.5):
-        p_vals = np.zeros((num_splits,X.shape[1]))
+    def get_feature_significance(self,X,y,num_splits = 10,eta = None,lr = .1,n_steps = 3000,num_reps = 10000,max_components = 0.5,params = {}):
+        p_vals = np.ones((num_splits,X.shape[1]))
         for i in tqdm(range(num_splits)):
             X_sel, X_inf, y_sel, y_inf = train_test_split(X,y,test_size = 0.5)
             self.estimator.fit(X_sel,y_sel) #fit on half of sample to learn tree structure and features 
-            tree_transformer_sel = TreeTransformer(estimator = self.estimator, max_components= X_sel.shape[0]/2 )
+            tree_transformer_sel = TreeTransformer(estimator = self.estimator, max_components= X_sel.shape[0]*max_components )
             tree_transformer_sel.fit(X_sel) 
             transformed_feats_sel = tree_transformer_sel.transform(X_sel)
 
-            tree_transformer_inf = TreeTransformer(estimator = self.estimator, max_components=X_inf.shape[0]/2) 
+            tree_transformer_inf = TreeTransformer(estimator = self.estimator, max_components=X_inf.shape[0]*max_components) 
             tree_transformer_inf.fit(X_inf) 
             transformed_feats_inf = tree_transformer_inf.transform(X_inf) 
             
             print("done transforming stumps")
             
-            sigma_sel = (np.sum((y_sel - np.mean(y_sel))**2))/(len(y_sel)-1)
-            sigma_inf = (np.sum((y_inf - np.mean(y_inf))**2))/(len(y_inf)-1)
+            n_sel = len(y_sel)
+            n_inf = len(y_inf)
+            
+            sigma_sel = (np.sum((y_sel - np.mean(y_sel))**2))/(n_sel - max_components*n_sel -1)
+            sigma_inf = (np.sum((y_inf - np.mean(y_inf))**2))/(n_inf - max_components*n_inf -1)
 
             if eta is None:
                 eta = sigma_sel
