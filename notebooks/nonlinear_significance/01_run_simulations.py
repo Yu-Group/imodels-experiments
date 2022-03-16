@@ -1,7 +1,7 @@
 # Example usage: run in command line
 # cd notebooks/nonlinear_significance
-# python 01_run_simulations.py --nreps 2 --config normal_linear_dgp --split_seed 331 --ignore_cache
-# python 01_run_simulations.py --nreps 2 --config normal_linear_dgp --split_seed 331 --ignore_cache --create_rmd
+# python 01_run_simulations.py --nreps 2 --config test --split_seed 331 --ignore_cache
+# python 01_run_simulations.py --nreps 2 --config test --split_seed 331 --ignore_cache --create_rmd
 
 import copy
 import os
@@ -286,7 +286,10 @@ if __name__ == '__main__':
                 [pkl.load(open(f, 'rb'))['df'] for f in model_files],
                 axis=0
             )
-            results.insert(0, vary_param_name, val)
+            if np.isscalar(val):
+                results.insert(0, vary_param_name, val)
+            else:
+                results.insert(0, vary_param_name, [val for i in range(results.shape[0])])
             results.insert(1, vary_param_name + "_name", val_name)
             results.insert(2, 'rep', i)
             results_list.append(results)
@@ -303,13 +306,11 @@ if __name__ == '__main__':
         else:
             show_vars = args.show_vars
         os.system(
-            'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\')"'.format(
+            'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\', quiet = TRUE)"'.format(
                 "02_simulation_results.Rmd",
                 oj(args.results_path, args.config), vary_param_name, str(args.split_seed), str(show_vars),
                 oj(path, "simulation_results.html"))
         )
-
-        os.system('open {}'.format(oj(path, "simulation_results.html")))
         print("created rmd of simulation results successfully!")
 
 # %%

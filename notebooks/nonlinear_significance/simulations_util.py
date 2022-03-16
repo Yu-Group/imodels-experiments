@@ -48,10 +48,9 @@ def sample_X(support, X_fun, **kwargs):
     :return:
     """
     X = X_fun(**kwargs)
-    for i in range(d):
+    for i in range(X.shape[1]):
         if i not in support:
             support.append(i)
-    print(X)
     X[:] = X[:, support]
     return X
 
@@ -83,13 +82,14 @@ def sample_block_cor_X(n, d, rho, n_blocks, mean=0):
     """
     Sigma = np.zeros((d, d))
     block_size = d // n_blocks
+    if np.isscalar(rho):
+        rho = np.repeat(rho, n_blocks)
     for i in range(n_blocks):
         start = i * block_size
         end = (i + 1) * block_size
-        print(str(start) + ":" + str(end))
         if i == (n_blocks - 1):
             end = d
-        Sigma[start:end, start:end] = rho
+        Sigma[start:end, start:end] = rho[i]
     np.fill_diagonal(Sigma, 1)
     X = sample_normal_X(n=n, d=d, mean=mean, Sigma=Sigma)
     return X
