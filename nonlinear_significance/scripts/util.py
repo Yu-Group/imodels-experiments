@@ -24,6 +24,11 @@ def compare(data, feature, threshold, sign=True):
         return data[:, feature] <= threshold
 
 
+def compare_all(data, features, thresholds, signs):
+
+    return ~np.logical_xor(data[:, features] > thresholds, signs)
+
+
 class LocalDecisionStump:
 
     def __init__(self, feature, threshold, left_val, right_val, a_features, a_thresholds, a_signs):
@@ -53,23 +58,12 @@ class LocalDecisionStump:
         :return:
         """
 
-        root_to_stump_path_indicators = np.zeros((data.shape[0], len(self.a_features))).astype(bool)
-        for idx, (f, t, g) in enumerate(zip(self.a_features, self.a_thresholds, self.a_signs)):
-            root_to_stump_path_indicators[:, idx] = compare(data, f, t, g)
+        root_to_stump_path_indicators = compare_all(data, self.a_features, np.array(self.a_thresholds),
+                                                    np.array(self.a_signs))
         in_node = np.all(root_to_stump_path_indicators, axis=1).astype(int)
-        # in_node = all([compare(data, f, t, g) for f, t, g in zip(self.a_features,
-        #                                                          self.a_thresholds,
-        #                                                          self.a_signs)])
         is_right = compare(data, self.feature, self.threshold).astype(int)
         result = in_node * (is_right * self.right_val + (1 - is_right) * self.left_val)
-        # if not in_node:
-        #     return 0.0
-        # else:
-        #     is_right = compare(data, self.feature, self.threshold)
-        #     if is_right:
-        #         return self.right_val
-        #     else:
-        #         return self.left_val
+
         return result
 
     def __repr__(self):
