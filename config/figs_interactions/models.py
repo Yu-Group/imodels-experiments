@@ -14,6 +14,7 @@ from imodels import GreedyTreeRegressor, FIGSClassifier
 # from irf.ensemble import RandomForestRegressorWithWeights
 # from bartpy import BART
 from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import GridSearchCV
 from sklearn.tree import DecisionTreeRegressor
 
 from util import ModelConfig

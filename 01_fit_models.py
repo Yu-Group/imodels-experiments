@@ -72,7 +72,13 @@ def compare_estimators(estimators: List[ModelConfig],
     for model in tqdm(estimators, leave=False):
         est = model.cls(**model.kwargs)
 
+
         start = time.time()
+        est.fit(X_train, y_train)
+        # if type(est) in sklearn_baselines:
+        #     est.fit(X_train, y_train)
+        # else:
+        #     est.fit(X_train, y_train, feature_names=feat_names)
         try:
             est.fit(X_train, y_train, feature_names=feat_names)
         except TypeError as e:
