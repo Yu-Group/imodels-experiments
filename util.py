@@ -273,6 +273,8 @@ def _get_trees(model):
         for s in samples:
             trees += [t.nodes[0] for t in s.trees]
         return trees
+    elif hasattr(model, "figs"):
+        return model.figs.trees_
     elif hasattr(model, "trees_"):
         return list(model.trees_)
     elif hasattr(model, "estimators_"):

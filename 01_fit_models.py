@@ -82,10 +82,11 @@ def compare_estimators(estimators: List[ModelConfig],
         }
 
         start = time.time()
-        if type(est) in sklearn_baselines:
-            est.fit(X_train, y_train)
-        else:
-            est.fit(X_train, y_train, feature_names=feat_names)
+        est.fit(X_train, y_train)
+        # if type(est) in sklearn_baselines:
+        #     est.fit(X_train, y_train)
+        # else:
+        #     est.fit(X_train, y_train, feature_names=feat_names)
         end = time.time()
 
         # things to save
