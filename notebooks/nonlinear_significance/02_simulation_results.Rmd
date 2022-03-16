@@ -80,7 +80,7 @@ plot_metrics <- function(results, vary_param_name, show_errbars = TRUE) {
 }
 
 # plot rejection probability curves
-plot_reject_prob <- function(results, sim_name, keep_vars = NULL) {
+plot_reject_prob <- function(results, vary_param_name, keep_vars = NULL) {
   plt_df <- results %>%
     tidyr::unite(col = "model", 
                  fi, model, #min_samples_leaf, 
@@ -116,10 +116,61 @@ plot_reject_prob <- function(results, sim_name, keep_vars = NULL) {
   return(plt_ls)
 }
 
+# plot feature importances
+plot_feature_importance <- function(results, vary_param_name, keep_vars = NULL, 
+                                    plot_type = c("boxplot", "bar")) {
+  plot_type <- match.arg(plot_type)
+  plt_df <- results %>%
+    tidyr::unite(col = "model", 
+                 fi, model, #min_samples_leaf, 
+                 na.rm = TRUE) %>%
+    dplyr::mutate(model = as.factor(model)) %>%
+    tidyr::unnest(fi_scores) 
+  if (plot_type == "bar") {
+    plt_df <- plt_df %>%
+      dplyr::select(tidyselect::all_of(vary_param_name),
+                    rep, model, var, importance) %>%
+      dplyr::group_by(.data[[vary_param_name]], model, var)  %>%
+      dplyr::summarise(mean_fi = mean(importance), #sd_fi = sd(importance),
+                       .groups = "keep")
+  }
+  if (!is.null(keep_vars)) {
+    plt_df <- plt_df %>%
+      dplyr::filter(var %in% keep_vars)
+  }
+  plt_ls <- list()
+  for (val in unique(plt_df[[vary_param_name]])) {
+    if (plot_type == "bar") {
+      plt <- plt_df %>%
+        dplyr::filter(.data[[vary_param_name]] == !!val) %>%
+        ggplot2::ggplot() +
+        ggplot2::aes(x = var, y = mean_fi) +
+        ggplot2::geom_bar(stat = "identity", color = "grey98", fill = "#00C5FF") +
+        ggplot2::facet_wrap(~ model, scales = "free") +
+        ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
+                      x = "Feature", y = "Mean Importance / Significance") +
+        vthemes::theme_vmodern()
+    } else if (plot_type == "boxplot") {
+      plt <- plt_df %>%
+        dplyr::filter(.data[[vary_param_name]] == !!val) %>%
+        ggplot2::ggplot() +
+        ggplot2::aes(x = var, y = importance, group = var) +
+        ggplot2::geom_boxplot() +
+        ggplot2::facet_wrap(~ model, scales = "free") +
+        ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
+                      x = "Feature", y = "Importance / Significance") +
+        vthemes::theme_vmodern()
+    }
+    plt_ls[[as.character(val)]] <- plt
+  }
+  return(plt_ls)
+}
+
 # view results in Rmarkdown
 # notes: need to set 'results = "asis"' in the code chunk header
 view_results <- function(results_ls, metrics_plt_ls, metrics_errbar_plt_ls,
-                         power_plt_ls, interactive = TRUE) {
+                         power_plt_ls, fi_bar_plt_ls, fi_box_plt_ls, 
+                         interactive = TRUE) {
   cat(sprintf("\n\n# %s {.tabset .tabset-vmodern}\n\n", 
               basename(results_dir)))
   
@@ -154,8 +205,20 @@ view_results <- function(results_ls, metrics_plt_ls, metrics_errbar_plt_ls,
         vthemes::subchunkify(plotly::ggplotly(power_plt_ls[[sim_name]][[param_val]]), 
                              i = chunk_idx, other_args = "out.width = '100%'",
                              add_class = "panel panel-default padded-panel")
+        chunk_idx <<- chunk_idx + 1
+        vthemes::subchunkify(plotly::ggplotly(fi_box_plt_ls[[sim_name]][[param_val]]), 
+                             i = chunk_idx, other_args = "out.width = '100%'",
+                             add_class = "panel panel-default padded-panel")
+        chunk_idx <<- chunk_idx + 1
+        vthemes::subchunkify(plotly::ggplotly(fi_bar_plt_ls[[sim_name]][[param_val]]), 
+                             i = chunk_idx, other_args = "out.width = '100%'",
+                             add_class = "panel panel-default padded-panel")
       } else {
         vthemes::subchunkify(power_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+        chunk_idx <<- chunk_idx + 1
+        vthemes::subchunkify(fi_box_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+        chunk_idx <<- chunk_idx + 1
+        vthemes::subchunkify(fi_bar_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
       }
       chunk_idx <<- chunk_idx + 1
     }
@@ -203,10 +266,24 @@ for (sim_name in names(results_ls)) {
     results_ls[[sim_name]], vary_param_name, keep_vars
   )
 }
+
+# plot feature importances
+fi_box_plt_ls <- list()
+fi_bar_plt_ls <- list()
+for (sim_name in names(results_ls)) {
+  vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
+  fi_box_plt_ls[[sim_name]] <- plot_feature_importance(
+    results_ls[[sim_name]], vary_param_name, keep_vars, plot_type = "boxplot"
+  )
+  fi_bar_plt_ls[[sim_name]] <- plot_feature_importance(
+    results_ls[[sim_name]], vary_param_name, keep_vars, plot_type = "bar"
+  )
+}
 ```
 
 ```{r results = "asis"}
 # display plots nicely in knitted html document
-view_results(results_ls, metrics_plt_ls, metrics_errbar_plt_ls, power_plt_ls)
+view_results(results_ls, metrics_plt_ls, metrics_errbar_plt_ls, power_plt_ls,
+             fi_bar_plt_ls, fi_box_plt_ls)
 ```
 
