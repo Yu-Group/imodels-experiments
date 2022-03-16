@@ -1,29 +1,97 @@
 import numpy as np
+from scipy.linalg import toeplitz
 
 
 def sample_boolean_X(n, d):
+    """
+    Sample X with iid boolean entries
+    :param n:
+    :param d:
+    :return:
+    """
     X = np.random.randint(0, 2.0, (n, d))
     return X
 
 
 def sample_normal_X(n, d, mean=0, scale=1, corr=0, Sigma=None):
+    """
+    Sample X with iid normal entries
+    :param n:
+    :param d:
+    :param mean:
+    :param scale:
+    :param corr:
+    :param Sigma:
+    :return:
+    """
     if Sigma is not None:
-        X = np.random.multivariate_normal(mean, Sigma, size=(n, d))
+        if np.isscalar(mean):
+            mean = np.repeat(mean, d)
+        X = np.random.multivariate_normal(mean, Sigma, size=n)
     elif corr == 0:
         X = np.random.normal(mean, scale, size=(n, d))
     else:
         Sigma = np.zeros((d, d)) + corr
         np.fill_diagonal(Sigma, 1)
-        X = np.random.multivariate_normal(mean, Sigma, size=(n, d))
+        if np.isscalar(mean):
+            mean = np.repeat(mean, d)
+        X = np.random.multivariate_normal(mean, Sigma, size=n)
     return X
 
 
-def sample_normal_X_reorder(support, n, d, mean=0, scale=1, corr=0, Sigma=None):
-    X = sample_normal_X(n=n, d=d, mean=mean, scale=scale, corr=corr, Sigma=Sigma)
+def sample_X(support, X_fun, **kwargs):
+    """
+    Wrapper around dgp function for X that reorders columns so support features are in front
+    :param support:
+    :param X_fun:
+    :param kwargs:
+    :return:
+    """
+    X = X_fun(**kwargs)
     for i in range(d):
         if i not in support:
             support.append(i)
+    print(X)
     X[:] = X[:, support]
+    return X
+
+
+def sample_ar1_X(n, d, rho, mean=0):
+    """
+    Sample X from N(mean, Sigma) where Sigma is an AR1(rho) covariance matrix
+    :param n:
+    :param d:
+    :param rho:
+    :param mean:
+    :return:
+    """
+    col1 = [rho**i for i in range(d)]
+    Sigma = toeplitz(c=col1)
+    X = sample_normal_X(n=n, d=d, mean=mean, Sigma=Sigma)
+    return X
+
+
+def sample_block_cor_X(n, d, rho, n_blocks, mean=0):
+    """
+    Sample X from N(mean, Sigma) where Sigma is a block diagnoal covariance matrix
+    :param n:
+    :param d:
+    :param rho:
+    :param n_blocks:
+    :param mean:
+    :return:
+    """
+    Sigma = np.zeros((d, d))
+    block_size = d // n_blocks
+    for i in range(n_blocks):
+        start = i * block_size
+        end = (i + 1) * block_size
+        print(str(start) + ":" + str(end))
+        if i == (n_blocks - 1):
+            end = d
+        Sigma[start:end, start:end] = rho
+    np.fill_diagonal(Sigma, 1)
+    X = sample_normal_X(n=n, d=d, mean=mean, Sigma=Sigma)
     return X
 
 
