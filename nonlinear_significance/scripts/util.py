@@ -199,10 +199,13 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
         transformed_feature_vectors_sets = []
         for k, v in self.original_feat_to_stump_mapping.items():
             restricted_stumps = [self.all_stumps[idx] for idx in v]
-            transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
-            if self.pca_transformers[k] is not None:
-                transformed_feature_vectors = self.pca_transformers[k].transform(transformed_feature_vectors)
-            transformed_feature_vectors_sets.append(transformed_feature_vectors)
+            if len(restricted_stumps) == 0:
+                continue
+            else:
+                transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
+                if self.pca_transformers[k] is not None:
+                    transformed_feature_vectors = self.pca_transformers[k].transform(transformed_feature_vectors)
+                transformed_feature_vectors_sets.append(transformed_feature_vectors)
 
         return np.hstack(transformed_feature_vectors_sets)
 
