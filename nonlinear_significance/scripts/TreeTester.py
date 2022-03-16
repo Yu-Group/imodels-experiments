@@ -20,6 +20,7 @@ from sklearn.model_selection import GridSearchCV
 from torch.autograd import Variable
 
 #from nonlinear_significance.scripts.util import *
+from nonlinear_significance.scripts.util import TreeTransformer
 from util import *
 
 class TreeTester(TransformerMixin, BaseEstimator):
