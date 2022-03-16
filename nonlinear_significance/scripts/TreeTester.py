@@ -15,12 +15,12 @@ import sys,os
 from torch import nn
 from numpy import linalg as LA
 from torch.functional import F
-from copy import copy
+import copy
 from sklearn.model_selection import GridSearchCV
 from torch.autograd import Variable
 
 #from nonlinear_significance.scripts.util import *
-from nonlinear_significance.scripts.util import TreeTransformer
+#from nonlinear_significance.scripts.util import TreeTransformer
 from util import *
 
 class TreeTester(TransformerMixin, BaseEstimator):
@@ -74,22 +74,22 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         for i in tqdm(range(num_splits)):
             X_sel, X_inf, y_sel, y_inf = train_test_split(X,y,test_size = 0.5)
             
-            gs_estimator = GridSearchCV(self.estimator,param_grid = params, scoring = 'r2', cv = 5)
-            gs_estimator.fit(X_sel, y_sel)
-            
-            self.estimator = gs_estimator.best_estimator_
-            
-            
-            self.estimator.fit(X_sel,y_sel) #fit on half of sample to learn tree structure and features 
+            if len(params) != 0:
+                gs_estimator = GridSearchCV(self.estimator,param_grid = params, scoring = 'r2', cv = 5)
+                gs_estimator.fit(X_sel, y_sel)
+                self.estimator = gs_estimator.best_estimator_
+                self.estimator.fit(X_sel,y_sel) #fit on half of sample to learn tree structure and features 
+            else:
+                self.estimator.fit(X_sel,y_sel)
                         
             
-            tree_transformer_sel = TreeTransformer(estimator = self.estimator, max_components= int(X_sel.shape[0]*max_components) )
+            tree_transformer_sel = TreeTransformer(estimator = copy.deepcopy(self.estimator), max_components= int(X_sel.shape[0]*max_components) )
             tree_transformer_sel.fit(X_sel) 
             transformed_feats_sel = tree_transformer_sel.transform(X_sel)
 
             
             
-            tree_transformer_inf = TreeTransformer(estimator = self.estimator, max_components= int(X_inf.shape[0]*max_components) )
+            tree_transformer_inf = TreeTransformer(estimator = copy.deepcopy(self.estimator), max_components= int(X_inf.shape[0]*max_components) )
             tree_transformer_inf.fit(X_inf) 
             transformed_feats_inf = tree_transformer_inf.transform(X_inf) 
             
@@ -122,9 +122,9 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         median_p_vals = 2*np.median(p_vals,axis=0)
         median_p_vals[median_p_vals > 1.0] = 1.0
 
-        return median_p_vals
+        return median_p_vals,p_vals,self.multiple_testing_correction(median_p_vals)
+
     
-    #self.multiple_testing_correction(median_p_vals)
     
     def multiple_testing_correction(self,p_vals,method = 'bonferroni',alpha = 0.05):
         return smt.multipletests(p_vals, method=method)[1] 
@@ -153,7 +153,7 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
             gradient = self.compute_gradient(weights,betas,u_sel,y,eta,sigma_sel)
             weights = np.add(weights, lr*gradient)
             #print(weights)
-            if all(gradient == 0.0): 
+            if all(gradient <= 0.00001): 
                 break
             #opt.zero_grad()
             #z = self.forward(weights,u_sel,y,eta,sigma_sel)#torch.linalg.vector_norm(x)#x*x
@@ -166,11 +166,11 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
     
     def compute_gradient(self,weights,betas,u_sel,y_sel,eta,sigma_sel):
         gradients = []
-        g = np.dot(weights**2,betas**2) - eta*LA.norm(weights)**2
+        g = np.dot(weights**2,betas**2) - eta*((LA.norm(weights))**2)
         h = sigma_sel*np.sqrt(np.sum(weights**4))
         for i in range(len(weights)):
             g_prime = 2.0*weights[i]*(betas[i]**2) - (2.0*eta*weights[i])
-            h_prime = ((2*(weights[i]**3))*(sigma_sel))/(np.sqrt(np.sum(weights**4)))
+            h_prime = ((2.0*(weights[i]**3))*(sigma_sel))/(np.sqrt(np.sum(weights**4)))
             grad_weight = (g_prime*h - h_prime*g)/(h**2)
             gradients.append(grad_weight)
         return np.array(gradients)
@@ -181,7 +181,7 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         samples = []
         for n in range(num_reps):
             numerator_sample = 0.0
-            denominator_sample = np.random.chisquare(n_sel-p_inf_feat)
+            denominator_sample = (np.random.chisquare(n_sel-p_sel_feat))/(n_sel-p_sel_feat-1)
             for i in range(k):
                 numerator_sample += (weights[i]**2)*np.random.chisquare(1, size=None)
             samples.append(numerator_sample/denominator_sample)
