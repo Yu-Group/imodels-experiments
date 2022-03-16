@@ -80,32 +80,26 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
             
             
             self.estimator.fit(X_sel,y_sel) #fit on half of sample to learn tree structure and features 
+                        
             
-            print(self.estimator.get_params)
-    
-            
-            
-            tree_transformer_sel = TreeTransformer(estimator = self.estimator, max_components= X_sel.shape[0]*max_components )
+            tree_transformer_sel = TreeTransformer(estimator = self.estimator, max_components= int(X_sel.shape[0]*max_components) )
             tree_transformer_sel.fit(X_sel) 
             transformed_feats_sel = tree_transformer_sel.transform(X_sel)
 
             
             
-            
-            tree_transformer_inf = TreeTransformer(estimator = self.estimator, max_components=X_inf.shape[0]*max_components) 
+            tree_transformer_inf = TreeTransformer(estimator = self.estimator, max_components= int(X_inf.shape[0]*max_components) )
             tree_transformer_inf.fit(X_inf) 
             transformed_feats_inf = tree_transformer_inf.transform(X_inf) 
             
-            print("done transforming stumps")
             
             n_sel = len(y_sel)
             n_inf = len(y_inf)
+            p_sel = transformed_feats_sel.shape[1]
+            p_inf = transformed_feats_inf.shape[1]
             
-            sigma_sel = (np.sum((y_sel - np.mean(y_sel))**2))/(n_sel - max_components*n_sel -1)
-            sigma_inf = (np.sum((y_inf - np.mean(y_inf))**2))/(n_inf - max_components*n_inf -1)
 
-            if eta is None:
-                eta = sigma_sel
+            
             for j in range(X.shape[1]):
                 stumps_sel_for_feat = tree_transformer_sel.original_feat_to_transformed_mapping[j]
                 num_splits_for_feat = len(stumps_sel_for_feat)
@@ -114,22 +108,30 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
                 else:
                     stumps_inf_for_feat = tree_transformer_inf.original_feat_to_transformed_mapping[j]
                     X_sel_for_feat = transformed_feats_sel[:,stumps_sel_for_feat]
+                    p_sel_feat = X_sel_for_feat.shape[1]
+                    sigma_sel = (np.sum((y_sel - np.mean(y_sel))**2))/(n_sel - p_sel_feat -1)
+                    if eta is None:
+                        eta = sigma_sel
                     X_inf_for_feat = transformed_feats_inf[:,stumps_inf_for_feat]
+                    p_inf_feat = X_inf_for_feat.shape[1]
+                    sigma_inf = (np.sum((y_inf - np.mean(y_inf))**2))/(n_inf - p_inf_feat -1)
                     optimal_lambda_for_feat = self.get_optimal_lambda(X_sel_for_feat,y_sel,eta,sigma_sel,lr,n_steps)
-                    p_vals[i,j] = self.compute_p_val(optimal_lambda_for_feat,X_inf_for_feat,y_inf,sigma_inf,num_reps)
+                    p_vals[i,j] = self.compute_p_val(optimal_lambda_for_feat,X_inf_for_feat,y_inf,sigma_inf,num_reps,n_sel,n_inf,p_sel_feat,p_inf_feat)
             
         median_p_vals = 2*np.median(p_vals,axis=0)
         median_p_vals[median_p_vals > 1.0] = 1.0
 
-        return median_p_vals#self.multiple_testing_correction(median_p_vals)
+        return median_p_vals
+    
+    #self.multiple_testing_correction(median_p_vals)
     
     def multiple_testing_correction(self,p_vals,method = 'bonferroni',alpha = 0.05):
         return smt.multipletests(p_vals, method=method)[1] 
              
-    def compute_p_val(self,optimal_lambda,X_inf,y_inf,sigma_inf,num_reps):
+    def compute_p_val(self,optimal_lambda,X_inf,y_inf,sigma_inf,num_reps,n_sel,n_inf,p_sel_feat,p_inf_feat):
         u_inf, s_inf, vh_inf = np.linalg.svd(X_inf, full_matrices=False)
         optimal_weights = optimal_lambda#optimal_lambda.cpu().detach().numpy()
-        weighted_chi_squared_samples = np.sort(np.array(self.get_weighted_chi_squared(optimal_weights,num_reps)))
+        weighted_chi_squared_samples = np.sort(np.array(self.get_weighted_chi_squared(optimal_weights,n_sel,n_inf,p_sel_feat,p_inf_feat,num_reps)))
         test_statistic = (np.sum((optimal_weights*(np.transpose(u_inf) @ y_inf))**2))/sigma_inf
         quantile = stats.percentileofscore(weighted_chi_squared_samples, test_statistic, 'rank') / 100
         return 1.0 - quantile
@@ -137,6 +139,7 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         
     def get_optimal_lambda(self,X,y,eta,sigma_sel,lr,n_steps):
         u_sel, s_sel, vh_sel = np.linalg.svd(X, full_matrices=False)
+        betas = np.transpose(u_sel) @ y
         weights = []
         for i in range(u_sel.shape[1]):
             weights.append(np.random.uniform())
@@ -146,7 +149,7 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         #weights = Variable(tns, requires_grad=True)
         #opt = torch.optim.SGD([weights], lr=lr)
         for i in range(n_steps):
-            gradient = self.compute_gradient(weights,u_sel,y,eta,sigma_sel)
+            gradient = self.compute_gradient(weights,betas,u_sel,y,eta,sigma_sel)
             weights = np.add(weights, lr*gradient)
             #print(weights)
             if all(gradient == 0.0): 
@@ -160,9 +163,8 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
             #opt.step()
         return weights
     
-    def compute_gradient(self,weights,u_sel,y_sel,eta,sigma_sel):
+    def compute_gradient(self,weights,betas,u_sel,y_sel,eta,sigma_sel):
         gradients = []
-        betas = np.transpose(u_sel) @ y_sel
         g = np.dot(weights**2,betas**2) - eta*LA.norm(weights)**2
         h = sigma_sel*np.sqrt(np.sum(weights**4))
         for i in range(len(weights)):
@@ -173,14 +175,15 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         return np.array(gradients)
     
             
-    def get_weighted_chi_squared(self,weights,num_reps = 10000):
+    def get_weighted_chi_squared(self,weights,n_sel,n_inf,p_sel_feat,p_inf_feat,num_reps = 10000):
         k = len(weights)
         samples = []
         for n in range(num_reps):
-            sample = 0.0
+            numerator_sample = 0.0
+            denominator_sample = np.random.chisquare(n_sel-p_inf_feat)
             for i in range(k):
-                sample += (weights[i]**2)*np.random.chisquare(1, size=None)
-            samples.append(sample)
+                numerator_sample += (weights[i]**2)*np.random.chisquare(1, size=None)
+            samples.append(numerator_sample/denominator_sample)
         return samples 
         
     
