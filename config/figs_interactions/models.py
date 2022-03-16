@@ -3,11 +3,12 @@ from functools import partial
 import numpy as np
 # from bartpy.initializers.sklearntreeinitializer import SklearnTreeInitializer
 # from imodels.tree.iterative_random_forest.iterative_random_forest import IRFClassifier
+from imodels.experimental.bartpy.initializers.sklearntreeinitializer import SklearnTreeInitializer
 from numpy import concatenate as cat
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier, \
     GradientBoostingRegressor
 
-from imodels import FIGSRegressor, DistilledRegressor
+from imodels import FIGSRegressor, DistilledRegressor, BART
 from imodels import GreedyTreeRegressor, FIGSClassifier
 # from irf.ensemble import RandomForestRegressorWithWeights
 # from bartpy import BART
@@ -18,8 +19,8 @@ RULEFIT_DEFAULT_KWARGS_CLASSIFICATION = {'random_state': 0, 'max_rules': None, '
 ESTIMATORS_CLASSIFICATION = [
     [ModelConfig('FIGS', FIGSClassifier, 'max_rules', n)
      for n in cat((np.arange(1, 19, 3), [25, 30]))],
-    # [ModelConfig('BFIGS', partial(BART, initializer=SklearnTreeInitializer(tree_=FIGSClassifier(max_rules=n))), 'max_rules', n)
-    #  for n in cat((np.arange(1, 19, 3), [25, 30]))],
+    [ModelConfig('BFIGS', partial(BART,classification=True, initializer=SklearnTreeInitializer(tree_=FIGSClassifier(max_rules=n))), 'max_rules', n)
+     for n in cat((np.arange(1, 19, 3), [25, 30]))],
     [ModelConfig('RandomForest', RandomForestClassifier)],  # single baseline
     [ModelConfig('GBDT-1', GradientBoostingClassifier, 'n_estimators', n, {'max_depth': 1})
      for n in cat((np.arange(1, 19, 3), [25, 30]))],
@@ -31,9 +32,9 @@ RULEFIT_DEFAULT_KWARGS_REGRESSION = {'random_state': 0, 'max_rules': None, 'incl
 ESTIMATORS_REGRESSION = [
     [ModelConfig('FIGS', FIGSRegressor, 'max_rules', n)
      for n in cat((np.arange(3, 19, 3), [25, 30]))],
-    # [ModelConfig('BFIGS', partial(BART, initializer=SklearnTreeInitializer(tree_=FIGSRegressor(max_rules=n))),
-    #              'max_rules', n)
-    #  for n in cat((np.arange(3, 19, 3), [25, 30]))],
+    [ModelConfig('BFIGS', partial(BART, initializer=SklearnTreeInitializer(tree_=FIGSRegressor(max_rules=n))),
+                 'max_rules', n)
+     for n in cat((np.arange(3, 19, 3), [25, 30]))],
     [ModelConfig('RandomForest', RandomForestRegressor)],  # single baseline
     [ModelConfig('GBDT-1', GradientBoostingRegressor, 'n_estimators', n, {'max_depth': 1})
      for n in cat((np.arange(3, 19, 3), [25, 30]))],

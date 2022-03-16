@@ -17,6 +17,7 @@ import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
 
+from config.figs_interactions.datasets import DATASETS_REGRESSION
 from util import remove_x_axis_duplicates, merge_overlapping_curves
 
 dvu.set_style()
@@ -74,6 +75,7 @@ def plot_comparisons(metric='rocauc', datasets=[],
         'Dist-RF-FIGS-3': 'green',
         'RandomForest': 'gray',
         'GBDT': 'black',
+        "BFIGS": "green"
     }
 
     for i, dset in enumerate(tqdm(datasets)):
@@ -400,3 +402,13 @@ def viz_comparison_datasets(result: Union[Dict[str, Any], List[Dict[str, Any]]],
         plt.title(f'dataset {dataset}')
     #     plt.subplot(n_rows, cols, 1)
     plt.tight_layout()
+
+
+if __name__ == '__main__':
+    plot_comparisons(metric='r2', datasets=DATASETS_REGRESSION,
+                         models_to_include=['FIGS', 'GBDT-1', 'GBDT-2', 'RandomForest', "BFIGS"],  # GBDT-2
+                         models_to_include_dashed=['RandomForest'],
+                         save_name='figs_interactions',
+                         eps_legend_sep=0.01,
+                         config_name="figs_interactions",
+                         xlim=20)

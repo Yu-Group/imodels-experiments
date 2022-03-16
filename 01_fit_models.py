@@ -11,6 +11,7 @@ from typing import Callable, List, Tuple, Set
 import numpy as np
 import pandas as pd
 # from bartpy import BART
+from imodels import BART
 from imodels.util.tree_interaction_utils import (get_gt, interaction_fpr, interaction_f1,
                                                  interaction_tpr, get_interacting_features, get_important_features)
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
@@ -77,7 +78,7 @@ def compare_estimators(estimators: List[ModelConfig],
             RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
             RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor,
             BaggingClassifier, BaggingRegressor, GridSearchCV, LogisticRegressionCV, RidgeCV,
-            imodels.DistilledRegressor
+            imodels.DistilledRegressor, BART
         }
 
         start = time.time()
