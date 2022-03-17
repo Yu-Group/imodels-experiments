@@ -134,7 +134,7 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         optimal_weights = optimal_lambda#optimal_lambda.cpu().detach().numpy()
         weighted_chi_squared_samples = np.sort(np.array(self.get_weighted_chi_squared(optimal_weights,n_sel,n_inf,p_sel_feat,p_inf_feat,num_reps)))
         test_statistic = (np.sum((optimal_weights*(np.transpose(u_inf) @ y_inf))**2))/sigma_inf
-        quantile = stats.percentileofscore(weighted_chi_squared_samples, test_statistic, 'rank') / 100
+        quantile = stats.percentileofscore(weighted_chi_squared_samples, test_statistic, 'rank') / 100.0
         return 1.0 - quantile
         
         
@@ -145,16 +145,24 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         for i in range(u_sel.shape[1]):
             weights.append(np.random.uniform())
         weights = np.array(weights)
-        
+        difference_in_weights = np.array([1.0])
+        #gradient = np.array([1.0])
+        #while all(gradient)
         #tns = torch.distributions.Uniform(0,1.0).sample((u_sel.shape[1],))
         #weights = Variable(tns, requires_grad=True)
         #opt = torch.optim.SGD([weights], lr=lr)
-        for i in range(n_steps):
+        #for i in range(n_steps):
+        while all(i<=0.000001 for i in difference_in_weights):
             gradient = self.compute_gradient(weights,betas,u_sel,y,eta,sigma_sel)
-            weights = np.add(weights, lr*gradient)
+            new_weights = np.add(weights, lr*gradient)
+            difference_in_weights = new_weights - weights
+            weights = new_weights 
             #print(weights)
-            if all(gradient <= 0.00001): 
-                break
+            #if all(i <= 0.000001 for i in difference_in_weights): 
+            #    #print("im'here")
+            #    break
+            #else:
+            #    new_weights 
             #opt.zero_grad()
             #z = self.forward(weights,u_sel,y,eta,sigma_sel)#torch.linalg.vector_norm(x)#x*x
             #z.sum().backward()
