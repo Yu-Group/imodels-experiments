@@ -6,7 +6,7 @@ output: vthemes::vmodern
 params:
   results_dir: 
     label: "Results directory"
-    value: "results/normal_linear_dgp"
+    value: "results/test"
   vary_param_name:
     label: "Name of varying parameter"
     value: NULL
@@ -56,23 +56,27 @@ plot_metrics <- function(results, vary_param_name, show_errbars = TRUE) {
                  na.rm = TRUE) %>%
     dplyr::mutate(model = as.factor(model)) %>%
     dplyr::select(rep, model, 
-                  tidyselect::all_of(c(vary_param_name, metrics))) %>%
+                  tidyselect::all_of(c(paste0(vary_param_name, "_name"), 
+                                       metrics))) %>%
     tidyr::pivot_longer(cols = tidyselect::all_of(metrics), 
                         names_to = "metric")  %>%
-    dplyr::group_by(.data[[vary_param_name]], model, metric) %>%
+    dplyr::group_by(.data[[paste0(vary_param_name, "_name")]],
+                    model, metric) %>%
     dplyr::summarise(mean = mean(value), sd = sd(value), .groups = "keep")
   
   plt <- ggplot2::ggplot(plt_df) +
-    ggplot2::aes(x = .data[[vary_param_name]], y = mean, color = model)  +
+    ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]], 
+                 y = mean, color = model)  +
     ggplot2::facet_wrap(~ metric, scales = "free_y", nrow = 4, ncol = 3) +
     ggplot2::geom_point() +
     ggplot2::geom_line() +
     vthemes::theme_vmodern() +
-    vthemes::scale_color_vmodern(discrete = TRUE)
+    vthemes::scale_color_vmodern(discrete = TRUE) +
+    ggplot2::labs(x = vary_param_name)
   if (show_errbars) {
     plt <- plt + 
       ggplot2::geom_errorbar(
-        mapping = ggplot2::aes(x = .data[[vary_param_name]],
+        mapping = ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]],
                                ymin = mean - sd, ymax = mean + sd)
       )
   }
@@ -88,9 +92,9 @@ plot_reject_prob <- function(results, vary_param_name, keep_vars = NULL) {
     dplyr::mutate(model = as.factor(model)) %>%
     tidyr::unnest(fi_scores) %>%
     dplyr::filter(!is.na(support)) %>%
-    dplyr::select(tidyselect::all_of(vary_param_name), 
+    dplyr::select(tidyselect::all_of(paste0(vary_param_name, "_name")), 
                   rep, model, var, importance) %>%
-    dplyr::group_by(.data[[vary_param_name]], model, var)  %>%
+    dplyr::group_by(.data[[paste0(vary_param_name, "_name")]], model, var)  %>%
     dplyr::summarise(.alpha = sort(unique(c(0, importance, 1))),
                      reject_prob = (stats::ecdf(importance))(.alpha),
                      .groups = "keep")
@@ -99,9 +103,9 @@ plot_reject_prob <- function(results, vary_param_name, keep_vars = NULL) {
       dplyr::filter(var %in% keep_vars)
   }
   plt_ls <- list()
-  for (val in unique(plt_df[[vary_param_name]])) {
+  for (val in unique(plt_df[[paste0(vary_param_name, "_name")]])) {
     plt_ls[[as.character(val)]] <- plt_df %>%
-      dplyr::filter(.data[[vary_param_name]] == !!val) %>%
+      dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
       ggplot2::ggplot() +
       ggplot2::aes(x = .alpha, y = reject_prob, color = model) +
       ggplot2::geom_abline(slope = 1, intercept = 0, color = "grey") +
@@ -128,9 +132,9 @@ plot_feature_importance <- function(results, vary_param_name, keep_vars = NULL,
     tidyr::unnest(fi_scores) 
   if (plot_type == "bar") {
     plt_df <- plt_df %>%
-      dplyr::select(tidyselect::all_of(vary_param_name),
+      dplyr::select(tidyselect::all_of(paste0(vary_param_name, "_name")),
                     rep, model, var, importance) %>%
-      dplyr::group_by(.data[[vary_param_name]], model, var)  %>%
+      dplyr::group_by(.data[[paste0(vary_param_name, "_name")]], model, var)  %>%
       dplyr::summarise(mean_fi = mean(importance), #sd_fi = sd(importance),
                        .groups = "keep")
   }
@@ -139,10 +143,10 @@ plot_feature_importance <- function(results, vary_param_name, keep_vars = NULL,
       dplyr::filter(var %in% keep_vars)
   }
   plt_ls <- list()
-  for (val in unique(plt_df[[vary_param_name]])) {
+  for (val in unique(plt_df[[paste0(vary_param_name, "_name")]])) {
     if (plot_type == "bar") {
       plt <- plt_df %>%
-        dplyr::filter(.data[[vary_param_name]] == !!val) %>%
+        dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
         ggplot2::ggplot() +
         ggplot2::aes(x = var, y = mean_fi) +
         ggplot2::geom_bar(stat = "identity", color = "grey98", fill = "#00C5FF") +
@@ -152,7 +156,7 @@ plot_feature_importance <- function(results, vary_param_name, keep_vars = NULL,
         vthemes::theme_vmodern()
     } else if (plot_type == "boxplot") {
       plt <- plt_df %>%
-        dplyr::filter(.data[[vary_param_name]] == !!val) %>%
+        dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
         ggplot2::ggplot() +
         ggplot2::aes(x = var, y = importance, group = var) +
         ggplot2::geom_boxplot() +
