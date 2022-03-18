@@ -9,8 +9,9 @@ from numpy import concatenate as cat
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier, \
     GradientBoostingRegressor
 
-from imodels import FIGSRegressor, DistilledRegressor, BART
+from imodels import FIGSRegressor, DistilledRegressor
 from imodels import GreedyTreeRegressor, FIGSClassifier
+from imodels.experimental.bartpy.sklearnmodel import BART
 # from irf.ensemble import RandomForestRegressorWithWeights
 # from bartpy import BART
 from sklearn.model_selection import GridSearchCV
