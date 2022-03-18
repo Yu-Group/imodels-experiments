@@ -167,8 +167,29 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
         def pca_on_stumps(origin_feat):
             restricted_stumps = [self.all_stumps[idx] for idx in self.original_feat_to_stump_mapping[origin_feat]]
             n_stumps = len(restricted_stumps)
+            #if len(restricted_stumps) == 0:
+            #    return None, 0
+            #else:
+            #    if self.max_components <= 1.0:
+            #        return None,0
+            #    else:
+            #        if self.max_components > len(restricted_stumps) and self.max_components > X.shape[0]: 
+            #            print("case 1 origin_feat: " + str(self.max_components))
+            #            transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
+            #            pca = PCA()
+            #            pca.fit(transformed_feature_vectors)
+            #            n_new_feats = pca.components_.shape[0]  
+            #            return pca, n_new_feats
+            #        else:
+            #            print("case 2 origin_feat: " + str(self.max_components))
+            #            transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
+            #            pca = PCA(n_components = self.max_components )
+            #            pca.fit(transformed_feature_vectors)
+            #            n_new_feats = pca.components_.shape[0] 
+            #            return pca, n_new_feats
             if n_stumps > self.max_components:
                 transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
+                print(transformed_feature_vectors.shape)
                 pca = PCA(n_components=self.max_components)
                 pca.fit(transformed_feature_vectors)
             else:
@@ -197,7 +218,9 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
 
     def transform(self, X):
         transformed_feature_vectors_sets = []
-        for k, v in self.original_feat_to_stump_mapping.items():
+        for k in range(X.shape[1]):
+            v = self.original_feat_to_stump_mapping[k]
+        #for k, v in self.original_feat_to_stump_mapping.items():
             restricted_stumps = [self.all_stumps[idx] for idx in v]
             if len(restricted_stumps) == 0:
                 continue
