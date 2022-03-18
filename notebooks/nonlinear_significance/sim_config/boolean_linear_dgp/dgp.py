@@ -7,7 +7,7 @@ import sys
 sys.path.append("../..")
 from simulations_util import *
 
-X_DGP = sample_normal_X
+X_DGP = sample_boolean_X
 X_PARAMS_DICT = {
     "n": 250,
     "d": 50

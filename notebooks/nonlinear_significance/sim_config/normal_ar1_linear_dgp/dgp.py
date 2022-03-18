@@ -7,10 +7,11 @@ import sys
 sys.path.append("../..")
 from simulations_util import *
 
-X_DGP = sample_normal_X
+X_DGP = sample_ar1_X
 X_PARAMS_DICT = {
     "n": 250,
-    "d": 50
+    "d": 50,
+    "rho": 0.8
 }
 Y_DGP = linear_model
 Y_PARAMS_DICT = {
@@ -19,8 +20,11 @@ Y_PARAMS_DICT = {
     "s": 5
 }
 
-VARY_PARAM_NAME = "n"
-VARY_PARAM_VALS = {'100': 100, '250': 250, '500': 500}
+VARY_PARAM_NAME = "rho"
+VARY_PARAM_VALS = {"0": 0, "0.2": 0.2, "0.4": 0.4, "0.6": 0.6, "0.8": 0.8}
+
+# VARY_PARAM_NAME = "n"
+# VARY_PARAM_VALS = {'100': 100, '250': 250, '500': 500}
 
 # VARY_PARAM_NAME = "d"
 # VARY_PARAM_VALS = {'50': 50, '100': 100, '250': 250}

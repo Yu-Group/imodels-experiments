@@ -1,7 +1,7 @@
 # Example usage: run in command line
 # cd notebooks/nonlinear_significance
 # python 01_run_simulations.py --nreps 2 --config test --split_seed 331 --ignore_cache
-# python 01_run_simulations.py --nreps 2 --config test --split_seed 331 --ignore_cache --create_rmd --show_vars 50
+# python 01_run_simulations.py --nreps 2 --config test --split_seed 331 --ignore_cache --create_rmd
 
 import sys
 sys.path.append("../..")
@@ -12,21 +12,20 @@ X_PARAMS_DICT = {
     "n": 250,
     "d": 50
 }
-Y_DGP = linear_model
+Y_DGP = lss_model
 Y_PARAMS_DICT = {
     "beta": 1,
     "sigma": 0.1,
-    "s": 5
+    "tau": 0,
+    "m": 3,
+    "r": 2
 }
 
 VARY_PARAM_NAME = "n"
 VARY_PARAM_VALS = {'100': 100, '250': 250, '500': 500}
 
-# VARY_PARAM_NAME = "d"
-# VARY_PARAM_VALS = {'50': 50, '100': 100, '250': 250}
-
-# VARY_PARAM_NAME = "s"
-# VARY_PARAM_VALS = {'5': 5, '10': 10, '15': 15}
+# VARY_PARAM_NAME = "m"
+# VARY_PARAM_VALS = {"1": 1, "3": 3, "5": 5}
 
 # VARY_PARAM_NAME = "sigma"
-# VARY_PARAM_VALS = {'0.1': 0.1, '1': 1, '2': 2}
+# VARY_PARAM_VALS = {"0.1": 0.1, "1": 1, "2": 2}
