@@ -98,16 +98,13 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
             n_inf = len(y_inf)
             p_sel = transformed_feats_sel.shape[1]
             p_inf = transformed_feats_inf.shape[1]
-            
-
-            
             for j in range(X.shape[1]):
-                stumps_sel_for_feat = tree_transformer_sel.original_feat_to_transformed_mapping[j]
+                stumps_sel_for_feat = tree_transformer_sel.original_feat_to_transformed_mapping[j]#tree_transformer_sel.original_feat_to_transformed_mapping[j]
                 num_splits_for_feat = len(stumps_sel_for_feat)
                 if num_splits_for_feat == 0:
                     p_vals[i,j] = 1.0
                 else:
-                    stumps_inf_for_feat = tree_transformer_inf.original_feat_to_transformed_mapping[j]
+                    stumps_inf_for_feat = tree_transformer_inf.original_feat_to_transformed_mapping[j]#tree_transformer_inf.original_feat_to_transformed_mapping[j]
                     X_sel_for_feat = transformed_feats_sel[:,stumps_sel_for_feat]
                     p_sel_feat = X_sel_for_feat.shape[1]
                     sigma_sel = (np.sum((y_sel - np.mean(y_sel))**2))/(n_sel - p_sel_feat -1)
@@ -146,30 +143,12 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
             weights.append(np.random.uniform())
         weights = np.array(weights)
         difference_in_weights = np.array([1.0])
-        #gradient = np.array([1.0])
-        #while all(gradient)
-        #tns = torch.distributions.Uniform(0,1.0).sample((u_sel.shape[1],))
-        #weights = Variable(tns, requires_grad=True)
-        #opt = torch.optim.SGD([weights], lr=lr)
-        #for i in range(n_steps):
+        gradient = np.array([1.0])
         while all(i<=0.000001 for i in difference_in_weights):
             gradient = self.compute_gradient(weights,betas,u_sel,y,eta,sigma_sel)
             new_weights = np.add(weights, lr*gradient)
             difference_in_weights = new_weights - weights
             weights = new_weights 
-            #print(weights)
-            #if all(i <= 0.000001 for i in difference_in_weights): 
-            #    #print("im'here")
-            #    break
-            #else:
-            #    new_weights 
-            #opt.zero_grad()
-            #z = self.forward(weights,u_sel,y,eta,sigma_sel)#torch.linalg.vector_norm(x)#x*x
-            #z.sum().backward()
-            #z.sum().backward()
-            #print(weights.grad.data)
-#            z.sum().backward() # Calculate gradients
-            #opt.step()
         return weights
     
     def compute_gradient(self,weights,betas,u_sel,y_sel,eta,sigma_sel):
@@ -214,3 +193,22 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
             #print("grad weight numerator:" + str(g_prime*h - h_prime*g))
             #print("grad_weight:" + str(grad_weight))
             #print(g_prime*h - h_prime*g[0])
+            
+            #print(weights)
+            #if all(i <= 0.000001 for i in difference_in_weights): 
+            #    #print("im'here")
+            #    break
+            #else:
+            #    new_weights 
+            #opt.zero_grad()
+            #z = self.forward(weights,u_sel,y,eta,sigma_sel)#torch.linalg.vector_norm(x)#x*x
+            #z.sum().backward()
+            #z.sum().backward()
+            #print(weights.grad.data)
+#            z.sum().backward() # Calculate gradients
+            #opt.step()
+         #while all(gradient)
+        #tns = torch.distributions.Uniform(0,1.0).sample((u_sel.shape[1],))
+        #weights = Variable(tns, requires_grad=True)
+        #opt = torch.optim.SGD([weights], lr=lr)
+        #for i in range(n_steps):
