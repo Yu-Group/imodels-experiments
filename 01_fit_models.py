@@ -10,8 +10,7 @@ from typing import Callable, List, Tuple, Set
 
 import numpy as np
 import pandas as pd
-# from bartpy import BART
-from imodels import BART
+from imodels.experimental.bartpy.sklearnmodel import BART
 from imodels.util.tree_interaction_utils import (get_gt, interaction_fpr, interaction_f1,
                                                  interaction_tpr, get_interacting_features, get_important_features)
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
