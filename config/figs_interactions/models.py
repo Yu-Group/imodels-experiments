@@ -14,6 +14,7 @@ from imodels import GreedyTreeRegressor, FIGSClassifier
 # from irf.ensemble import RandomForestRegressorWithWeights
 # from bartpy import BART
 from sklearn.model_selection import GridSearchCV
+from sklearn.tree import DecisionTreeRegressor
 
 from util import ModelConfig
 
@@ -30,11 +31,19 @@ RULEFIT_DEFAULT_KWARGS_REGRESSION = {'random_state': 0, 'max_rules': None, 'incl
 ESTIMATORS_REGRESSION = [
     [ModelConfig('FIGS', FIGSRegressorCV)],
     [ModelConfig('BFIGS', partial(BART, initializer=SklearnTreeInitializer(tree_=FIGSRegressorCV())))],
-    [ModelConfig('RandomForest', RandomForestRegressor)],  # single baseline
-    [ModelConfig('GBDT-1', GradientBoostingRegressor, 'n_estimators', n, {'max_depth': 1})
-     for n in cat((np.arange(3, 19, 3), [25, 30]))],
-    [ModelConfig('GBDT-2', GradientBoostingRegressor, 'n_estimators', n, {'max_depth': 2})
-     for n in np.arange(3, 9, 1)],
+    [ModelConfig('RF', RandomForestRegressor)],  # single baseline
+    [ModelConfig('DT', partial(GridSearchCV,
+                                 estimator=DecisionTreeRegressor(),
+                                 scoring='r2',
+                                 param_grid={'max_depth': [1, 2, 3, 4, 5, 7]}))],
+    [ModelConfig('GB', partial(GridSearchCV,
+                                 estimator=GradientBoostingRegressor(),
+                                 scoring='r2',
+                                 param_grid={'n_estimators': [3, 4, 5, 7, 8, 9]}))],
+    # [ModelConfig('GBDT-1', GradientBoostingRegressor, 'n_estimators', n, {'max_depth': 1})
+    #  for n in cat((np.arange(3, 19, 3), [25, 30]))],
+    # [ModelConfig('GBDT-2', GradientBoostingRegressor, 'n_estimators', n, {'max_depth': 2})
+    #  for n in np.arange(3, 9, 1)],
     # [ModelConfig('iRF',  RandomForestRegressorWithWeights, 'n_estimators', n)
     #  for n in cat((np.arange(3, 19, 3), [25, 30]))]
 ]

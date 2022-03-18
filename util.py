@@ -18,6 +18,8 @@ from imodels.util.tree import compute_tree_complexity
 from imodels.experimental.bartpy.initializers.sklearntreeinitializer import get_bartpy_tree_from_sklearn
 from imodels.experimental.bartpy.node import DecisionNode as BARTDecisionNode
 from imodels.experimental.bartpy.node import LeafNode as BARTLeafNode
+from sklearn.tree import DecisionTreeRegressor
+
 from notebooks.figs.simulations_util import is_leaf
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
@@ -267,12 +269,16 @@ def get_paths(figs):
 
 
 def _get_trees(model):
-    if type(model) == BART:
+    if type(model) == GridSearchCV:
+        return _get_trees(model.best_estimator_)
+    elif type(model) == BART:
         trees = []
         samples = model._model_samples
         for s in samples:
             trees += [t.nodes[0] for t in s.trees]
         return trees
+    elif type(model) == DecisionTreeRegressor:
+        return [model]
     elif hasattr(model, "figs"):
         return model.figs.trees_
     elif hasattr(model, "trees_"):

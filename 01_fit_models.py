@@ -107,10 +107,10 @@ def compare_estimators(estimators: List[ModelConfig],
 
             y_pred = est.predict(X_)
             importance = get_importances(est, X_, y_)
-            important_features = get_important_features(importance, 5)
+            important_features = get_important_features(importance, len(gt_importance))
 
             interaction = get_interaction_score(est, X_, y_)
-            interacting_features = get_interacting_features(interaction, 5)
+            interacting_features = get_interacting_features(interaction, len(gt_interaction))
             # print('best param', est.reg_param)
             if args.classification_or_regression == 'classification':
                 y_pred_proba = est.predict_proba(X_)[..., 1]

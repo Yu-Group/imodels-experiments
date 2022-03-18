@@ -1,6 +1,7 @@
 import math
 import os.path
 import pickle as pkl
+import subprocess
 from math import ceil
 from os.path import dirname
 from os.path import join as oj
@@ -16,6 +17,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
+import dataframe_image as dfi
 
 from config.figs_interactions.datasets import DATASETS_REGRESSION
 from util import remove_x_axis_duplicates, merge_overlapping_curves
@@ -404,11 +406,39 @@ def viz_comparison_datasets(result: Union[Dict[str, Any], List[Dict[str, Any]]],
     plt.tight_layout()
 
 
+def viz_interactions(datasets=[],
+                     models_to_include=[],
+                     config_name='figs_interactions',
+                     save_path="") -> None:
+    for i, dset in enumerate(tqdm(datasets)):
+        if isinstance(dset, str):
+            dset_name = dset
+        elif isinstance(dset, tuple):
+            dset_name = dset[0]
+
+        pkl_file = oj('results', config_name, dset_name, 'train-test/results_aggregated.pkl')
+        df = pkl.load(open(pkl_file, 'rb'))['df_mean']
+        idx = [e in models_to_include for e in df.estimator]
+        estimators = df.estimator
+        data_print = {}
+        df_models = df.iloc[idx,].round(2)
+
+        for est in estimators:
+            data_print[est] = {}
+            for kind in ["interaction"]:
+                for met in ["fpr", "tpr"]:
+                    tpr_mean_est = df_models.loc[df.estimator == est, f"{kind}_{met}_test_mean"].values[0]
+                    tpr_std_est = df_models.loc[df.estimator == est, f"{kind}_{met}_test_std"].values[0]
+
+                    tpr_str = f"{tpr_mean_est} ({tpr_std_est})"
+                    data_print[est][f"{met.upper()} {kind.capitalize()}"] = tpr_str
+
+        data = pd.DataFrame(data_print)
+        dfi.export(data, os.path.join(save_path, f'{dset_name}.png'))
+
+
 if __name__ == '__main__':
-    plot_comparisons(metric='r2', datasets=DATASETS_REGRESSION,
-                         models_to_include=['FIGS', 'GBDT-1', 'GBDT-2', 'RandomForest', "BFIGS"],  # GBDT-2
-                         models_to_include_dashed=['RandomForest'],
-                         save_name='figs_interactions',
-                         eps_legend_sep=0.01,
-                         config_name="figs_interactions",
-                         xlim=20)
+    pth = "/accounts/campus/omer_ronen/projects/tree_shrink/imodels-experiments"
+    viz_interactions(DATASETS_REGRESSION,
+                     ["BFIGS", "DT", "FIGS", "GB", "RF"],
+                     save_path=f"{pth}/results/figs_interactions")

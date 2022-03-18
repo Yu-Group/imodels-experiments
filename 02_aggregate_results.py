@@ -63,7 +63,7 @@ def aggregate_single_seed(path: str):
     return 1
 
 
-def aggregate_over_seeds(path: str):
+def aggregate_over_seeds(path: str, ks=None):
     """Combine pkl files across many seeds
     """
     results_overall = {}
@@ -91,17 +91,18 @@ def aggregate_over_seeds(path: str):
 
     # keys to aggregate over
     if 'df' in results_overall:
-        ks = []
         df = results_overall['df']
-        mets = results_overall['metrics']
-        for k in df.keys():
-            skip = False
-            for met in mets:
-                if k and k.startswith(met):
-                    skip = True
-            if not skip:
-                ks.append(k)
-        ks.remove('split_seed')
+        if ks is None:
+            ks = []
+            mets = results_overall['metrics']
+            for k in df.keys():
+                skip = False
+                for met in mets:
+                    if k and k.startswith(met):
+                        skip = True
+                if not skip:
+                    ks.append(k)
+            ks.remove('split_seed')
 
         # mean / std error of the mean
         grouped = df.fillna(-1).groupby(ks)
@@ -132,6 +133,6 @@ if __name__ == "__main__":
     total = 0
     for result_path in tqdm(glob.glob(f'{results_root}/*/*/*')):
         if os.path.isdir(result_path):
-            successful += aggregate_over_seeds(result_path)
+            successful += aggregate_over_seeds(result_path, ks="estimator")
             total += 1
     print('successfully processed', successful, '/', total, 'averaged seeds')
