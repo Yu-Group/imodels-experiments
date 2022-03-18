@@ -70,23 +70,16 @@ def compare_estimators(estimators: List[ModelConfig],
 
     # loop over estimators
     for model in tqdm(estimators, leave=False):
-        # print('kwargs', model.kwargs)
         est = model.cls(**model.kwargs)
-        # print(est.criterion)
-
-        sklearn_baselines = {
-            RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
-            RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor,
-            BaggingClassifier, BaggingRegressor, GridSearchCV, LogisticRegressionCV, RidgeCV,
-            imodels.DistilledRegressor, BART
-        }
 
         start = time.time()
-        est.fit(X_train, y_train)
-        # if type(est) in sklearn_baselines:
-        #     est.fit(X_train, y_train)
-        # else:
-        #     est.fit(X_train, y_train, feature_names=feat_names)
+        try:
+            est.fit(X_train, y_train, feature_names=feat_names)
+        except TypeError as e:
+            if str(e) != "fit() got an unexpected keyword argument 'feature_names'":
+                raise e
+            est.fit(X_train, y_train)
+
         end = time.time()
 
         # things to save
