@@ -144,7 +144,7 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
         weights = np.array(weights)
         difference_in_weights = np.array([1.0])
         gradient = np.array([1.0])
-        while all(i<=0.000001 for i in difference_in_weights):
+        while all(i > 0.000001 for i in difference_in_weights):
             gradient = self.compute_gradient(weights,betas,u_sel,y,eta,sigma_sel)
             new_weights = np.add(weights, lr*gradient)
             difference_in_weights = new_weights - weights
@@ -170,8 +170,8 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
             numerator_sample = 0.0
             denominator_sample = (np.random.chisquare(n_sel-p_sel_feat))/(n_sel-p_sel_feat-1)
             for i in range(k):
-                numerator_sample += (weights[i]**2)*np.random.chisquare(1, size=None)
-            samples.append(numerator_sample/denominator_sample)
+                numerator_sample += ((weights[i]**2)*np.random.chisquare(1, size=None))
+            samples.append(numerator_sample/(denominator_sample))
         return samples 
         
     

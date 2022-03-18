@@ -189,7 +189,6 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
             #            return pca, n_new_feats
             if n_stumps > self.max_components:
                 transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
-                print(transformed_feature_vectors.shape)
                 pca = PCA(n_components=self.max_components)
                 pca.fit(transformed_feature_vectors)
             else:
