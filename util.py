@@ -15,9 +15,11 @@ from sklearn.inspection import permutation_importance
 from sklearn.model_selection import GridSearchCV
 
 from imodels.util.tree import compute_tree_complexity
-from bartpy.initializers.sklearntreeinitializer import get_bartpy_tree_from_sklearn
-from bartpy.node import DecisionNode as BARTDecisionNode
-from bartpy.node import LeafNode as BARTLeafNode
+from imodels.experimental.bartpy.initializers.sklearntreeinitializer import get_bartpy_tree_from_sklearn
+from imodels.experimental.bartpy.node import DecisionNode as BARTDecisionNode
+from imodels.experimental.bartpy.node import LeafNode as BARTLeafNode
+from sklearn.tree import DecisionTreeRegressor
+
 from notebooks.figs.simulations_util import is_leaf
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
@@ -240,9 +242,10 @@ def get_paths_features(node: Node, paths: set, features: list, indx: iter):
         features.append(node.feature)
 
     if leaf_node:
-        # try:
-        n = np.sum(node.idxs) if hasattr(node, "idxs") else node.n_obs
-        # except AttributeError:
+        try:
+            n = np.sum(node.idxs) if hasattr(node, "idxs") else node.n_obs
+        except AttributeError:
+            n = node.n_observation
         #     n = 100
         #     print("shit")
         paths.add((tuple(features), n))
@@ -266,12 +269,18 @@ def get_paths(figs):
 
 
 def _get_trees(model):
-    if type(model) == BART:
+    if type(model) == GridSearchCV:
+        return _get_trees(model.best_estimator_)
+    elif type(model) == BART:
         trees = []
         samples = model._model_samples
         for s in samples:
             trees += [t.nodes[0] for t in s.trees]
         return trees
+    elif type(model) == DecisionTreeRegressor:
+        return [model]
+    elif hasattr(model, "figs"):
+        return model.figs.trees_
     elif hasattr(model, "trees_"):
         return list(model.trees_)
     elif hasattr(model, "estimators_"):
@@ -300,6 +309,8 @@ def get_interaction_score(model, X, y):
             tree = get_bartpy_tree_from_sklearn(tree, X, y)
         paths_t = set()
         indx = iter(range(1000000))
+        if type(tree) == BARTLeafNode:
+            tree.n_observation = len(y)
         get_paths_features(tree, paths_t, [], indx)
         interaction_count = np.zeros(shape=(d, d))
         for f_1, f_2 in itertools.combinations(range(d), 2):

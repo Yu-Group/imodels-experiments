@@ -10,7 +10,7 @@ from typing import Callable, List, Tuple, Set
 
 import numpy as np
 import pandas as pd
-# from bartpy import BART
+from imodels.experimental.bartpy.sklearnmodel import BART
 from imodels.util.tree_interaction_utils import (get_gt, interaction_fpr, interaction_f1,
                                                  interaction_tpr, get_interacting_features, get_important_features)
 from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
@@ -69,22 +69,17 @@ def compare_estimators(estimators: List[ModelConfig],
 
     # loop over estimators
     for model in tqdm(estimators, leave=False):
-        # print('kwargs', model.kwargs)
         est = model.cls(**model.kwargs)
-        # print(est.criterion)
 
-        sklearn_baselines = {
-            RandomForestClassifier, GradientBoostingClassifier, DecisionTreeClassifier,
-            RandomForestRegressor, GradientBoostingRegressor, DecisionTreeRegressor,
-            BaggingClassifier, BaggingRegressor, GridSearchCV, LogisticRegressionCV, RidgeCV,
-            imodels.DistilledRegressor
-        }
 
         start = time.time()
-        if type(est) in sklearn_baselines:
-            est.fit(X_train, y_train)
-        else:
+        try:
             est.fit(X_train, y_train, feature_names=feat_names)
+        except TypeError as e:
+            if str(e) != "fit() got an unexpected keyword argument 'feature_names'":
+                raise e
+            est.fit(X_train, y_train)
+
         end = time.time()
 
         # things to save
@@ -105,10 +100,10 @@ def compare_estimators(estimators: List[ModelConfig],
 
             y_pred = est.predict(X_)
             importance = get_importances(est, X_, y_)
-            important_features = get_important_features(importance, 5)
+            important_features = get_important_features(importance, len(gt_importance))
 
             interaction = get_interaction_score(est, X_, y_)
-            interacting_features = get_interacting_features(interaction, 5)
+            interacting_features = get_interacting_features(interaction, len(gt_interaction) * 2)
             # print('best param', est.reg_param)
             if args.classification_or_regression == 'classification':
                 y_pred_proba = est.predict_proba(X_)[..., 1]
