@@ -9,6 +9,7 @@ matplotlib
 slurmpy
 tqdm
 pmlb
+dataframe-image
 
 # testing
 pytest
