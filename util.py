@@ -7,18 +7,17 @@ from os.path import join as oj
 from typing import Any, Dict, Tuple
 
 import numpy as np
-from imodels.experimental.bartpy import BART
-from imodels.tree.figs import Node
 from sklearn import model_selection
 from sklearn.base import BaseEstimator
 from sklearn.inspection import permutation_importance
 from sklearn.model_selection import GridSearchCV
-
-from imodels.util.tree import compute_tree_complexity
-from imodels.experimental.bartpy.node import DecisionNode as BARTDecisionNode
-from imodels.experimental.bartpy.node import LeafNode as BARTLeafNode
 from sklearn.tree import DecisionTreeRegressor
 
+from imodels.experimental.bartpy import BART
+from imodels.experimental.bartpy.node import DecisionNode as BARTDecisionNode
+from imodels.experimental.bartpy.node import LeafNode as BARTLeafNode
+from imodels.tree.figs import Node
+from imodels.util.tree import compute_tree_complexity
 from notebooks.figs.simulations_util import is_leaf
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
@@ -53,7 +52,7 @@ class ModelConfig:
         if self.vary_param is not None:
             self.kwargs[self.vary_param] = self.vary_param_val
         self.kwargs = {**self.kwargs, **other_params}
-        self.extra_aggregate_keys = extra_aggregate_keys # extra keys used to aggregate over non-keyword args, should be unique
+        self.extra_aggregate_keys = extra_aggregate_keys  # extra keys used to aggregate over non-keyword args, should be unique
 
     def __repr__(self):
         return self.name
@@ -165,47 +164,49 @@ def merge_overlapping_curves(test_mul_curves, y_col):
     return np.array(final_x), np.array(final_y)
 
 
-def get_complexity(estimator: BaseEstimator) -> float:
+def get_complexity(est: BaseEstimator) -> float:
     """Get complexity for any given estimator
     """
-    if isinstance(estimator, GridSearchCV):
-        estimator = estimator.best_estimator_
-    if hasattr(estimator, 'complexity_'):
-        return estimator.complexity_
-    elif hasattr(estimator, 'tree_'):
-        return compute_tree_complexity(estimator.tree_)
-    elif hasattr(estimator, 'model') and hasattr(estimator.model, 'tree_'):
-        return compute_tree_complexity(estimator.model.tree_)
-    elif hasattr(estimator, 'estimators_') or hasattr(estimator, 'estimator_'):
+    if isinstance(est, GridSearchCV):
+        est = est.best_estimator_
+    if hasattr(est, 'complexity_'):
+        return est.complexity_
+    elif hasattr(est, 'tree_'):
+        return compute_tree_complexity(est.tree_)
+    elif hasattr(est, 'model') and hasattr(est.model, 'tree_'):
+        return compute_tree_complexity(est.model.tree_)
+    elif hasattr(est, 'estimators_') or hasattr(est, 'estimator_'):
         # sklearn ensembles have estimator.estimators_
         # RandomForestClassifier, GradientBoostingClassifier, RandomForestRegressor, GradientBoostingRegressor
-        estimators = None
-        if hasattr(estimator, 'estimators_'):
-            estimators = estimator.estimators_
+        ests = None
+        if hasattr(est, 'estimators_'):
+            ests = est.estimators_
 
-        # ShrunkTreeCV
-        elif hasattr(estimator, 'estimator_'):
-            if hasattr(estimator.estimator_, 'estimators_'):  # ensemble passed
-                estimators = estimator.estimator_.estimators_
-            elif hasattr(estimator.estimator_, 'tree_'):  # tree passed
-                estimators = [estimator.estimator_]
+        # HSTreeClassifierCV, HSTreeRegressorCV
+        elif hasattr(est, 'estimator_'):
+            if hasattr(est.estimator_, 'estimators_'):  # ensemble passed
+                ests = est.estimator_.estimators_
+            elif hasattr(est.estimator_, 'tree_'):  # tree passed
+                ests = [est.estimator_]
+            elif hasattr(est.estimator_, 'model') and hasattr(est.estimator_.model, 'tree_'):  # single taotree
+                ests = [est.estimator_.model]
 
-        if estimators is None:
-            raise Warning('Dont know how to compute complexity for ' + str(estimator))
+        if ests is None:
+            raise Warning('Dont know how to compute complexity for ' + str(est))
 
         complexity = 0
-        for tree in estimators:
+        for tree in ests:
             if isinstance(tree, np.ndarray):
                 tree = tree[0]
-            if hasattr(estimator, 'complexity_'):  # e.g. FIGSEnsemble
-                complexity += estimator.complexity_
+            if hasattr(est, 'complexity_'):  # e.g. FIGSEnsemble
+                complexity += est.complexity_
             if hasattr(tree, 'tree_'):
                 complexity += compute_tree_complexity(tree.tree_)
         return complexity
-    elif hasattr(estimator, 'student'):
-        return get_complexity(estimator.student)
+    elif hasattr(est, 'student'):
+        return get_complexity(est.student)
     else:
-        warnings.warn('Dont know how to compute complexity for ' + str(estimator))
+        warnings.warn('Dont know how to compute complexity for ' + str(est))
         return 0
 
 
@@ -331,4 +332,3 @@ def get_importances(model, X, y):
                                random_state=0, scoring='neg_mean_squared_error')
     importance_score = r.importances_mean
     return importance_score
-

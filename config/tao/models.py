@@ -3,9 +3,10 @@ from functools import partial
 import numpy as np
 from numpy import concatenate as cat
 
-from imodels import GreedyTreeClassifier, FIGSClassifier, TaoTreeClassifier
+from imodels import GreedyTreeClassifier, FIGSClassifier, TaoTreeClassifier, HSTreeClassifierCV
 from util import ModelConfig
 
+# python 01_fit_models.py --config tao --classification_or_regression classification --model HSTAO --split_seed 0 --interactions_off
 # python 01_fit_models.py --config tao --classification_or_regression classification --model Tao --split_seed 0 --interactions_off
 # python 01_fit_models.py --config tao --classification_or_regression classification --model Tao --split_seed 0 --ignore_cache --interactions_off
 
@@ -19,6 +20,10 @@ ESTIMATORS_CLASSIFICATION = [
                                 model_args={'max_leaf_nodes': n}),
                  extra_aggregate_keys={'max_leaf_nodes': n})
      for n in cat((np.arange(2, 19, 3), [21]))],
+    # [ModelConfig('HSTAO', partial(HSTreeClassifierCV,
+    #                                estimator_=TaoTreeClassifier(model_args={'max_leaf_nodes': n})),
+    #              extra_aggregate_keys={'max_leaf_nodes': n})
+    #  for n in cat((np.arange(2, 19, 3), [21]))],
     # [ModelConfig('GBDT-1', GradientBoostingClassifier, 'n_estimators', n, {'max_depth': 1})
     #  for n in cat((np.arange(1, 19, 3), [25, 30]))],
     # [ModelConfig('GBDT-2', GradientBoostingClassifier, 'n_estimators', n, {'max_depth': 2})

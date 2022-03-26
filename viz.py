@@ -109,7 +109,8 @@ def plot_comparisons(metric='rocauc', datasets=[],
             try:
                 g = df.groupby('estimator').get_group(name)
             except:
-                raise Exception(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
+                # raise UserWarning(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
+                print(f'tried {name} but valid keys are {df.groupby("estimator").groups.keys()}')
                 continue
             #             print(g)
             #             .get_group(name)
