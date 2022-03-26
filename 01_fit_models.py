@@ -1,38 +1,27 @@
 import argparse
-import itertools
 import os
 import pickle as pkl
 import time
 import warnings
 from collections import defaultdict
 from os.path import join as oj
-from typing import Callable, List, Tuple, Set
+from typing import Callable, List, Tuple
 
 import numpy as np
 import pandas as pd
-from imodels.experimental.bartpy.sklearnmodel import BART
-from imodels.util.tree_interaction_utils import (get_gt, interaction_fpr, interaction_f1,
-                                                 interaction_tpr, get_interacting_features, get_important_features)
-from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, GradientBoostingRegressor, \
-    RandomForestRegressor, BaggingRegressor, BaggingClassifier
-from sklearn.linear_model import RidgeCV, LogisticRegressionCV
 from sklearn.metrics import accuracy_score, roc_auc_score, average_precision_score, f1_score, recall_score, \
     precision_score, r2_score, explained_variance_score, mean_squared_error
-from sklearn.model_selection import GridSearchCV
-from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from tqdm import tqdm
 
 import config
 import util
 from imodels.util.data_util import get_clean_dataset
-import imodels
-
+from imodels.util.tree_interaction_utils import (get_gt, interaction_fpr, interaction_f1,
+                                                 interaction_tpr, get_interacting_features, get_important_features)
 from util import ModelConfig, get_interaction_score, get_importances
 from validate import get_best_accuracy
 
 warnings.filterwarnings("ignore", message="Bins whose width")
-
-
 
 
 def compare_estimators(estimators: List[ModelConfig],
@@ -71,7 +60,6 @@ def compare_estimators(estimators: List[ModelConfig],
     for model in tqdm(estimators, leave=False):
         est = model.cls(**model.kwargs)
 
-
         start = time.time()
         try:
             est.fit(X_train, y_train, feature_names=feat_names)
@@ -94,24 +82,25 @@ def compare_estimators(estimators: List[ModelConfig],
             datas.append([X_tune, y_tune])
 
         metric_results = {}
-        gt_importance, gt_interaction = get_gt(d[0])
 
         for suffix, (X_, y_) in zip(suffixes, datas):
-
             y_pred = est.predict(X_)
-            importance = get_importances(est, X_, y_)
-            important_features = get_important_features(importance, len(gt_importance))
 
-            interaction = get_interaction_score(est, X_, y_)
-            interacting_features = get_interacting_features(interaction, len(gt_interaction) * 2)
+            if not args.interactions_off:
+                gt_importance, gt_interaction = get_gt(d[0])
+                importance = get_importances(est, X_, y_)
+                important_features = get_important_features(importance, len(gt_importance))
+                interaction = get_interaction_score(est, X_, y_)
+                interacting_features = get_interacting_features(interaction, len(gt_interaction) * 2)
             # print('best param', est.reg_param)
             if args.classification_or_regression == 'classification':
                 y_pred_proba = est.predict_proba(X_)[..., 1]
             for i, (met_name, met) in enumerate(metrics):
                 if met is not None:
                     if met_name.startswith("interaction"):
-                        metric_results[met_name + suffix] = met(gt_interaction, interacting_features)
-                        metric_results[met_name.replace("interaction", "importance") + suffix] = met(gt_importance,
+                        if not args.interactions_off:
+                            metric_results[met_name + suffix] = met(gt_interaction, interacting_features)
+                            metric_results[met_name.replace("interaction", "importance") + suffix] = met(gt_importance,
                                                                                                      important_features)
 
                     elif args.classification_or_regression == 'regression' \
@@ -241,6 +230,8 @@ if __name__ == '__main__':
     parser.add_argument('--ensemble', action='store_true', default=False)
     parser.add_argument('--results_path', type=str,
                         default=oj(os.path.dirname(os.path.realpath(__file__)), 'results'))
+    parser.add_argument('--interactions_off', action='store_true', default=False,
+                        help='whether to calculate interactions')
     args = parser.parse_args()
 
     assert args.splitting_strategy in {

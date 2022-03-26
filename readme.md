@@ -23,7 +23,8 @@ Follow these steps to benchmark a new (supervised) model. If you want to benchma
    2. Select which models you want by editing a list similar to `models.py`
 3. run `01_fit_models.py`
     - pass the appropriate cmdline args (e.g. model, dataset, config)
-    - example command: `python 01_fit_models.py --config shrinkage --classification_or_regression regression --split_seed 0`
+    - example command: `python 01_fit_models.py --config shrinkage --classification_or_regression regression --split_seed 0 --interactions_off`
+      - `--interactions_off` avoids potential errors when calculating interactions
     - another example command: `python 01_fit_models.py --config shrinkage --classification_or_regression regression --model randomforest --split_seed 0`
     - running everything: loop over `split_seed` + `classification_or_regression`
     - alternatively, to parallelize over a slurm cluster, run `01_submit_fitting.py` with the appropriate loops

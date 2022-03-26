@@ -48,7 +48,10 @@ def plot_comparisons(metric='rocauc', datasets=[],
                      color_legend=True,
                      seed=None,
                      eps_legend_sep=0.01,
-                     save_name='fig', show_train=False, xlim=20):
+                     save_name='fig',
+                     show_train=False,
+                     xlim=20,
+                     C=3):
     """Plots curves for different models as a function of complexity
     Note: for best legends, pass models_to_include from top to bottom
 
@@ -58,7 +61,7 @@ def plot_comparisons(metric='rocauc', datasets=[],
         Which metric to plot on y axis
     
     """
-    R, C = ceil(len(datasets) / 3), 3
+    R = ceil(len(datasets) / C)
     plt.figure(figsize=(3 * C, 2.5 * R), facecolor='w')
 
     COLORS = {
@@ -77,7 +80,8 @@ def plot_comparisons(metric='rocauc', datasets=[],
         'Dist-RF-FIGS-3': 'green',
         'RandomForest': 'gray',
         'GBDT': 'black',
-        "BFIGS": "green"
+        'BFIGS': 'green',
+        'TAO': cb,
     }
 
     for i, dset in enumerate(tqdm(datasets)):
@@ -116,8 +120,12 @@ def plot_comparisons(metric='rocauc', datasets=[],
             y = g[f'{metric}_test' + suffix].values
             yerr = g[f'{metric}_test' + '_std'].values
             args = np.argsort(x)
-            alpha = 1.0 if 'FIGS' == name else 0.35
-            lw = 2 if 'FIGS' == name else 1.5
+            if name in ['FIGS', 'TAO']:
+                alpha = 1.0
+                lw = 2
+            else:
+                alpha = 0.35
+                lw = 1.5
             name_lab = (
                 name.replace('_', ' ')
                     .replace('C45', 'C4.5')

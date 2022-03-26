@@ -133,6 +133,6 @@ if __name__ == "__main__":
     total = 0
     for result_path in tqdm(glob.glob(f'{results_root}/*/*/*')):
         if os.path.isdir(result_path):
-            successful += aggregate_over_seeds(result_path, ks="estimator")
+            successful += aggregate_over_seeds(result_path) #, ks="estimator")
             total += 1
     print('successfully processed', successful, '/', total, 'averaged seeds')

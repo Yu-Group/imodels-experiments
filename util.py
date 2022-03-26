@@ -15,7 +15,6 @@ from sklearn.inspection import permutation_importance
 from sklearn.model_selection import GridSearchCV
 
 from imodels.util.tree import compute_tree_complexity
-from imodels.experimental.bartpy.initializers.sklearntreeinitializer import get_bartpy_tree_from_sklearn
 from imodels.experimental.bartpy.node import DecisionNode as BARTDecisionNode
 from imodels.experimental.bartpy.node import LeafNode as BARTLeafNode
 from sklearn.tree import DecisionTreeRegressor
@@ -175,6 +174,8 @@ def get_complexity(estimator: BaseEstimator) -> float:
         return estimator.complexity_
     elif hasattr(estimator, 'tree_'):
         return compute_tree_complexity(estimator.tree_)
+    elif hasattr(estimator, 'model') and hasattr(estimator.model, 'tree_'):
+        return compute_tree_complexity(estimator.model.tree_)
     elif hasattr(estimator, 'estimators_') or hasattr(estimator, 'estimator_'):
         # sklearn ensembles have estimator.estimators_
         # RandomForestClassifier, GradientBoostingClassifier, RandomForestRegressor, GradientBoostingRegressor
@@ -303,6 +304,7 @@ def get_interaction_score(model, X, y):
     n = len(y)
     trees = _get_trees(model)
     # for est in estimators:
+    from imodels.experimental.bartpy.initializers.sklearntreeinitializer import get_bartpy_tree_from_sklearn
     for tree in trees:
         if not isinstance(tree, Node) and not (isinstance(tree, BARTDecisionNode) | isinstance(tree, BARTLeafNode)):
             tree = tree.tree_
