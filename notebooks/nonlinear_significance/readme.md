@@ -29,7 +29,7 @@ For a starter template, see the `sim_config/test` folder. There are two necessar
   - `X_PARAMS_DICT`: Dictionary of named arguments to pass into the `X_DGP` function.
   - `Y_DGP`: Function to generate y data.
   - `Y_PARAMS_DICT`: Dictionary of named arguments to pass into the `Y_DGP` function.
-  - `VARY_PARAM_NAME`: Name of argument (in `X_DGP` or `Y_DGP`) to vary across.
+  - `VARY_PARAM_NAME`: Name of argument (typically in `X_DGP` or `Y_DGP`) to vary across. Note that it is also possible to vary across an argument in an `ESTIMATOR` in very basic simulation setups. See the `test` config folder for an example.
   - `VARY_PARAM_VALS`: Dictionary of named arguments for the `VARY_PARAM_NAME` to take on in the simulation experiment. Note that the value can be any python object, but make sure to keep the key simple for naming and plotting purposes. 
 - `models.py`: Script specifying the prediction methods and feature importance estimators under study. The following variables must be provided:
   - `ESTIMATORS`: List of prediction methods to fit. Elements should be of class `ModelConfig`.

@@ -113,7 +113,7 @@ def compare_estimators(estimators: List[ModelConfig],
                                 metric_results[met_name] = None
                         else:
                             metric_results[met_name] = met(support, fi_score['importance'])
-                metric_results['complexity'] = util.get_complexity(est)
+                # metric_results['complexity'] = util.get_complexity(est)
                 metric_results['time'] = end - start
 
                 # initialize results with metadata and metric results
@@ -245,15 +245,21 @@ if __name__ == '__main__':
 
     eval_out = defaultdict(list)
 
+    vary_type = None
     for val_name, val in vary_param_vals.items():
         if vary_param_name in X_params_dict.keys() and vary_param_name in y_params_dict.keys():
             raise ValueError('Cannot vary over parameter in both X and y DGPs.')
         elif vary_param_name in X_params_dict.keys():
+            vary_type = "dgp"
             X_params_dict[vary_param_name] = val
         elif vary_param_name in y_params_dict.keys():
+            vary_type = "dgp"
             y_params_dict[vary_param_name] = val
         else:
-            raise ValueError('Invalid vary_param_name.')
+            est_kwargs = list(itertools.chain(*[list(est.kwargs.keys()) for est in list(itertools.chain(*ests))]))
+            vary_type = "est"
+            if vary_param_name not in est_kwargs:
+                raise ValueError('Invalid vary_param_name.')
 
         for i in tqdm(range(args.nreps)):
             os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
@@ -286,12 +292,16 @@ if __name__ == '__main__':
                 [pkl.load(open(f, 'rb'))['df'] for f in model_files],
                 axis=0
             )
-            if np.isscalar(val):
-                results.insert(0, vary_param_name, val)
-            else:
-                results.insert(0, vary_param_name, [val for i in range(results.shape[0])])
-            results.insert(1, vary_param_name + "_name", val_name)
-            results.insert(2, 'rep', i)
+            if vary_type == "dgp":
+                if np.isscalar(val):
+                    results.insert(0, vary_param_name, val)
+                else:
+                    results.insert(0, vary_param_name, [val for i in range(results.shape[0])])
+                results.insert(1, vary_param_name + "_name", val_name)
+                results.insert(2, 'rep', i)
+            elif vary_type == "est":
+                results.insert(0, vary_param_name + "_name", copy.deepcopy(results[vary_param_name]))
+                results.insert(1, 'rep', i)
             results_list.append(results)
     results_merged = pd.concat(results_list, axis=0)
     pkl.dump(results_merged, open(oj(path, 'results.pkl'), 'wb'))

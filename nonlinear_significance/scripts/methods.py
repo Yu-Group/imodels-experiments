@@ -140,7 +140,7 @@ def tree_shap_mean(X, y, fit):
     return results
 
 
-def tree_feature_significance(X, y, fit, max_components=0.85, normalize=True, num_splits=10):
+def tree_feature_significance(X, y, fit, max_components=np.inf, normalize=True, num_splits=10):
     '''
     Compute feature signficance for trees
     :param X: full X data
@@ -165,7 +165,7 @@ def tree_feature_significance(X, y, fit, max_components=0.85, normalize=True, nu
 
 
 def optimal_tree_feature_significance(X, y, fit, normalize=True, num_splits=10,
-                                      eta=None, lr=0.1, n_steps=3000, num_reps=10000):
+                                      eta=None, lr=1.0, n_steps=3000, num_reps=10000):
     '''
     Compute feature signficance for trees
     :param X: full X data
