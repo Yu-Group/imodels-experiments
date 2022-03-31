@@ -85,8 +85,7 @@ def compare_estimators(estimators: List[ModelConfig],
 
         for suffix, (X_, y_) in zip(suffixes, datas):
             y_pred = est.predict(X_)
-
-            if not args.interactions_off:
+            if args.calc_interactions:
                 gt_importance, gt_interaction = get_gt(d[0])
                 importance = get_importances(est, X_, y_)
                 important_features = get_important_features(importance, len(gt_importance))
@@ -98,7 +97,7 @@ def compare_estimators(estimators: List[ModelConfig],
             for i, (met_name, met) in enumerate(metrics):
                 if met is not None:
                     if met_name.startswith("interaction"):
-                        if not args.interactions_off:
+                        if args.calc_interactions:
                             metric_results[met_name + suffix] = met(gt_interaction, interacting_features)
                             metric_results[met_name.replace("interaction", "importance") + suffix] = met(gt_importance,
                                                                                                      important_features)
@@ -230,9 +229,10 @@ if __name__ == '__main__':
     parser.add_argument('--ensemble', action='store_true', default=False)
     parser.add_argument('--results_path', type=str,
                         default=oj(os.path.dirname(os.path.realpath(__file__)), 'results'))
-    parser.add_argument('--interactions_off', action='store_true', default=False,
+    parser.add_argument('--calc_interactions', action='store_true',
                         help='whether to calculate interactions')
     args = parser.parse_args()
+    print('args.calc_interactions', args.calc_interactions)
 
     assert args.splitting_strategy in {
         'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata'}

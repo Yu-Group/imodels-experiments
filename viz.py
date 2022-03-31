@@ -38,7 +38,9 @@ DSET_METADATA = {'sonar': (208, 60), 'heart': (270, 15), 'breast-cancer': (277, 
                  'recidivism': (6172, 20), 'credit': (30000, 33), 'readmission': (101763, 150), 'friedman1': (200, 10),
                  'friedman2': (200, 4), 'friedman3': (200, 4), 'abalone': (4177, 8), 'diabetes-regr': (442, 10),
                  'california-housing': (20640, 8), 'satellite-image': (6435, 36), 'echo-months': (17496, 9),
-                 'breast-tumor': (116640, 9), "vo_pati": (100, 100), "radchenko_james": (300, 50)}
+                 'breast-tumor': (116640, 9), "vo_pati": (100, 100), "radchenko_james": (300, 50),
+                 'tbi-pecarn': (42428, 121), 'csi-pecarn': (3313, 36), 'iai-pecarn': (12044, 58),
+                 }
 
 
 def plot_comparisons(metric='rocauc', datasets=[],
@@ -91,7 +93,7 @@ def plot_comparisons(metric='rocauc', datasets=[],
             dset_name = dset[0]
         #         try:
         ax = plt.subplot(R, C, i + 1)
-        plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA[dset_name][0]}$)',
+        plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA.get(dset_name, (-1))[0]}$)',
                   fontsize='medium')
 
         suffix = '_mean'
@@ -277,7 +279,7 @@ def plot_bests(metric='rocauc', datasets=[],
         #         plt.bar(np.arange(len(vals)), vals)
 
         # plot editing
-        plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA[dset_name][0]}$)',
+        plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA.get(dset_name, (-1))[0]}$)',
                   fontsize='medium')
         if i % C == 0:  # left col
             plt.ylabel(metric.upper()

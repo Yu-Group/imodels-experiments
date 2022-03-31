@@ -20,7 +20,8 @@ def test_valid_configs():
     configs = [d for d in os.listdir(config_dir)
                if os.path.isdir(join(config_dir, d))
                and not d.startswith('_')
-               and not d == 'stablerules']
+               and not d in ['stablerules', 'interactions']  # omit configs under active dev
+               ]
     for c in configs:
         DSETS_CLASSIFICATION, DSETS_REGRESSION, ESTS_CLASSIFICATION, ESTS_REGRESSION = config.get_configs(c)
 
@@ -35,7 +36,6 @@ def test_fit_models():
                    '--model', 'cart', '--config', 'test',
                    '--results_path', test_dir,
                    '--split_seed', '0',
-                   '--interactions_off',
                    '--ignore_cache'])
         assert os.path.isdir(join(test_dir, 'test', 'heart', 'train-test'))
         assert os.path.isfile(join(test_dir, 'test', 'heart', 'train-test', 'seed0', 'CART_comparisons.pkl'))
@@ -43,7 +43,6 @@ def test_fit_models():
                    '--model', 'cart', '--config', 'test',
                    '--results_path', test_dir,
                    '--split_seed', '1',
-                   '--interactions_off',
                    '--ignore_cache'])
 
         sh.python(['02_aggregate_results.py',

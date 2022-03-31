@@ -3,31 +3,29 @@ from functools import partial
 import numpy as np
 from numpy import concatenate as cat
 
-from imodels import GreedyTreeClassifier, FIGSClassifier, TaoTreeClassifier, HSTreeClassifierCV
+from imodels import GreedyTreeClassifier, FIGSClassifier, TaoTreeClassifier, RuleFitClassifier
+from imodels.experimental.interactions import InteractionsClassifier
 from util import ModelConfig
 
-# python 01_fit_models.py --config tao --classification_or_regression classification --model HSTAO --split_seed 0
-# python 01_fit_models.py --config tao --classification_or_regression classification --model Tao --split_seed 0
-# python 01_fit_models.py --config tao --classification_or_regression classification --model Tao --split_seed 0 --ignore_cache
+# example running all classification models on all datasets
+# python 01_fit_models.py --config interactions --classification_or_regression classification
+
+# example running a single model with a different seed
+# python 01_fit_models.py --config interactions --classification_or_regression classification --model FIGS --split_seed 1
+
+# example running ignoring cache
+# python 01_fit_models.py --config interactions --classification_or_regression classification --ignore_cache
 
 RULEFIT_DEFAULT_KWARGS_CLASSIFICATION = {'random_state': 0, 'max_rules': None, 'include_linear': False, 'alpha': 1}
 ESTIMATORS_CLASSIFICATION = [
+    [ModelConfig('InteractionsClassifier', FIGSClassifier, 'max_rules', n)
+     for n in cat((np.arange(1, 19, 3), [21]))],
     [ModelConfig('FIGS', FIGSClassifier, 'max_rules', n)
      for n in cat((np.arange(1, 19, 3), [21]))],
     [ModelConfig('CART', GreedyTreeClassifier, 'max_depth', n)
      for n in np.arange(1, 6, 1)],
-    [ModelConfig('TAO', partial(TaoTreeClassifier,
-                                model_args={'max_leaf_nodes': n}),
-                 extra_aggregate_keys={'max_leaf_nodes': n})
-     for n in cat((np.arange(2, 19, 3), [21]))],
-    # [ModelConfig('HSTAO', partial(HSTreeClassifierCV,
-    #                                estimator_=TaoTreeClassifier(model_args={'max_leaf_nodes': n})),
-    #              extra_aggregate_keys={'max_leaf_nodes': n})
-    #  for n in cat((np.arange(2, 19, 3), [21]))],
-    # [ModelConfig('GBDT-1', GradientBoostingClassifier, 'n_estimators', n, {'max_depth': 1})
-    #  for n in cat((np.arange(1, 19, 3), [25, 30]))],
-    # [ModelConfig('GBDT-2', GradientBoostingClassifier, 'n_estimators', n, {'max_depth': 2})
-    #  for n in np.arange(1, 9, 1)],
+    [ModelConfig('Rulefit', RuleFitClassifier, 'n_estimators', n, RULEFIT_DEFAULT_KWARGS_CLASSIFICATION)
+     for n in np.arange(1, 11, 1)],  # can also vary n_estimators and get a good spread
 ]
 
 RULEFIT_DEFAULT_KWARGS_REGRESSION = {'random_state': 0, 'max_rules': None, 'include_linear': False, 'alpha': 0.15}
@@ -45,8 +43,4 @@ ESTIMATORS_REGRESSION = [
     #      for n in cat((np.arange(1, 19, 3), [25, 30]))],
     #     [ModelConfig('GBDT-2', GradientBoostingRegressor, 'n_estimators', n, {'max_depth': 2})
     #      for n in np.arange(1, 9, 1)],
-    #     [ModelConfig('FIGS_(Include_Linear)', FIGSRegressor, 'max_rules', n, {'include_linear': True})
-    #      for n in cat(([30], np.arange(1, 19, 3), [25, 30]))],
-    #     [ModelConfig('FIGS_(Reweighted)', FIGSRegressor, 'max_rules', n, {'posthoc_ridge': True})
-    #      for n in cat((np.arange(1, 19, 3), [25, 30]))],
 ]
