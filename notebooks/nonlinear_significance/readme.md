@@ -40,3 +40,30 @@ For a starter template, see the `sim_config/test` folder. There are two necessar
     - Additional arguments to pass to the feature importance function can be specified in a dictionary using the `other_params` argument in `FIModelConfig()`.
     - Pair up a prediction model and feature importance estimator by using the same `model_type` ID in both.
     - If a feature importance estimator requires sample splitting (outside of the feature importance function call), use the `splitting_strategy` argument to specify the type of splitting strategy (e.g., `train-test`).
+
+## Simulation Scenarios
+
+- `boolean_linear_dgp`:
+  - Entries in X are iid boolean 0-1 with equal probabilities
+  - y = linear(X) + error
+- `normal_ar1_linear_dgp`:
+  - Samples/rows in X are iid normal with mean 0 and covariance Sigma (p x p) where Sigma = AR1(rho) (i.e., toeplitz)
+  - y = linear(X) + error
+- `normal_block_cor_indep_signal_linear_dgp`:
+  - Samples/rows in X are iid normal with mean 0 and covariance Sigma (p x p) where Sigma = block diagonal (and constant correlation within each block)
+  - y = linear(X) + error
+  - Signal features are chosen to all be part of the same correlated block
+- `normal_block_cor_linear_dgp`:
+  - X and y are the same as `normal_block_cor_indep_signal_linear_dgp`
+  - Samples/rows in X are iid normal with mean 0 and covariance Sigma (p x p) where Sigma is "block diagonal" but only the first (top-leftmost) block has non-zero correlation.
+  - y = linear(X) + error
+  - One signal feature is chosen from the correlated block. All other signal features are chosen from the independent block.
+- `normal_linear_dgp`:
+  - Entries in X are iid normal with mean 0
+  - y = linear(X) + error
+- `normal_lss_dgp`:
+  - Entries in X are iid normal with mean 0
+  - y = LSS(X) + error with disjoint interaction terms
+- `normal_poly_dgp`:
+  - Entries in X are iid normal with mean 0
+  - y = additive_polynomial_interactions(X) + error with disjoint interaction terms
