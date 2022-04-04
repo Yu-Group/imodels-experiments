@@ -120,7 +120,7 @@ def make_stumps(tree_struct, normalize=False):
     stumps = []
     num_splits_per_feature = [0]*tree_struct.n_features
 
-    def make_stump_iter(node_no, tree_struct, parent_stump, is_right_child, normalize, stumps):
+    def make_stump_iter(node_no, tree_struct, parent_stump, is_right_child, normalize, stumps,num_splits_per_feature):
 
         new_stump = make_stump(node_no, tree_struct, parent_stump, is_right_child, normalize)
         stumps.append(new_stump)
@@ -128,12 +128,11 @@ def make_stumps(tree_struct, normalize=False):
         left_child = tree_struct.children_left[node_no]
         right_child = tree_struct.children_right[node_no]
         if tree_struct.feature[left_child] != -2:  # is not leaf
-            make_stump_iter(left_child, tree_struct, new_stump, False, normalize, stumps)
+            make_stump_iter(left_child, tree_struct, new_stump, False, normalize, stumps,num_splits_per_feature)
         if tree_struct.feature[right_child] != -2:  # is not leaf
-            make_stump_iter(right_child, tree_struct, new_stump, True, normalize, stumps)
+            make_stump_iter(right_child, tree_struct, new_stump, True, normalize, stumps,num_splits_per_feature)
 
-    make_stump_iter(0, tree_struct, None, None, normalize, stumps)
-
+    make_stump_iter(0, tree_struct, None, None, normalize, stumps,num_splits_per_feature)
     return stumps,num_splits_per_feature
 
 
@@ -161,7 +160,9 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
                 median_splits_per_feature.append(num_splits_per_feature)
                 
         else:
-            self.all_stumps = make_stumps(estimator.tree_, normalize)
+            tree_stumps,num_splits_per_feature =  make_stumps(estimator.tree_, normalize)   #make_stumps(estimator.tree_, normalize)
+            self.all_stumps = tree_stumps
+            median_splits_per_feature.append(num_splits_per_feature)
         self.original_feat_to_stump_mapping = defaultdict(list)
         for idx, stump in enumerate(self.all_stumps):
             self.original_feat_to_stump_mapping[stump.feature].append(idx)

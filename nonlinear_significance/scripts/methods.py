@@ -5,11 +5,11 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.inspection import permutation_importance
-import knockpy as kpy
-from knockpy.knockoff_filter import KnockoffFilter
+#import knockpy as kpy
+#from knockpy.knockoff_filter import KnockoffFilter
 import shap
 
-from nonlinear_significance.scripts.TreeTester import TreeTester, optimalTreeTester
+#from nonlinear_significance.scripts.TreeTester import TreeTester, optimalTreeTester
 
 
 def lin_reg_t_test(X, y, fit):
@@ -140,7 +140,7 @@ def tree_shap_mean(X, y, fit):
     return results
 
 
-def tree_feature_significance(X, y, fit, max_components=np.inf, normalize=True, num_splits=10):
+def tree_feature_significance(X, y, fit, max_components='median', normalize=True, num_splits=10):
     '''
     Compute feature signficance for trees
     :param X: full X data
@@ -153,9 +153,10 @@ def tree_feature_significance(X, y, fit, max_components=np.inf, normalize=True, 
     '''
 
     tree_tester = TreeTester(fit, max_components=max_components, normalize=normalize)
-    median_p_vals = tree_tester.get_feature_significance(X, y, num_splits=num_splits)
+    median_p_vals,r2 = tree_tester.get_feature_significance(X, y, num_splits=num_splits)
 
-    results = pd.DataFrame(data=median_p_vals, columns=['importance'])
+    #results = pd.DataFrame(data=median_p_vals, columns=['importance'])
+    results = pd.DataFrame(data={'importance':p_vals,'r2':r2}, columns=['importance','r2'])
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
     results.index.name = 'var'
@@ -165,7 +166,7 @@ def tree_feature_significance(X, y, fit, max_components=np.inf, normalize=True, 
 
 
 def optimal_tree_feature_significance(X, y, fit, normalize=True, num_splits=10,
-                                      eta=None, lr=1.0, n_steps=3000, num_reps=10000):
+                                      eta=None, lr=0.1, n_steps=3000, max_components = 'median',num_reps=10000):
     '''
     Compute feature signficance for trees
     :param X: full X data
@@ -180,10 +181,11 @@ def optimal_tree_feature_significance(X, y, fit, normalize=True, num_splits=10,
     '''
 
     tree_tester = optimalTreeTester(fit, normalize=normalize)
-    median_p_vals = tree_tester.get_feature_significance(X, y, num_splits=num_splits, eta=eta,
+    median_p_vals,r2 = tree_tester.get_feature_significance(X, y, num_splits=num_splits, eta=eta,max_components = max_components,
                                                          lr=lr, n_steps=n_steps, num_reps=num_reps)
 
-    results = pd.DataFrame(data=median_p_vals, columns=['importance'])
+    #results = pd.DataFrame(data=median_p_vals, columns=['importance'])
+    results = pd.DataFrame(data={'importance':p_vals,'r2':r2}, columns=['importance','r2'])
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
     results.index.name = 'var'

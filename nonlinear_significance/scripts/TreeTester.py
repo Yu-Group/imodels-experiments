@@ -37,6 +37,15 @@ from sklearn.model_selection import train_test_split
 #os.chdir("../../nonlinear_significance/scripts/")
 from util import *
 
+
+def get_r_squared(OLS_results,tree_transformer,transformed_feats,y_test,origin_feat):
+    feat_pcs = tree_transformer.original_feat_to_transformed_mapping[origin_feat]
+    restricted_model_coeffs = OLS_results.params[feat_pcs]
+    a = np.transpose(y_test - transformed_feats[:,feat_pcs]@restricted_model_coeffs)@(y_test - transformed_feats[:,feat_pcs]@restricted_model_coeffs)
+    return 1.0 - (a/(np.transpose(y_test)@y_test))
+    
+    
+
 class TreeTester(TransformerMixin, BaseEstimator):
 
     def __init__(self, estimator, max_components='median', normalize=True):
@@ -44,8 +53,9 @@ class TreeTester(TransformerMixin, BaseEstimator):
         self.max_components = max_components
         self.normalize = normalize
     
-    def get_feature_significance(self,X,y,num_splits = 10):
+    def get_feature_significance_and_ranking(self,X,y,num_splits = 10):
         p_vals = np.zeros((num_splits,X.shape[1]))
+        r_squared = np.zeros((num_splits,X.shape[1]))
         for i in tqdm(range(num_splits)):
             X_train, X_test, y_train, y_test = train_test_split(X,y,test_size = 0.5) #perform sample splitting
             self.estimator.fit(X_train,y_train) #fit on half of sample to learn tree structure and features
@@ -53,25 +63,27 @@ class TreeTester(TransformerMixin, BaseEstimator):
                 tree_transformer = TreeTransformer(estimator = self.estimator, max_components = 'median')
             else:
                 tree_transformer = TreeTransformer(estimator = self.estimator, max_components= int(self.max_components*X_train.shape[0]))
-            tree_transformer.fit(X_test) #X_train
+            tree_transformer.fit(X_train) #Apply PCA on X_train
             transformed_feats = tree_transformer.transform(X_test) #apply tree mapping on X_test 
             OLS_results = sm.OLS(y_test,transformed_feats).fit() #fit decision tree on honest sample
             for j in range(X.shape[1]):
                 num_stumps = transformed_feats.shape[1]
-                num_regressors = len(tree_transformer.original_feat_to_transformed_mapping[j]) #tree_transformer.original_feat_to_transformed_mapping[j]
+                num_regressors = len(tree_transformer.original_feat_to_transformed_mapping[j])
+                #print(num_regressors)#tree_transformer.original_feat_to_transformed_mapping[j]
                 #print("num stumps for feature "  + str(j) + " are: " + str(num_regressors))
-                P_j =  np.zeros((num_regressors,num_stumps))
+                P_j =  np.zeros((num_regressors,num_stumps)) #num_regressors
                 if num_regressors == 0: 
                     p_vals[i,j] = 1.0
+                    r_squared[i,j] = 0.0
                 else:
                     for (row_num,feat) in enumerate(tree_transformer.original_feat_to_transformed_mapping[j]):
-                    #P_j[feat,feat] = 1
-                        #print(feat)
                         P_j[row_num,feat] = 1.0
-                    p_vals[i,j] = OLS_results.f_test(P_j).pvalue  #OLS_results.wald_test(P_j,scalar = False).pvalue 
+                    p_vals[i,j] = OLS_results.wald_test(P_j,scalar = False).pvalue  #OLS_results.wald_test(P_j,scalar = False).pvalue 
+                    r_squared[i,j] = get_r_squared(OLS_results,tree_transformer,transformed_feats,y_test,j)
         median_p_vals = 2*np.median(p_vals,axis=0)
+        r_squared = np.mean(r_squared,axis = 0)
         median_p_vals[median_p_vals > 1.0] = 1.0
-        return median_p_vals
+        return median_p_vals,r_squared
 
     
     def multiple_testing_correction(self,p_vals,method = 'bonferroni',alpha = 0.05):
@@ -86,6 +98,7 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
     
     def get_feature_significance(self,X,y,num_splits = 10,eta = None,lr = .1,n_steps = 3000,num_reps = 20000,max_components = 'median',params = {}):
         p_vals = np.ones((num_splits,X.shape[1]))
+        r_squared = np.zeros((num_splits,X.shape[1]))
         for i in tqdm(range(num_splits)):
             X_sel, X_inf, y_sel, y_inf = train_test_split(X,y,test_size = 0.5)
             
@@ -98,8 +111,8 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
                 self.estimator.fit(X_sel,y_sel)
             
             if max_components == 'median':
-                tree_transformer_sel = TreeTransformer(estimator = self.estimator, max_components = 'median')
-                tree_transformer_inf = TreeTransformer(estimator = self.estimator, max_components = 'median')
+                tree_transformer_sel = TreeTransformer(estimator = copy.deepcopy(self.estimator), max_components = 'median')
+                tree_transformer_inf = TreeTransformer(estimator = copy.deepcopy(self.estimator), max_components = 'median')
 
             else:
                 tree_transformer_sel = TreeTransformer(estimator = self.estimator, max_components= int(self.max_components*X_train.shape[0]))
@@ -107,10 +120,12 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
 
             #tree_transformer_sel = TreeTransformer(estimator = copy.deepcopy(self.estimator), max_components= int(X_sel.shape[0]*max_components) )
             tree_transformer_sel.fit(X_sel) 
-            transformed_feats_sel = tree_transformer_sel.transform(X_sel)            
+            transformed_feats_sel = tree_transformer_sel.transform(X_sel)     
+            transformed_feats_inf = tree_transformer_sel.transform(X_inf)            
+
             #tree_transformer_inf = TreeTransformer(estimator = copy.deepcopy(self.estimator), max_components= int(X_sel.shape[0]*max_components) )
-            tree_transformer_inf.fit(X_inf) 
-            transformed_feats_inf = tree_transformer_sel.transform(X_inf)#tree_transformer_inf.transform(X_inf) 
+            #tree_transformer_inf.fit(X_sel) 
+            #transformed_feats_inf = tree_transformer_inf.transform(X_inf)#tree_transformer_sel.transform(X_inf)#tree_transformer_inf.transform(X_inf) 
             
             
             n_sel = len(y_sel)
@@ -118,13 +133,13 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
             p_sel = transformed_feats_sel.shape[1]
             p_inf = transformed_feats_inf.shape[1]
             for j in range(X.shape[1]):
-                print("feat: " + str(j))
-                stumps_sel_for_feat = tree_transformer_sel.original_feat_to_transformed_mapping[j]#tree_transformer_sel.original_feat_to_transformed_mapping[j]
+                stumps_sel_for_feat = tree_transformer_sel.original_feat_to_transformed_mapping[j]
                 num_splits_for_feat = len(stumps_sel_for_feat)
                 if num_splits_for_feat == 0:
                     p_vals[i,j] = 1.0
                 else:
-                    stumps_inf_for_feat = tree_transformer_inf.original_feat_to_transformed_mapping[j]#tree_transformer_inf.original_feat_to_transformed_mapping[j]
+                    stumps_inf_for_feat = tree_transformer_sel.original_feat_to_transformed_mapping[j]
+                    #tree_transformer_inf.original_feat_to_transformed_mapping[j]
                     X_sel_for_feat = transformed_feats_sel[:,stumps_sel_for_feat]
                     p_sel_feat = X_sel_for_feat.shape[1]
                     sigma_sel = (np.sum((y_sel - np.mean(y_sel))**2))/(n_sel - p_sel_feat -1)
@@ -135,12 +150,15 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
                     sigma_inf = (np.sum((y_inf - np.mean(y_inf))**2))/(n_inf - p_inf_feat -1)
                     optimal_lambda_for_feat = self.get_optimal_lambda(X_sel_for_feat,y_sel,eta,sigma_sel,lr,n_steps)
                     p_vals[i,j] = self.compute_p_val(optimal_lambda_for_feat,X_inf_for_feat,y_inf,sigma_inf,num_reps,n_sel,n_inf,p_sel_feat,p_inf_feat)
+                    OLS_results = sm.OLS(y_inf,transformed_feats_inf).fit()
+                    r_squared[i,j] = get_r_squared(OLS_results,tree_transformer_sel,transformed_feats_inf,y_inf,j)
             
         median_p_vals = 2*np.median(p_vals,axis=0)
         median_p_vals[median_p_vals > 1.0] = 1.0
+        r_squared = np.mean(r_squared,axis = 0)
 
         #return median_p_vals,p_vals,self.multiple_testing_correction(median_p_vals)
-        return median_p_vals
+        return median_p_vals,r_squared
     
     
     def multiple_testing_correction(self,p_vals,method = 'bonferroni',alpha = 0.05):
@@ -171,7 +189,6 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
             difference_in_weights = new_weights - weights
             weights = new_weights 
             num_steps += 1
-        print(num_steps)
         return weights
     
     def compute_gradient(self,weights,betas,u_sel,y_sel,eta,sigma_sel):
