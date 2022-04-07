@@ -64,21 +64,37 @@ plot_metrics <- function(results, vary_param_name, show_errbars = TRUE) {
                     model, metric) %>%
     dplyr::summarise(mean = mean(value), sd = sd(value), .groups = "keep")
   
-  plt <- ggplot2::ggplot(plt_df) +
-    ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]], 
-                 y = mean, color = model)  +
-    ggplot2::facet_wrap(~ metric, scales = "free_y", nrow = 4, ncol = 3) +
-    ggplot2::geom_point() +
-    ggplot2::geom_line() +
-    vthemes::theme_vmodern() +
-    vthemes::scale_color_vmodern(discrete = TRUE) +
-    ggplot2::labs(x = vary_param_name)
-  if (show_errbars) {
-    plt <- plt + 
-      ggplot2::geom_errorbar(
-        mapping = ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]],
-                               ymin = mean - sd, ymax = mean + sd)
-      )
+  if (length(unique(plt_df[[paste0(vary_param_name, "_name")]])) == 1) {
+    plt <- ggplot2::ggplot(plt_df) +
+      ggplot2::aes(x = model, y = mean) +
+      ggplot2::facet_wrap(~ metric, scales = "free_y", nrow = 4, ncol = 3) +
+      ggplot2::geom_point() +
+      vthemes::theme_vmodern() +
+      vthemes::scale_color_vmodern(discrete = TRUE) +
+      ggplot2::labs(x = "Model")
+    if (show_errbars) {
+      plt <- plt + 
+        ggplot2::geom_errorbar(
+          mapping = ggplot2::aes(x = model, ymin = mean - sd, ymax = mean + sd)
+        )
+    }
+  } else {
+    plt <- ggplot2::ggplot(plt_df) +
+      ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]], 
+                   y = mean, color = model)  +
+      ggplot2::facet_wrap(~ metric, scales = "free_y", nrow = 4, ncol = 3) +
+      ggplot2::geom_point() +
+      ggplot2::geom_line() +
+      vthemes::theme_vmodern() +
+      vthemes::scale_color_vmodern(discrete = TRUE) +
+      ggplot2::labs(x = vary_param_name)
+    if (show_errbars) {
+      plt <- plt + 
+        ggplot2::geom_errorbar(
+          mapping = ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]],
+                                 ymin = mean - sd, ymax = mean + sd)
+        )
+    }
   }
   return(plt)
 }
