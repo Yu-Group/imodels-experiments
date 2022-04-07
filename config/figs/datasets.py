@@ -3,7 +3,7 @@ DATASETS_CLASSIFICATION = [
     # page 9: https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf
     ("sonar", "sonar", "pmlb"),
     ("heart", "heart", 'imodels'),
-    ("breast-cancer", "breast_cancer", 'imodels'),
+    ("breast-cancer", "breast_cancer", 'imodels'), # this is the wrong breast-cancer dataset (https://new.openml.org/search?type=data&sort=runs&id=13&status=active)
     ("haberman", "haberman", 'imodels'),
     ("ionosphere", "ionosphere", 'pmlb'),
     ("diabetes", "diabetes", "pmlb"),
