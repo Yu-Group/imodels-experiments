@@ -13,8 +13,8 @@ DATASETS_CLASSIFICATION = [
 
     # clinical-decision rules
     ("iai-pecarn", "iai_pecarn.csv", "imodels"),
-    ("csi-pecarn", "csi_all.csv", "imodels"),
-    ("tbi-pecarn", "tbi_pred.csv", "imodels"),
+    ("csi-pecarn", "csi_pecarn_pred.csv", "imodels"),
+    ("tbi-pecarn", "tbi_pecarn_pred.csv", "imodels"),
 
     # popular classification datasets used in rule-based modeling / fairness
     # page 7: http://proceedings.mlr.press/v97/wang19a/wang19a.pdf

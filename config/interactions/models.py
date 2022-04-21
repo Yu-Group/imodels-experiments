@@ -2,9 +2,10 @@ from functools import partial
 
 import numpy as np
 from numpy import concatenate as cat
+from sklearn.tree import DecisionTreeClassifier
 
-from imodels import GreedyTreeClassifier, FIGSClassifier, TaoTreeClassifier, RuleFitClassifier
-from imodels.experimental.interactions import InteractionsClassifier
+from imodels import GreedyTreeClassifier, FIGSClassifier, TaoTreeClassifier, RuleFitClassifier, HSTreeClassifierCV
+# from imodels.experimental.interactions import InteractionsClassifier
 from util import ModelConfig
 
 # example running all classification models on all datasets
@@ -19,6 +20,9 @@ from util import ModelConfig
 RULEFIT_DEFAULT_KWARGS_CLASSIFICATION = {'random_state': 0, 'max_rules': None, 'include_linear': False, 'alpha': 1}
 ESTIMATORS_CLASSIFICATION = [
     [ModelConfig('InteractionsClassifier', FIGSClassifier, 'max_rules', n)
+     for n in cat((np.arange(1, 19, 3), [21]))],
+    [ModelConfig('HSCART', partial(HSTreeClassifierCV, estimator_=DecisionTreeClassifier(max_depth=n)),
+                 'max_depth', n)
      for n in cat((np.arange(1, 19, 3), [21]))],
     [ModelConfig('FIGS', FIGSClassifier, 'max_rules', n)
      for n in cat((np.arange(1, 19, 3), [21]))],
