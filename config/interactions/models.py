@@ -21,7 +21,7 @@ RULEFIT_DEFAULT_KWARGS_CLASSIFICATION = {'random_state': 0, 'max_rules': None, '
 ESTIMATORS_CLASSIFICATION = [
     [ModelConfig('InteractionsClassifier', FIGSClassifier, 'max_rules', n)
      for n in cat((np.arange(1, 19, 3), [21]))],
-    [ModelConfig('HSCART', partial(HSTreeClassifierCV, estimator_=DecisionTreeClassifier(max_depth=n)),
+    [ModelConfig('HSCART', partial(HSTreeClassifierCV, estimator_=DecisionTreeClassifier(max_leaf_nodes=n + 1)),
                  'max_depth', n)
      for n in cat((np.arange(1, 19, 3), [21]))],
     [ModelConfig('FIGS', FIGSClassifier, 'max_rules', n)
