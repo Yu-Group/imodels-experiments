@@ -8,6 +8,7 @@
   - `--fi_model`: Name of feature importance estimator to run. Default (`None`) uses all feature importance estimators specified in `models.py` config file.
   - `--config`: Name of config folder (and title of the simulation experiment). 
   - `--alpha`: Rejection probability threshold to use in evaluating metrics like TP, FP, sensitivity, specificitiy, etc. Default is 0.05.
+  - `--omit_vars`: (Optional) Comma-separated string of variable indices to omit (i.e., unobserved variables).
   - `--ignore_cache`: Whether or not to ignore cached results.
   - `--verbose`: Whether or not to print messages.
   - `--parallel_id`: ID for parallelization.
@@ -49,18 +50,20 @@ For a starter template, see the `sim_config/test` folder. There are two necessar
 - `normal_ar1_linear_dgp`:
   - Samples/rows in X are iid normal with mean 0 and covariance Sigma (p x p) where Sigma = AR1(rho) (i.e., toeplitz)
   - y = linear(X) + error
-- `normal_block_cor_indep_signal_linear_dgp`:
+- `normal_block_cor_linear_dgp`:
   - Samples/rows in X are iid normal with mean 0 and covariance Sigma (p x p) where Sigma = block diagonal (and constant correlation within each block)
   - y = linear(X) + error
   - Signal features are chosen to all be part of the same correlated block
-- `normal_block_cor_linear_dgp`:
-  - X and y are the same as `normal_block_cor_indep_signal_linear_dgp`
+- `normal_block_cor_indep_signal_linear_dgp`: 
+  - X and y are the same as `normal_block_cor_linear_dgp`
   - Samples/rows in X are iid normal with mean 0 and covariance Sigma (p x p) where Sigma is "block diagonal" but only the first (top-leftmost) block has non-zero correlation.
   - y = linear(X) + error
   - One signal feature is chosen from the correlated block. All other signal features are chosen from the independent block.
 - `normal_linear_dgp`:
   - Entries in X are iid normal with mean 0
   - y = linear(X) + error
+- `normal_linear_low_signal_dgp`:
+  - Same as `normal_linear_dgp` but in the low signal regime with the additive error SD = 2
 - `normal_lss_dgp`:
   - Entries in X are iid normal with mean 0
   - y = LSS(X) + error with disjoint interaction terms

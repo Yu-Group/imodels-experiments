@@ -264,18 +264,24 @@ for (results_subdir in list.dirs(results_dir, full.names = T, recursive = F)) {
 }
 
 # plot evaluation metrics
-metrics <- c("rocauc", "prauc", "f1", "precision", "recall", "specificity", 
-             "fp", "tp", "neg", "pos")
 metrics_plt_ls <- list()
 metrics_errbar_plt_ls <- list()
 for (sim_name in names(results_ls)) {
-  vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
-  metrics_plt_ls[[sim_name]] <- plot_metrics(
-    results_ls[[sim_name]], vary_param_name, show_errbars = FALSE
-  )
-  metrics_errbar_plt_ls[[sim_name]] <- plot_metrics(
-    results_ls[[sim_name]], vary_param_name
-  )
+  metrics <- c("rocauc", "prauc", "f1", "precision", "recall", "specificity", 
+               "fp", "tp", "neg", "pos") %>%
+    intersect(colnames(results_ls[[sim_name]]))
+  if (length(metrics) > 0) {
+    vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
+    metrics_plt_ls[[sim_name]] <- plot_metrics(
+      results_ls[[sim_name]], vary_param_name, show_errbars = FALSE
+    )
+    metrics_errbar_plt_ls[[sim_name]] <- plot_metrics(
+      results_ls[[sim_name]], vary_param_name
+    )
+  } else {
+    metrics_plt_ls[[sim_name]] <- NULL
+    metrics_errbar_plt_ls[[sim_name]] <- NULL
+  }
 }
 
 # plot rejection probability curves

@@ -153,10 +153,10 @@ def tree_feature_significance(X, y, fit, max_components='median', normalize=True
     '''
 
     tree_tester = TreeTester(fit, max_components=max_components, normalize=normalize)
-    median_p_vals,r2 = tree_tester.get_feature_significance(X, y, num_splits=num_splits)
+    median_p_vals,r2 = tree_tester.get_feature_significance_and_ranking(X, y, num_splits=num_splits)
 
     #results = pd.DataFrame(data=median_p_vals, columns=['importance'])
-    results = pd.DataFrame(data={'importance':p_vals,'r2':r2}, columns=['importance','r2'])
+    results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2}, columns=['importance','r2'])
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
     results.index.name = 'var'
@@ -185,7 +185,7 @@ def optimal_tree_feature_significance(X, y, fit, normalize=True, num_splits=10,
                                                          lr=lr, n_steps=n_steps, num_reps=num_reps)
 
     #results = pd.DataFrame(data=median_p_vals, columns=['importance'])
-    results = pd.DataFrame(data={'importance':p_vals,'r2':r2}, columns=['importance','r2'])
+    results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2}, columns=['importance','r2'])
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
     results.index.name = 'var'

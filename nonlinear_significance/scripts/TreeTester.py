@@ -64,7 +64,9 @@ class TreeTester(TransformerMixin, BaseEstimator):
             else:
                 tree_transformer = TreeTransformer(estimator = self.estimator, max_components= int(self.max_components*X_train.shape[0]))
             tree_transformer.fit(X_train) #Apply PCA on X_train
-            transformed_feats = tree_transformer.transform(X_test) #apply tree mapping on X_test 
+            transformed_feats = tree_transformer.transform(X_test) #apply tree mapping on X_test
+            if transformed_feats.shape[1] == 0:
+                continue
             OLS_results = sm.OLS(y_test,transformed_feats).fit() #fit decision tree on honest sample
             for j in range(X.shape[1]):
                 num_stumps = transformed_feats.shape[1]
@@ -80,6 +82,7 @@ class TreeTester(TransformerMixin, BaseEstimator):
                         P_j[row_num,feat] = 1.0
                     p_vals[i,j] = OLS_results.wald_test(P_j,scalar = False).pvalue  #OLS_results.wald_test(P_j,scalar = False).pvalue 
                     r_squared[i,j] = get_r_squared(OLS_results,tree_transformer,transformed_feats,y_test,j)
+        p_vals[np.isnan(p_vals)] = 1.0
         median_p_vals = 2*np.median(p_vals,axis=0)
         r_squared = np.mean(r_squared,axis = 0)
         median_p_vals[median_p_vals > 1.0] = 1.0
@@ -152,7 +155,8 @@ class optimalTreeTester(TransformerMixin, BaseEstimator): #This class is trying 
                     p_vals[i,j] = self.compute_p_val(optimal_lambda_for_feat,X_inf_for_feat,y_inf,sigma_inf,num_reps,n_sel,n_inf,p_sel_feat,p_inf_feat)
                     OLS_results = sm.OLS(y_inf,transformed_feats_inf).fit()
                     r_squared[i,j] = get_r_squared(OLS_results,tree_transformer_sel,transformed_feats_inf,y_inf,j)
-            
+
+        p_vals[np.isnan(p_vals)] = 1.0
         median_p_vals = 2*np.median(p_vals,axis=0)
         median_p_vals[median_p_vals > 1.0] = 1.0
         r_squared = np.mean(r_squared,axis = 0)

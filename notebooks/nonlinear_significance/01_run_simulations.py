@@ -104,15 +104,16 @@ def compare_estimators(estimators: List[ModelConfig],
                     reject_features = get_rejected_features(fi_score, args.alpha)
                     fi_score['importance'] = -fi_score['importance']  # because lower p-value is more significant
                 metric_results['est_support'] = reject_features
-                for i, (met_name, met) in enumerate(metrics):
-                    if met is not None:
-                        if met_name in ['f1', 'precision', 'recall', 'specificity', 'fp', 'tp', 'neg', 'pos']:
-                            if fi_est.pval:
-                                metric_results[met_name] = met(support, reject_features['importance'])
+                if np.max(support) != np.min(support):
+                    for i, (met_name, met) in enumerate(metrics):
+                        if met is not None:
+                            if met_name in ['f1', 'precision', 'recall', 'specificity', 'fp', 'tp', 'neg', 'pos']:
+                                if fi_est.pval:
+                                    metric_results[met_name] = met(support, reject_features['importance'])
+                                else:
+                                    metric_results[met_name] = None
                             else:
-                                metric_results[met_name] = None
-                        else:
-                            metric_results[met_name] = met(support, fi_score['importance'])
+                                metric_results[met_name] = met(support, fi_score['importance'])
                 # metric_results['complexity'] = util.get_complexity(est)
                 metric_results['time'] = end - start
 
@@ -120,6 +121,9 @@ def compare_estimators(estimators: List[ModelConfig],
                 kwargs: dict = model.kwargs  # dict
                 for k in kwargs:
                     results[k].append(kwargs[k])
+                fi_kwargs: dict = fi_est.kwargs  # dict
+                for k in fi_kwargs:
+                    results[k].append(fi_kwargs[k])
                 for met_name, met_val in metric_results.items():
                     results[met_name].append(met_val)
     return results
@@ -203,6 +207,7 @@ if __name__ == '__main__':
     parser.add_argument('--fi_model', type=str, default=None)  # , default='c4')
     parser.add_argument('--config', type=str, default='normal_linear_dgp')
     parser.add_argument('--alpha', type=float, default=0.05)
+    parser.add_argument('--omit_vars', type=str, default=None)  # comma-separated string of variables to omit
 
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)
@@ -239,8 +244,11 @@ if __name__ == '__main__':
               'fi_ests', fi_ests)
         print('\tsaving to', args.results_path)
 
-    path = oj(args.results_path, args.config,
-              "varying_" + vary_param_name, "seed" + str(args.split_seed))
+    if args.omit_vars is not None:
+        results_dir = oj(args.results_path, args.config + "_omitted_vars")
+    else:
+        results_dir = oj(args.results_path, args.config)
+    path = oj(results_dir, "varying_" + vary_param_name, "seed" + str(args.split_seed))
     os.makedirs(path, exist_ok=True)
 
     eval_out = defaultdict(list)
@@ -257,8 +265,12 @@ if __name__ == '__main__':
             y_params_dict[vary_param_name] = val
         else:
             est_kwargs = list(itertools.chain(*[list(est.kwargs.keys()) for est in list(itertools.chain(*ests))]))
-            vary_type = "est"
-            if vary_param_name not in est_kwargs:
+            fi_est_kwargs = list(itertools.chain(*[list(fi_est.kwargs.keys()) for fi_est in list(itertools.chain(*fi_ests))]))
+            if vary_param_name in est_kwargs:
+                vary_type = "est"
+            elif vary_param_name in fi_est_kwargs:
+                vary_type = "fi_est"
+            else:
                 raise ValueError('Invalid vary_param_name.')
 
         for i in tqdm(range(args.nreps)):
@@ -266,6 +278,11 @@ if __name__ == '__main__':
             np.random.seed(i)
             X = X_dgp(**X_params_dict)
             y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
+            if args.omit_vars is not None:
+                omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
+                support = np.delete(support, omit_vars)
+                X = np.delete(X, omit_vars, axis=1)
+                del beta  # note: beta is not currently supported when using omit_vars
 
             for est in ests:
                 results = run_comparison(path=oj(path, val_name, "rep" + str(i)),
@@ -299,7 +316,7 @@ if __name__ == '__main__':
                     results.insert(0, vary_param_name, [val for i in range(results.shape[0])])
                 results.insert(1, vary_param_name + "_name", val_name)
                 results.insert(2, 'rep', i)
-            elif vary_type == "est":
+            elif vary_type == "est" or vary_type == "fi_est":
                 results.insert(0, vary_param_name + "_name", copy.deepcopy(results[vary_param_name]))
                 results.insert(1, 'rep', i)
             results_list.append(results)
@@ -318,7 +335,7 @@ if __name__ == '__main__':
         os.system(
             'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\', quiet = TRUE)"'.format(
                 "02_simulation_results.Rmd",
-                oj(args.results_path, args.config), vary_param_name, str(args.split_seed), str(show_vars),
+                results_dir, vary_param_name, str(args.split_seed), str(show_vars),
                 oj(path, "simulation_results.html"))
         )
         print("created rmd of simulation results successfully!")
