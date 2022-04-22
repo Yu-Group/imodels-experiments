@@ -2,8 +2,8 @@ import sys
 import numpy as np
 from sklearn.tree import DecisionTreeRegressor
 
-sys.path.append("..")
-from scripts.util import *
+sys.path.append("../..")
+from nonlinear_significance.scripts.util import *
 
 
 def test_compare():
@@ -49,3 +49,17 @@ def test_local_decision_stump():
                                right_val=0.5, a_features=[0], a_thresholds=[2], a_signs=[True])
     assert stump([1, 0]) == 0
     assert stump([3, 2]) == 0.5
+
+
+def test_tree_transformer():
+
+    n = 1000
+    p = 10
+    X = np.random.randn(n, p)
+    beta = np.zeros(p)
+    beta[[0, 1]] = 100
+    y = X @ beta
+    tree_model = DecisionTreeRegressor(max_depth=2)
+    tree_model.fit(X, y)
+
+    tree_transformer = TreeTransformer(tree_model)
