@@ -99,9 +99,8 @@ def perm_importance(X, y, fit, n_repeats=10):
     return results
 
 
-def knockpy_swap_integral(X, y, model, fdr=0.2):
+def knockpy_swap_integral(X,y,model,fdr=0.2):
     '''
-    TODO: find a way to extract importances of variables + knockoffs
     Performs knockoff filtering based on a given model (lasso, tree, etc.)
     using the swap or swap integral importances method in Giminez et al (2018)
     This is also the built-in feature statistic for random forest
@@ -109,14 +108,19 @@ def knockpy_swap_integral(X, y, model, fdr=0.2):
     :param y: response
     :param model: model to be used, this model should NOT be fitted
                   e.g., DecisionTreeRegressor(random_state=0)
-    :return: dataframe - [Var, Rejected]
+    :param fdr: false discovery rate for knockoffs
+    :return: dataframe - [Var, fstat, importance, rejections]
                          Var: variable name
-                         Rejected: 1 if rejected 0 otherwise
+                         fstat: fstatistics computed for each variable for inference
+                         importance: feature importances
+                         rejections: 1 if rejected 0 otherwise
     '''
     model_fstat = kpy.knockoff_stats.FeatureStatistic(model=model)
     kfilter = KnockoffFilter(ksampler='gaussian', fstat=model_fstat)
     rejections = kfilter.forward(X, y, fdr=fdr)
-    results = pd.DataFrame(data=rejections, columns=['importance'])
+    results = pd.DataFrame(data=kfilter.W, columns=['fstat'])
+    results['importance'] = kfilter.Z[0:math.floor(len(kfilter.Z)/2)]
+    results['rejections'] = rejections
     # Use column names from dataframe if possible
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
