@@ -9,6 +9,16 @@ from sklearn.inspection import permutation_importance
 #from knockpy.knockoff_filter import KnockoffFilter
 import shap
 
+import rpy2.robjects as ro
+from rpy2.robjects.packages import importr
+import rpy2.robjects.numpy2ri
+from rpy2.robjects import pandas2ri
+from rpy2.robjects.conversion import localconverter
+from boruta import BorutaPy
+rpy2.robjects.numpy2ri.activate()
+base = importr('base')
+FOCI = importr('FOCI')
+
 #from nonlinear_significance.scripts.TreeTester import TreeTester, optimalTreeTester
 
 
