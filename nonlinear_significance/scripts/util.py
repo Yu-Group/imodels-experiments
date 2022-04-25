@@ -25,7 +25,6 @@ def compare(data, feature, threshold, sign=True):
 
 
 def compare_all(data, features, thresholds, signs):
-
     return ~np.logical_xor(data[:, features] > thresholds, signs)
 
 
@@ -118,9 +117,9 @@ def make_stumps(tree_struct, normalize=False):
     :return: list of stumps
     """
     stumps = []
-    num_splits_per_feature = [0]*tree_struct.n_features
+    num_splits_per_feature = [0] * tree_struct.n_features
 
-    def make_stump_iter(node_no, tree_struct, parent_stump, is_right_child, normalize, stumps,num_splits_per_feature):
+    def make_stump_iter(node_no, tree_struct, parent_stump, is_right_child, normalize, stumps, num_splits_per_feature):
 
         new_stump = make_stump(node_no, tree_struct, parent_stump, is_right_child, normalize)
         stumps.append(new_stump)
@@ -128,12 +127,12 @@ def make_stumps(tree_struct, normalize=False):
         left_child = tree_struct.children_left[node_no]
         right_child = tree_struct.children_right[node_no]
         if tree_struct.feature[left_child] != -2:  # is not leaf
-            make_stump_iter(left_child, tree_struct, new_stump, False, normalize, stumps,num_splits_per_feature)
+            make_stump_iter(left_child, tree_struct, new_stump, False, normalize, stumps, num_splits_per_feature)
         if tree_struct.feature[right_child] != -2:  # is not leaf
-            make_stump_iter(right_child, tree_struct, new_stump, True, normalize, stumps,num_splits_per_feature)
+            make_stump_iter(right_child, tree_struct, new_stump, True, normalize, stumps, num_splits_per_feature)
 
-    make_stump_iter(0, tree_struct, None, None, normalize, stumps,num_splits_per_feature)
-    return stumps,num_splits_per_feature
+    make_stump_iter(0, tree_struct, None, None, normalize, stumps, num_splits_per_feature)
+    return stumps, num_splits_per_feature
 
 
 def tree_feature_transform(stumps, X):
@@ -155,12 +154,13 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
         if isinstance(estimator, BaseEnsemble):
             self.all_stumps = []
             for tree_model in estimator.estimators_:
-                tree_stumps,num_splits_per_feature =  make_stumps(tree_model.tree_, normalize)
-                self.all_stumps += tree_stumps#make_stumps(tree_model.tree_, normalize)
+                tree_stumps, num_splits_per_feature = make_stumps(tree_model.tree_, normalize)
+                self.all_stumps += tree_stumps  # make_stumps(tree_model.tree_, normalize)
                 median_splits_per_feature.append(num_splits_per_feature)
-                
+
         else:
-            tree_stumps,num_splits_per_feature =  make_stumps(estimator.tree_, normalize)   #make_stumps(estimator.tree_, normalize)
+            tree_stumps, num_splits_per_feature = make_stumps(estimator.tree_,
+                                                              normalize)  # make_stumps(estimator.tree_, normalize)
             self.all_stumps = tree_stumps
             median_splits_per_feature.append(num_splits_per_feature)
         self.original_feat_to_stump_mapping = defaultdict(list)
@@ -169,7 +169,8 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
         self.pca_transformers = defaultdict(lambda: None)
         self.original_feat_to_transformed_mapping = defaultdict(list)
         median_splits_per_feature = [list(col) for col in zip(*median_splits_per_feature)]
-        self.median_splits =  [statistics.median(median_splits_per_feature[i]) for i in range(len(median_splits_per_feature))]
+        self.median_splits = [statistics.median(median_splits_per_feature[i]) for i in
+                              range(len(median_splits_per_feature))]
 
     def fit(self, X, y=None, parallelize=False):
 
@@ -180,17 +181,17 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
                 max_components = int(self.max_components)
             restricted_stumps = [self.all_stumps[idx] for idx in self.original_feat_to_stump_mapping[origin_feat]]
             n_stumps = len(restricted_stumps)
-            if n_stumps > max_components:#self.max_components:
+            if n_stumps > max_components:  # self.max_components:
                 transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
-                pca = PCA(n_components= max_components)#self.max_components)
+                pca = PCA(n_components=max_components)  # self.max_components)
                 pca.fit(transformed_feature_vectors)
             else:
                 pca = None
             n_new_feats = min(max_components, n_stumps)
-#            if max_components <= 1.0: #self.max_components
-#                n_new_feats = min(pca.explained_variance_.shape[0], n_stumps)
-#            else:
-#                n_new_feats = min(max_components, n_stumps) #self.max_components
+            #            if max_components <= 1.0: #self.max_components
+            #                n_new_feats = min(pca.explained_variance_.shape[0], n_stumps)
+            #            else:
+            #                n_new_feats = min(max_components, n_stumps) #self.max_components
             return pca, n_new_feats
 
         n_orig_feats = X.shape[1]
@@ -244,24 +245,24 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
     #    feat_2_X =  self.get_transformed_X_for_feat(X_transformed,feat_2,max_components)
     #    feat12_angles = subspace_angles(feat_1_X,feat_2_X)
     #    return np.sum(np.cos(feat12_angles)**2)/len(feat12_angles)
-    
-    #if len(restricted_stumps) == 0:
-            #    return None, 0
-            #else:
-            #    if self.max_components <= 1.0:
-            #        return None,0
-            #    else:
-            #        if self.max_components > len(restricted_stumps) and self.max_components > X.shape[0]: 
-            #            print("case 1 origin_feat: " + str(self.max_components))
-            #            transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
-            #            pca = PCA()
-            #            pca.fit(transformed_feature_vectors)
-            #            n_new_feats = pca.components_.shape[0]  
-            #            return pca, n_new_feats
-            #        else:
-            #            print("case 2 origin_feat: " + str(self.max_components))
-            #            transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
-            #            pca = PCA(n_components = self.max_components )
-            #            pca.fit(transformed_feature_vectors)
-            #            n_new_feats = pca.components_.shape[0] 
-            #            return pca, n_new_feats
+
+    # if len(restricted_stumps) == 0:
+    #    return None, 0
+    # else:
+    #    if self.max_components <= 1.0:
+    #        return None,0
+    #    else:
+    #        if self.max_components > len(restricted_stumps) and self.max_components > X.shape[0]:
+    #            print("case 1 origin_feat: " + str(self.max_components))
+    #            transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
+    #            pca = PCA()
+    #            pca.fit(transformed_feature_vectors)
+    #            n_new_feats = pca.components_.shape[0]
+    #            return pca, n_new_feats
+    #        else:
+    #            print("case 2 origin_feat: " + str(self.max_components))
+    #            transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
+    #            pca = PCA(n_components = self.max_components )
+    #            pca.fit(transformed_feature_vectors)
+    #            n_new_feats = pca.components_.shape[0]
+    #            return pca, n_new_feats
