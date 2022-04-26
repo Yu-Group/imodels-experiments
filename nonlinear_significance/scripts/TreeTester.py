@@ -95,7 +95,7 @@ class TreeTester:
                     else:
                         transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j, self.max_components)
                     if add_linear:
-                        transformed_feats_for_j = np.hstack([X[:, [j]] - np.mean(X[:, j]), transformed_feats_for_j])
+                        transformed_feats_for_j = np.hstack([X[:, [j]] - np.mean(X_test[:, j]), transformed_feats_for_j])
                     if transformed_feats_for_j.shape[1] == 0:
                         p_vals[i, j] = 1.0
                         r_squared[i, j] = 0.0
