@@ -11,6 +11,7 @@ import argparse
 import pickle as pkl
 import time
 import warnings
+from scipy import stats
 
 from tqdm import tqdm
 import sys
@@ -62,9 +63,14 @@ def compare_estimators(estimators: List[ModelConfig],
         est = model.cls(**model.kwargs)
         est_type = model.model_type
         fi_ests_ls = [fi_estimator for fi_estimator in itertools.chain(*fi_estimators) \
-                      if fi_estimator.model_type == est_type]
+                      if fi_estimator.model_type in est_type]
         if len(fi_ests_ls) == 0:
             continue
+
+        # get kwargs for all fi_ests
+        fi_kwargs = {}
+        for fi_est in fi_ests_ls:
+            fi_kwargs.update(fi_est.kwargs)
 
         # get groups of estimators for each splitting strategy
         fi_ests_dict = defaultdict(list)
@@ -101,8 +107,12 @@ def compare_estimators(estimators: List[ModelConfig],
                 metric_results['fi_scores'] = copy.deepcopy(fi_score)
                 reject_features = None
                 if fi_est.pval:
-                    reject_features = get_rejected_features(fi_score, args.alpha)
-                    fi_score['importance'] = -fi_score['importance']  # because lower p-value is more significant
+                    if 'rejections' in fi_score.columns:
+                        reject_features = copy.deepcopy(fi_score[['var', 'rejections']]).\
+                            rename(columns={'rejections':'importance'})
+                    else:
+                        reject_features = get_rejected_features(fi_score, args.alpha)
+                        fi_score['importance'] = -fi_score['importance']  # because lower p-value is more significant
                 metric_results['est_support'] = reject_features
                 if np.max(support) != np.min(support):
                     for i, (met_name, met) in enumerate(metrics):
@@ -114,6 +124,15 @@ def compare_estimators(estimators: List[ModelConfig],
                                     metric_results[met_name] = None
                             else:
                                 metric_results[met_name] = met(support, fi_score['importance'])
+                    if args.r2:
+                        metric_results['r2_rocauc'] = None
+                        metric_results['r2_prauc'] = None
+                        metric_results['r2_pval_cor'] = None
+                        if 'r2' in fi_score.columns:
+                            metric_results['r2_rocauc'] = roc_auc_score(support, fi_score['r2'])
+                            metric_results['r2_prauc'] = pr_auc_score(support, fi_score['r2'])
+                            metric_results['r2_pval_cor'], _ = stats.spearmanr(fi_score['importance'], fi_score['r2'])
+
                 # metric_results['complexity'] = util.get_complexity(est)
                 metric_results['time'] = end - start
 
@@ -121,9 +140,11 @@ def compare_estimators(estimators: List[ModelConfig],
                 kwargs: dict = model.kwargs  # dict
                 for k in kwargs:
                     results[k].append(kwargs[k])
-                fi_kwargs: dict = fi_est.kwargs  # dict
                 for k in fi_kwargs:
-                    results[k].append(fi_kwargs[k])
+                    if k in fi_est.kwargs:
+                        results[k].append(fi_est.kwargs[k])
+                    else:
+                        results[k].append(None)
                 for met_name, met_val in metric_results.items():
                     results[met_name].append(met_val)
     return results
@@ -191,9 +212,12 @@ def reformat_results(results):
     results = results.reset_index().drop(columns=['index'])
     fi_scores = pd.concat(results.pop('fi_scores').to_dict()). \
         reset_index(level=0).rename(columns={'level_0': 'index'})
-    est_support = pd.concat(results.pop('est_support').to_dict()). \
-        reset_index(level=0).rename(columns={'level_0': 'index', 'importance': 'support'})
-    joined_df = pd.merge(fi_scores, est_support, how="outer", on=['index', 'var'])
+    if not results['est_support'].isnull().all():
+        est_support = pd.concat(results.pop('est_support').to_dict()). \
+            reset_index(level=0).rename(columns={'level_0': 'index', 'importance': 'support'})
+        joined_df = pd.merge(fi_scores, est_support, how="outer", on=['index', 'var'])
+    else:
+        joined_df = fi_scores
     results_df = pd.merge(results, joined_df, left_index=True, right_on="index")
     return results_df
 
@@ -205,8 +229,9 @@ if __name__ == '__main__':
     parser.add_argument('--nreps', type=int, default=2)
     parser.add_argument('--model', type=str, default=None)  # , default='c4')
     parser.add_argument('--fi_model', type=str, default=None)  # , default='c4')
-    parser.add_argument('--config', type=str, default='normal_linear_dgp')
+    parser.add_argument('--config', type=str, default='test')
     parser.add_argument('--alpha', type=float, default=0.05)
+    parser.add_argument('--r2', action='store_true', default=False)
     parser.add_argument('--omit_vars', type=str, default=None)  # comma-separated string of variables to omit
 
     # for multiple reruns, should support varying split_seed

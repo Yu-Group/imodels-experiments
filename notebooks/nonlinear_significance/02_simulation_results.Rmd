@@ -40,6 +40,10 @@ if (!is.null(params$keep_vars)) {
 ```{r helper-functions, echo = FALSE}
 # reformat results
 reformat_results <- function(results) {
+  if (!("support") %in% colnames(results)) {
+    results <- results %>%
+      dplyr::mutate(support = NA)
+  }
   results_grouped <- results %>%
     dplyr::group_by(index) %>%
     tidyr::nest(fi_scores = c(var, importance, support)) %>%
@@ -82,7 +86,9 @@ plot_metrics <- function(results, vary_param_name, show_errbars = TRUE) {
     plt <- ggplot2::ggplot(plt_df) +
       ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]], 
                    y = mean, color = model)  +
-      ggplot2::facet_wrap(~ metric, scales = "free_y", nrow = 4, ncol = 3) +
+      ggplot2::facet_wrap(~ metric, scales = "free_y", 
+                          nrow = ceiling(length(unique(plt_df$metric)) / 3),
+                          ncol = 3) +
       ggplot2::geom_point() +
       ggplot2::geom_line() +
       vthemes::theme_vmodern() +
@@ -107,7 +113,12 @@ plot_reject_prob <- function(results, vary_param_name, keep_vars = NULL) {
                  na.rm = TRUE) %>%
     dplyr::mutate(model = as.factor(model)) %>%
     tidyr::unnest(fi_scores) %>%
-    dplyr::filter(!is.na(support)) %>%
+    dplyr::filter(!is.na(support),
+                  !(stringr::str_detect(as.character(model), "Knockoff"))) 
+  if (nrow(plt_df) == 0) {
+    return(NULL)
+  }
+  plt_df <- plt_df %>%
     dplyr::select(tidyselect::all_of(paste0(vary_param_name, "_name")), 
                   rep, model, var, importance) %>%
     dplyr::group_by(.data[[paste0(vary_param_name, "_name")]], model, var)  %>%
@@ -118,6 +129,7 @@ plot_reject_prob <- function(results, vary_param_name, keep_vars = NULL) {
     plt_df <- plt_df %>%
       dplyr::filter(var %in% keep_vars)
   }
+  
   plt_ls <- list()
   for (val in unique(plt_df[[paste0(vary_param_name, "_name")]])) {
     plt_ls[[as.character(val)]] <- plt_df %>%
@@ -268,7 +280,8 @@ metrics_plt_ls <- list()
 metrics_errbar_plt_ls <- list()
 for (sim_name in names(results_ls)) {
   metrics <- c("rocauc", "prauc", "f1", "precision", "recall", "specificity", 
-               "fp", "tp", "neg", "pos") %>%
+               "fp", "tp", "neg", "pos", 
+               "r2_rocauc", "r2_prauc", "r2_pval_cor") %>%
     intersect(colnames(results_ls[[sim_name]]))
   if (length(metrics) > 0) {
     vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")

@@ -23,12 +23,14 @@ class ModelConfig:
                  other_params: Dict[str, Any] = {},
                  model_type: str = None):
         """
+        name: str
+            Name of the model.
         model_type: str
             Either "tree", "linear", or None
         vary_param: str
             Name of the parameter to be varied
         """
-        assert model_type in {"tree", "linear", None}
+        # assert model_type in {"tree", "linear", None}
 
         self.name = name
         self.cls = cls
@@ -61,7 +63,7 @@ class FIModelConfig:
         vary_param: str
             Name of the parameter to be varied
         """
-        assert model_type in {"tree", "linear", None}
+        # assert model_type in {"tree", "linear", None}
         assert splitting_strategy in {
             'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata', None}
 

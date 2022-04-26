@@ -109,7 +109,10 @@ def compare_estimators(estimators: List[ModelConfig],
                     metric_results['fi_scores'] = fi_score
                     reject_features = None
                     if fi_est.pval:
-                        reject_features = get_rejected_features(fi_score, args.alpha)
+                        if 'rejection' in fi_score.columns:
+                            reject_features = fi_score['rejection']
+                        else:
+                            reject_features = get_rejected_features(fi_score, args.alpha)
                     metric_results['est_support'] = reject_features
                     metric_results['complexity'] = util.get_complexity(est)
                     metric_results['time'] = end - start

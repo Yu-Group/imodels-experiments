@@ -5,9 +5,10 @@ from sklearn.tree import DecisionTreeRegressor
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.inspection import permutation_importance
-#import knockpy as kpy
-#from knockpy.knockoff_filter import KnockoffFilter
+import knockpy as kpy
+from knockpy.knockoff_filter import KnockoffFilter
 import shap
+import math
 
 import rpy2.robjects as ro
 from rpy2.robjects.packages import importr
@@ -99,7 +100,7 @@ def perm_importance(X, y, fit, n_repeats=10):
     return results
 
 
-def knockpy_swap_integral(X,y,model,fdr=0.2):
+def knockpy_swap_integral(X,y,model,knockoff_fdr=0.2):
     '''
     Performs knockoff filtering based on a given model (lasso, tree, etc.)
     using the swap or swap integral importances method in Giminez et al (2018)
@@ -108,7 +109,7 @@ def knockpy_swap_integral(X,y,model,fdr=0.2):
     :param y: response
     :param model: model to be used, this model should NOT be fitted
                   e.g., DecisionTreeRegressor(random_state=0)
-    :param fdr: false discovery rate for knockoffs
+    :param knockoff_fdr: false discovery rate for knockoffs
     :return: dataframe - [Var, fstat, importance, rejections]
                          Var: variable name
                          fstat: fstatistics computed for each variable for inference
@@ -116,8 +117,8 @@ def knockpy_swap_integral(X,y,model,fdr=0.2):
                          rejections: 1 if rejected 0 otherwise
     '''
     model_fstat = kpy.knockoff_stats.FeatureStatistic(model=model)
-    kfilter = KnockoffFilter(ksampler='gaussian', fstat=model_fstat)
-    rejections = kfilter.forward(X, y, fdr=fdr)
+    kfilter = KnockoffFilter(ksampler='gaussian', fstat=model_fstat, knockoff_kwargs={"choldate_warning":False})
+    rejections = kfilter.forward(X, y, fdr=knockoff_fdr)
     results = pd.DataFrame(data=kfilter.W, columns=['fstat'])
     results['importance'] = kfilter.Z[0:math.floor(len(kfilter.Z)/2)]
     results['rejections'] = rejections
@@ -207,7 +208,7 @@ def optimal_tree_feature_significance(X, y, fit, normalize=True, num_splits=10,
 
     return results
 
-def foci_rank(X,y,numFeatures,numCores = 1):
+def foci_rank(X, y, fit=None, numFeatures=None, numCores = 1):
     '''
     Rank all features using FOCI, a variable selection algorithm based on the measure of conditional dependence codec
     :param X: design matrix
@@ -219,23 +220,27 @@ def foci_rank(X,y,numFeatures,numCores = 1):
                          index: index of selected variable
                          codec: the corresponding conditional dependence coefficient when adding in each variable
     '''
+    if numFeatures is None:
+        numFeatures = X.shape[1]
     result = FOCI.foci(y, X, num_features = numFeatures,stop = False,numCores = numCores)
     with localconverter(ro.default_converter + pandas2ri.converter):
         result_pd = ro.conversion.rpy2py(result[0])
-    result_pd['codec'] = result[1]
+    result_pd['importance'] = result[1]
     result_pd.index = result_pd['names']
-    result_pd.index.name = 'var'
+    result_pd.index.name = 'var_name'
     result_pd.drop('names', inplace=True, axis=1)
+    result_pd = result_pd.rename(columns={'index': 'var'})
+    result_pd['var'] = (result_pd['var'] - 1).astype(int)
     result_pd.reset_index(inplace=True)
 
     return result_pd
 
-def boruta_rank(X,y,estimator,verbose = 1):
+def boruta_rank(X,y,fit,verbose = 1):
     '''
     Rank all features using Boruta
     :param X: design matrix
     :param y: response
-    :param estimator: a supervised learning estimator, with a 'fit' method that returns the
+    :param fit: a supervised learning estimator, with a 'fit' method that returns the
     feature_importances_ attribute. Important features must correspond to high absolute values
     in the feature_importances_.
     e.g., RandomForestClassifier(n_jobs=-1, class_weight='balanced', max_depth=5)
@@ -245,10 +250,11 @@ def boruta_rank(X,y,estimator,verbose = 1):
                          rank: rank assigned to each feature (lower is better). Note this will only go as low
                          as 2 if no features should actually be selected based on Boruta, otherwise 1 is best
     '''
-    boruta_mod = BorutaPy(estimator, n_estimators='auto',verbose = verbose)
+    boruta_mod = BorutaPy(fit,verbose = verbose)
     boruta_fit = boruta_mod.fit(X, y)
-    results = boruta_fit.ranking_
-    results = pd.DataFrame(data=results, columns=['rank'])
+    results = pd.DataFrame({'rank': boruta_fit.ranking_,
+                            'importance': -boruta_fit.ranking_,
+                            'rejections': boruta_fit.support_.astype(int)})
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
     results.index.name = 'var'
