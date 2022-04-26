@@ -95,19 +95,19 @@ class TreeTester:
                     else:
                         transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j, self.max_components)
                     if add_linear:
-                        transformed_feats_for_j = np.hstack([X[:, [j]] - np.mean(X_test[:, j]), transformed_feats_for_j])
+                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]), transformed_feats_for_j])
                     if transformed_feats_for_j.shape[1] == 0:
                         p_vals[i, j] = 1.0
                         r_squared[i, j] = 0.0
                     else:
-                        OLS_for_j = sm.OLS(y_test - np.mean(y_test), transformed_feats_for_j).fit(cov_type="cov_HC0")
-                        r_squared[i, j] = OLS_for_j.rsquared()
-                        p_vals[i, j] = OLS_for_j.f_pvalue()
+                        OLS_for_j = sm.OLS(y_test - np.mean(y_test), transformed_feats_for_j).fit(cov_type="HC0")
+                        r_squared[i, j] = OLS_for_j.rsquared
+                        p_vals[i, j] = OLS_for_j.f_pvalue
 
-            p_vals[np.isnan(p_vals)] = 1.0
-            median_p_vals = 2 * np.median(p_vals, axis=0)
-            r_squared = np.mean(r_squared, axis=0)
-            median_p_vals[median_p_vals > 1.0] = 1.0
+        p_vals[np.isnan(p_vals)] = 1.0
+        median_p_vals = 2 * np.median(p_vals, axis=0)
+        r_squared = np.mean(r_squared, axis=0)
+        median_p_vals[median_p_vals > 1.0] = 1.0
 
         return median_p_vals, r_squared
 
