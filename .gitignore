@@ -43,3 +43,10 @@ data
 **.pkl
 **egg*
 _site
+
+.Rproj.user
+*.Rproj
+*.Rhistory
+notebooks/nonlinear_significance/results/*
+
+notebooks/nonlinear_significance/02_simulation_results.html
