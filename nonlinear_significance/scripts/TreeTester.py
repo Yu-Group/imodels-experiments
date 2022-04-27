@@ -156,7 +156,10 @@ class TreeTester:
                 else:
                     f_p_values = sequential_F_test(transformed_feats_for_j, y_test - np.mean(y_test))
                     if first_ns:
-                        stopping_index = np.nonzero(f_p_values > threshold)[0][0] # Find first index with nonsignificant p-value
+                        if np.all(f_p_values <= threshold):
+                            stopping_index = transformed_feats_for_j.shape[1]
+                        else:
+                            stopping_index = np.nonzero(f_p_values > threshold)[0][0] # Find first index with nonsignificant p-value
                         filtered_transformed_feats_for_j = transformed_feats_for_j[:, np.arange(stopping_index)]
                     else:
                         filtered_transformed_feats_for_j = transformed_feats_for_j[:, f_p_values > threshold]
@@ -165,9 +168,9 @@ class TreeTester:
                     else:
                         OLS_for_j = sm.OLS(y_test - np.mean(y_test), filtered_transformed_feats_for_j).fit(cov_type="HC0")
                         r_squared[i, j] = OLS_for_j.rsquared
-            r_squared = np.mean(r_squared, axis=0)
+        r_squared = np.mean(r_squared, axis=0)
 
-            return r_squared
+        return r_squared
 
 
 class optimalTreeTester:  # This class is trying to improve the power of TreeTester by implementing an optimal weighting scheme that favors big nodes...
