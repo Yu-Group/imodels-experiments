@@ -1,11 +1,22 @@
 import numpy as np
 import pandas as pd
 from scipy.linalg import toeplitz
-def sample_enhancer_X(seed = None,permute = True):
+
+def sample_enhancer_X(seed = None,permute = True,sample_frac = 1.0):
     X = pd.read_csv("data/X_enhancer_uncorrelated.csv")
     np.random.seed()
+    X = X.sample(frac=sample_frac, replace=False, random_state=1)
     if permute == True:
-        return X.sample(frac=1, axis=1).to_numpy()
+        return X[np.random.permutation(X.columns)].to_numpy()
+        #X.sample(frac=1, axis=1).to_numpy()
+    else: 
+        return X.to_numpy()
+    
+def sample_tcga_X(seed = None,permute = True):
+    X = pd.read_csv("data/X.csv")
+    np.random.seed()
+    if permute == True:
+        return X[np.random.permutation(X.columns)].to_numpy()#X.sample(frac=1, axis=1).to_numpy()
     else: 
         return X.to_numpy()
 
