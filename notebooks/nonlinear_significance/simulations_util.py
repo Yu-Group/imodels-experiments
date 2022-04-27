@@ -1,6 +1,13 @@
 import numpy as np
+import pandas as pd
 from scipy.linalg import toeplitz
-
+def sample_enhancer_X(seed = None,permute = True):
+    X = pd.read_csv("data/X_enhancer_uncorrelated.csv")
+    np.random.seed()
+    if permute == True:
+        return X.sample(frac=1, axis=1).to_numpy()
+    else: 
+        return X.to_numpy()
 
 def sample_boolean_X(n, d):
     """
