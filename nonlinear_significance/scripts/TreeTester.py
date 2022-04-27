@@ -29,6 +29,7 @@ from sklearn.metrics import r2_score
 import statistics
 import statsmodels.api as sm
 from sklearn.model_selection import train_test_split
+from nonlinear_significance.scripts.util import TreeTransformer
 
 # from nonlinear_significance.scripts.util import *
 # from nonlinear_significance.scripts.util import TreeTransformer
@@ -42,7 +43,7 @@ def get_r_squared(OLS_results, tree_transformer, transformed_feats, y_test, orig
     feat_pcs = tree_transformer.original_feat_to_transformed_mapping[origin_feat]
     restricted_model_coeffs = OLS_results.params[feat_pcs]
     a = np.transpose(y_test - transformed_feats[:, feat_pcs] @ restricted_model_coeffs) @ (
-                y_test - transformed_feats[:, feat_pcs] @ restricted_model_coeffs)
+            y_test - transformed_feats[:, feat_pcs] @ restricted_model_coeffs)
     return 1.0 - (a / (np.transpose(y_test) @ y_test))
 
 
@@ -65,9 +66,8 @@ class TreeTester:
                 tree_transformer = TreeTransformer(estimator=self.estimator,
                                                    max_components=int(self.max_components * X_train.shape[0]))
             tree_transformer.fit(X_train)  # Apply PCA on X_train
-
             transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
-            if joint: # Fit joint linear model
+            if joint:  # Fit joint linear model
                 if add_linear:
                     pass
                 if transformed_feats.shape[1] == 0:
@@ -89,13 +89,15 @@ class TreeTester:
                                                              scalar=False).pvalue  # OLS_results.wald_test(P_j,scalar = False).pvalue
                         r_squared[i, j] = get_r_squared(OLS_results, tree_transformer, transformed_feats, y_test, j)
             else:
-                for j in range(X.shape[1]): # Iterate over original features
+                for j in range(X.shape[1]):  # Iterate over original features
                     if self.max_components == 'median':
                         transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j, 0)
                     else:
-                        transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j, self.max_components)
+                        transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j,
+                                                                                              self.max_components)
                     if add_linear:
-                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]), transformed_feats_for_j])
+                        transformed_feats_for_j = np.hstack(
+                            [X_test[:, [j]] - np.mean(X_test[:, j]), transformed_feats_for_j])
                     if transformed_feats_for_j.shape[1] == 0:
                         p_vals[i, j] = 1.0
                         r_squared[i, j] = 0.0
@@ -113,6 +115,59 @@ class TreeTester:
 
     def multiple_testing_correction(self, p_vals, method='bonferroni', alpha=0.05):
         return smt.multipletests(p_vals, method=method)[1]
+
+
+    def get_r_squared_sig_threshold(self, X, y, num_splits=10, add_linear=True, threshold=0.05, first_ns=True):
+        """
+        Get r squared values, but only with respect to a subset of the engineered features, depending on a thresholding
+        criterion.
+
+        :param X:
+        :param y:
+        :param num_splits:
+        :param add_linear:
+        :param threshold:
+        :param first_ns: Flag, if True, then use only engineered features with indices less than the first one
+            that has nonsignificant p-value
+        :return:
+        """
+        r_squared = np.zeros((num_splits, X.shape[1]))
+        for i in tqdm(range(num_splits)):
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5)  # perform sample splitting
+            self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
+            if self.max_components == 'median':
+                tree_transformer = TreeTransformer(estimator=self.estimator, max_components='median')
+            else:
+                tree_transformer = TreeTransformer(estimator=self.estimator,
+                                                   max_components=int(self.max_components * X_train.shape[0]))
+            tree_transformer.fit(X_train)  # Apply PCA on X_train
+            transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
+            for j in range(X.shape[1]):  # Iterate over original features
+                if self.max_components == 'median':
+                    transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j, 0)
+                else:
+                    transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j,
+                                                                                          self.max_components)
+                if add_linear:
+                    transformed_feats_for_j = np.hstack(
+                        [X_test[:, [j]] - np.mean(X_test[:, j]), transformed_feats_for_j])
+                if transformed_feats_for_j.shape[1] == 0:
+                    r_squared[i, j] = 0.0
+                else:
+                    f_p_values = sequential_F_test(transformed_feats_for_j, y_test - np.mean(y_test))
+                    if first_ns:
+                        stopping_index = np.nonzero(f_p_values > threshold)[0][0] # Find first index with nonsignificant p-value
+                        filtered_transformed_feats_for_j = transformed_feats_for_j[:, np.arange(stopping_index)]
+                    else:
+                        filtered_transformed_feats_for_j = transformed_feats_for_j[:, f_p_values > threshold]
+                    if filtered_transformed_feats_for_j.shape[1] == 0:
+                        r_squared[i, j] = 0.0
+                    else:
+                        OLS_for_j = sm.OLS(y_test - np.mean(y_test), filtered_transformed_feats_for_j).fit(cov_type="HC0")
+                        r_squared[i, j] = OLS_for_j.rsquared
+            r_squared = np.mean(r_squared, axis=0)
+
+            return r_squared
 
 
 class optimalTreeTester:  # This class is trying to improve the power of TreeTester by implementing an optimal weighting scheme that favors big nodes...
@@ -271,9 +326,33 @@ class optimalTreeTester:  # This class is trying to improve the power of TreeTes
     # z.sum().backward()
     # z.sum().backward()
     # print(weights.grad.data)
+
+
 #            z.sum().backward() # Calculate gradients
 # opt.step()
 # while all(gradient)
 # tns = torch.distributions.Uniform(0,1.0).sample((u_sel.shape[1],))
 # weights = Variable(tns, requires_grad=True)
 # opt = torch.optim.SGD([weights], lr=lr)
+
+
+def sequential_F_test(X, y, cov_type="HC0"):
+    """
+    Takes results from a statsmodel OLS model fit, and obtain F-statistic p-values for adding each feature into
+    the model.
+
+    :param X: covariate matrix
+    :param y: response vector
+    :return:
+    """
+
+    d = X.shape[1]
+    p_values = np.zeros(d)
+    ols_full = sm.OLS(y, X[:, 0]).fit(cov_type=cov_type)
+    p_values[0] = ols_full.f_pvalue
+    for i in range(1, d):
+        ols_restricted = ols_full
+        ols_full = sm.OLS(y, X[:, np.arange(i + 1)]).fit(cov_type=cov_type)
+        p_values[i] = ols_full.compare_f_test(ols_restricted)[1]
+
+    return p_values
