@@ -15,7 +15,7 @@ X_PARAMS_DICT = {
 Y_DGP = linear_model
 Y_PARAMS_DICT = {
     "beta": 1,
-    "sigma": 0.1,
+    "sigma": 2,
     "s": 5
 }
 
@@ -25,8 +25,8 @@ Y_PARAMS_DICT = {
 # VARY_PARAM_NAME = "n_estimators"
 # VARY_PARAM_VALS = {"placeholder": 0}
 
-VARY_PARAM_NAME = "n"
-VARY_PARAM_VALS = {'100': 100, '250': 250, '500': 500}
+# VARY_PARAM_NAME = "n"
+# VARY_PARAM_VALS = {'100': 100, '250': 250, '500': 500}
 #
 # # VARY_PARAM_NAME = "d"
 # # VARY_PARAM_VALS = {'50': 50, '100': 100, '250': 250}
@@ -34,5 +34,5 @@ VARY_PARAM_VALS = {'100': 100, '250': 250, '500': 500}
 # # VARY_PARAM_NAME = "s"
 # # VARY_PARAM_VALS = {'5': 5, '10': 10, '15': 15}
 #
-# VARY_PARAM_NAME = "sigma"
-# VARY_PARAM_VALS = {'0.1': 0.1, '1': 1, '2': 2, '4': 4}
+VARY_PARAM_NAME = "sigma"
+VARY_PARAM_VALS = {'0.1': 0.1, '1': 1, '2': 2, '4': 4}

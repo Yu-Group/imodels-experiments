@@ -2,6 +2,21 @@ import numpy as np
 import pandas as pd
 from scipy.linalg import toeplitz
 
+def sample_real_X(fpath=None, X=None, seed=None, permute=True, sample_row_n=None, sample_col_n=None):
+    if X is None:
+        X = pd.read_csv(fpath)
+    np.random.seed()
+    if sample_row_n is not None:
+        X = X.sample(n=sample_row_n, replace=False, random_state=1)
+    if sample_col_n is not None:
+        X = X.sample(n=sample_col_n, replace=False, random_state=2, axis=1)
+    if permute == True:
+        return X[np.random.permutation(X.columns)].to_numpy()
+        #X.sample(frac=1, axis=1).to_numpy()
+    else:
+        return X.to_numpy()
+
+
 def sample_enhancer_X(seed = None,permute = True,sample_frac = 1.0):
     X = pd.read_csv("data/X_enhancer_uncorrelated.csv")
     np.random.seed()

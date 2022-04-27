@@ -21,17 +21,23 @@ Y_PARAMS_DICT = {
     "s": 5
 }
 
+# VARY_PARAM_NAME = "max_components"
+# VARY_PARAM_VALS = {"placeholder": 0}
+
+# VARY_PARAM_NAME = "n_estimators"
+# VARY_PARAM_VALS = {"placeholder": 0}
+
 VARY_PARAM_NAME = "rho"
 VARY_PARAM_VALS = {"0": 0, "0.2": 0.2, "0.4": 0.4, "0.6": 0.6, "0.8": 0.8}
-
+#
 # VARY_PARAM_NAME = "n"
-# VARY_PARAM_VALS = {'100': 100, '250': 250, '500': 500}
-
-# VARY_PARAM_NAME = "d"
-# VARY_PARAM_VALS = {'50': 50, '100': 100, '250': 250}
-
-# VARY_PARAM_NAME = "s"
-# VARY_PARAM_VALS = {'5': 5, '10': 10, '15': 15}
-
-# VARY_PARAM_NAME = "sigma"
-# VARY_PARAM_VALS = {'0.1': 0.1, '1': 1, '2': 2}
+# VARY_PARAM_VALS = {'250': 250, '500': 500, '1000': 1000, '5000': 5000, '10000': 10000}
+#
+# # VARY_PARAM_NAME = "d"
+# # VARY_PARAM_VALS = {'50': 50, '100': 100, '250': 250}
+#
+# # VARY_PARAM_NAME = "s"
+# # VARY_PARAM_VALS = {'5': 5, '10': 10, '15': 15}
+#
+# # VARY_PARAM_NAME = "sigma"
+# # VARY_PARAM_VALS = {'0.1': 0.1, '1': 1, '2': 2}
