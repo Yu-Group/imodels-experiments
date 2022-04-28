@@ -23,7 +23,7 @@ TREE_DEPTHS = [1, 2, 3, 4, 5, 7, 8, 10, 15, 20, 25]
 ESTIMATORS = [
     #[ModelConfig('CART_(MSE)', GreedyTreeRegressor, other_params={'min_samples_leaf': 5}, model_type='tree')],
     [ModelConfig('RF',RandomForestRegressor,other_params = {'n_estimators':100, 'min_samples_leaf':5,'max_features':0.33},model_type = 'tree')],
-    #[ModelConfig('OLS', LinearRegression, model_type='linear')],
+    [ModelConfig('OLS', LinearRegression, model_type='linear')],
     
     
     
