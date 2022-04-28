@@ -155,22 +155,33 @@ def tree_shap_mean(X, y, fit):
     return results
 
 
-def tree_feature_significance(X, y, fit, max_components='median', normalize=True, num_splits=10, add_linear=True, joint=False):
-    '''
+def tree_feature_significance(X, y, fit, type="default", max_components='median', normalize=True,
+                              num_splits=10, add_linear=True, joint=False, threshold=0.05, first_ns=True):
+    """
     Compute feature signficance for trees
     :param X: full X data
     :param y: full response vector
     :param fit: estimator
-    :param max_components: proportion of variance explained for pca
+    :param type: one of "default" or "stepwise"
+    :param max_components: "median" or proportion so that proportion*n pc components are used
     :param normalize: whether or not to normalize
     :param num_splits: number of sample splits/repetitions
+    :param add_linear: boolean; whether or not to add raw x when testing
+    :param joint: boolean; only used if type = "default"
+    :param threshold: alpha threshold; only used if type = "stepwise"
+    :param first_ns: boolean; only uesd if type = "stepwise"
     :return:
-    '''
+    """
+
+    assert type in ["default", "stepwise"]
 
     tree_tester = TreeTester(fit, max_components=max_components, normalize=normalize)
-    median_p_vals,r2 = tree_tester.get_feature_significance_and_ranking(X, y, num_splits=num_splits, add_linear=add_linear, joint=joint)
+    if type == "default":
+        median_p_vals,r2 = tree_tester.get_feature_significance_and_ranking(X, y, num_splits=num_splits, add_linear=add_linear, joint=joint)
+    else:
+        r2 = tree_tester.get_r_squared_sig_threshold(X, y, num_splits=num_splits, add_linear=add_linear, threshold=threshold, first_ns=first_ns)
+        median_p_vals = r2
 
-    #results = pd.DataFrame(data=median_p_vals, columns=['importance'])
     results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2}, columns=['importance','r2'])
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
