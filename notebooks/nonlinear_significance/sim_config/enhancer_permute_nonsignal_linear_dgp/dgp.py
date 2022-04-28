@@ -9,7 +9,8 @@ from simulations_util import *
 
 X_DGP = sample_enhancer_X
 X_PARAMS_DICT = {
-    "sample_frac": 0.13
+    "sample_frac": 0.13,
+    "s": 5
 }
 Y_DGP = linear_model
 Y_PARAMS_DICT = {

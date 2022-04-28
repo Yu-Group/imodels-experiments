@@ -9,7 +9,9 @@ from simulations_util import *
 
 X_DGP = sample_enhancer_X
 X_PARAMS_DICT = {
-    "sample_frac": 0.13
+    "sample_frac": 0.13,
+    "permute": False,
+    "signal_features": ['wt_ZLD', 'gt2', 'hb1', 'kr1', 'twi1']
 }
 Y_DGP = linear_model
 Y_PARAMS_DICT = {

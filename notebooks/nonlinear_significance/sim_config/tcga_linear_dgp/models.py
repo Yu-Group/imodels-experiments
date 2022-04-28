@@ -49,7 +49,8 @@ ESTIMATORS = [
 FI_ESTIMATORS = [
     #[FIModelConfig('OptimalTreeSig', optimal_tree_feature_significance, None, True, model_type='tree')],
     [FIModelConfig('TreeSig', tree_feature_significance, None, True, model_type='tree')],
-    #[FIModelConfig('T-Test', lin_reg_t_test, None, True, model_type='linear')],
+    [FIModelConfig('TreeSigNoX', tree_feature_significance, None, True, model_type='tree', other_params={'add_linear': False})],
+    [FIModelConfig('T-Test', lin_reg_t_test, None, True, model_type='linear')],
     [FIModelConfig('MDI', tree_mdi, None, False, model_type='tree')],
     [FIModelConfig('Permutation', perm_importance, None, False, model_type='tree')],
 ]

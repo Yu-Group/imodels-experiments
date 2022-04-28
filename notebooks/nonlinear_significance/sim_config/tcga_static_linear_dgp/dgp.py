@@ -7,9 +7,12 @@ import sys
 sys.path.append("../..")
 from simulations_util import *
 
-X_DGP = sample_enhancer_X
+X_DGP = sample_real_X
 X_PARAMS_DICT = {
-    "sample_frac": 0.13
+    "fpath": "data/X_tcga_var_filtered_log_transformed.csv",
+    "sample_row_n": None,
+    "sample_col_n": 100,
+    "permute": False
 }
 Y_DGP = linear_model
 Y_PARAMS_DICT = {
@@ -28,4 +31,4 @@ Y_PARAMS_DICT = {
 # VARY_PARAM_VALS = {'5': 5, '10': 10, '15': 15}
 
 VARY_PARAM_NAME = "sigma"
-VARY_PARAM_VALS = {'0.1': 0.1, '0.5':0.5, '1': 1, '2': 2, '4': 4}
+VARY_PARAM_VALS = {'0.1': 0.1, '1': 1, '2': 2, '4': 4}
