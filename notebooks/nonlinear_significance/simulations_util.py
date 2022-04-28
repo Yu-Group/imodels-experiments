@@ -18,7 +18,7 @@ def sample_real_X(fpath=None, X=None, seed=None, permute=True, sample_row_n=None
 
 
 def sample_enhancer_X(seed=None, permute=True, sample_frac=1.0,
-                      signal_features=None, s=None):
+                      signal_features=None, s=None, permute_cols_indep=True):
     """
     :param seed:
     :param permute: boolean; whether or not to permute columns
@@ -39,7 +39,11 @@ def sample_enhancer_X(seed=None, permute=True, sample_frac=1.0,
             X = X[signal_features + [col for col in X.columns if col not in signal_features]]
 
     if s is not None:  # then permute non-signal features
-        X = pd.concat([X.iloc[:, :s], X.iloc[:, s:].sample(frac=1.0, replace=False, random_state=10)], axis=1, ignore_index=True)
+        if permute_cols_indep:
+            for j in range(s, X.shape[1]):
+                X.iloc[:, j] = np.random.permutation(X.iloc[:, j])
+        else:
+            X = pd.concat([X.iloc[:, :s], X.iloc[:, s:].sample(frac=1.0, replace=False, random_state=10)], axis=1, ignore_index=True)
 
     return X.to_numpy()
     
