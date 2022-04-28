@@ -11,11 +11,13 @@ X_DGP = sample_enhancer_X
 X_PARAMS_DICT = {
     "sample_frac": 0.13
 }
-Y_DGP = linear_model
+Y_DGP = lss_model
 Y_PARAMS_DICT = {
     "beta": 1,
     "sigma": 0.1,
-    "s": 5
+    "tau": 0,
+    "m": 3,
+    "r": 2
 }
 
 #VARY_PARAM_NAME = "n"

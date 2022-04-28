@@ -9,13 +9,17 @@ from simulations_util import *
 
 X_DGP = sample_enhancer_X
 X_PARAMS_DICT = {
-    "sample_frac": 0.13
+    "sample_frac": 0.13,
+    "permute": False,
+    "signal_features": ['wt_ZLD', 'gt2', 'hb1', 'twi1', 'kr1', 'med2']
 }
-Y_DGP = linear_model
+Y_DGP = lss_model
 Y_PARAMS_DICT = {
     "beta": 1,
     "sigma": 0.1,
-    "s": 5
+    "tau": 0,
+    "m": 3,
+    "r": 2
 }
 
 #VARY_PARAM_NAME = "n"

@@ -29,4 +29,4 @@ Y_PARAMS_DICT = {
 # VARY_PARAM_VALS = {'5': 5, '10': 10, '15': 15}
 
 VARY_PARAM_NAME = "sigma"
-VARY_PARAM_VALS = {'0.1': 0.1, '0.5':0.5, '1': 1, '2': 2, '4': 4}
+VARY_PARAM_VALS = {'0.1': 0.1, '1': 1, '2': 2, '4': 4}
