@@ -39,7 +39,7 @@ def sample_enhancer_X(seed=None, permute=True, sample_frac=1.0,
             X = X[signal_features + [col for col in X.columns if col not in signal_features]]
 
     if s is not None:  # then permute non-signal features
-        X = pd.concat([X.iloc[:, :s], X.iloc[:, s:].sample(frac=1.0, replace=False, random_state=10).reset_index()], axis=1)
+        X = pd.concat([X.iloc[:, :s], X.iloc[:, s:].sample(frac=1.0, replace=False, random_state=10)], axis=1, ignore_index=True)
 
     return X.to_numpy()
     
