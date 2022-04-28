@@ -17,15 +17,31 @@ def sample_real_X(fpath=None, X=None, seed=None, permute=True, sample_row_n=None
         return X.to_numpy()
 
 
-def sample_enhancer_X(seed = None,permute = True,sample_frac = 1.0):
+def sample_enhancer_X(seed=None, permute=True, sample_frac=1.0,
+                      signal_features=None, s=None):
+    """
+    :param seed:
+    :param permute: boolean; whether or not to permute columns
+    :param sample_frac: sampling fraction for subsetting rows
+    :param signal_features: optional character vector specifying true signal features;
+        ignored if permute=True
+    :param s: optional integer specifying the number of true signal features; if
+        provided, all but the first s features get permuted (row-wise)
+    :return:
+    """
     X = pd.read_csv("data/X_enhancer_uncorrelated.csv")
     np.random.seed()
     X = X.sample(frac=sample_frac, replace=False, random_state=1)
     if permute == True:
-        return X[np.random.permutation(X.columns)].to_numpy()
-        #X.sample(frac=1, axis=1).to_numpy()
-    else: 
-        return X.to_numpy()
+        X = X[np.random.permutation(X.columns)]
+    else:
+        if signal_features is not None:
+            X = X[signal_features + [col for col in X.columns if col not in signal_features]]
+
+    if s is not None:  # then permute non-signal features
+        X = pd.concat([X.iloc[:, :s], X.iloc[:, s:].sample(frac=1.0, replace=False, random_state=10)], axis=1)
+
+    return X.to_numpy()
     
 def sample_tcga_X(seed = None,permute = True):
     X = pd.read_csv("data/X.csv")
