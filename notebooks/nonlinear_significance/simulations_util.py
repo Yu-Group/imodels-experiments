@@ -2,19 +2,50 @@ import numpy as np
 import pandas as pd
 from scipy.linalg import toeplitz
 
-def sample_real_X(fpath=None, X=None, seed=None, permute=True, sample_row_n=None, sample_col_n=None):
+def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
+                  sample_row_n=None, sample_col_n=None, permute_col=True,
+                  signal_features=None, n_signal_features=None, permute_nonsignal_col=None):
+    """
+    :param fpath: path to X data
+    :param X: data matrix
+    :param seed: random seed
+    :param normalize: boolean; whether or not to normalize columns in data to mean 0 and variance 1
+    :param sample_row_n: number of samples to subset; default keeps all rows
+    :param sample_col_n: number of features to subset; default keeps all columns
+    :param permute_col: boolean; whether or not to permute the columns
+    :param signal_features: list of features to use as signal features
+    :param n_signal_features: number of signal features; required if permute_nonsignal_col is not None
+    :param permute_nonsignal_col: how to permute the nonsignal features; must be one of [None, "block", "indep"], where
+        None performs no permutation, "block" performs the permutation row-wise, and "indep" permutes each nonsignal
+        feature column independently
+    :return:
+    """
+    assert permute_nonsignal_col in [None, "block", "indep"]
     if X is None:
         X = pd.read_csv(fpath)
-    np.random.seed()
+    if normalize:
+        X = (X-X.mean())/X.std()
+    if seed is not None:
+        np.random.seed(seed)
     if sample_row_n is not None:
-        X = X.sample(n=sample_row_n, replace=False, random_state=1)
+        X = X.sample(n=sample_row_n, replace=False)#, random_state=1)
     if sample_col_n is not None:
-        X = X.sample(n=sample_col_n, replace=False, random_state=2, axis=1)
-    if permute == True:
-        return X[np.random.permutation(X.columns)].to_numpy()
-        #X.sample(frac=1, axis=1).to_numpy()
-    else:
-        return X.to_numpy()
+        X = X.sample(n=sample_col_n, replace=False, axis=1)#, random_state=2)
+    if permute_col:
+        X = X[np.random.permutation(X.columns)]
+    if signal_features is not None:
+        X = X[signal_features + [col for col in X.columns if col not in signal_features]]
+    if permute_nonsignal_col is not None:
+        assert n_signal_features is not None
+        if permute_nonsignal_col == "block":
+            X = pd.concat([X.iloc[:, :n_signal_features],
+                           X.iloc[:, n_signal_features:].sample(frac=1.0, replace=False)], #, random_state=10)],
+                          axis=1, ignore_index=True)
+        elif permute_nonsignal_col == "indep":
+            for j in range(n_signal_features, X.shape[1]):
+                X.iloc[:, j] = np.random.permutation(X.iloc[:, j])
+
+    return X.to_numpy()
 
 
 def sample_enhancer_X(seed=None, permute=True, sample_frac=1.0,
@@ -46,14 +77,7 @@ def sample_enhancer_X(seed=None, permute=True, sample_frac=1.0,
             X = pd.concat([X.iloc[:, :s], X.iloc[:, s:].sample(frac=1.0, replace=False, random_state=10)], axis=1, ignore_index=True)
 
     return X.to_numpy()
-    
-def sample_tcga_X(seed = None,permute = True):
-    X = pd.read_csv("data/X.csv")
-    np.random.seed()
-    if permute == True:
-        return X[np.random.permutation(X.columns)].to_numpy()#X.sample(frac=1, axis=1).to_numpy()
-    else: 
-        return X.to_numpy()
+
 
 def sample_boolean_X(n, d):
     """
