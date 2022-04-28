@@ -357,12 +357,20 @@ if __name__ == '__main__':
             show_vars = 'NULL'
         else:
             show_vars = args.show_vars
-        os.system(
-            'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\', quiet = TRUE)"'.format(
-                "02_simulation_results.Rmd",
-                results_dir, vary_param_name, str(args.split_seed), str(show_vars),
-                oj(path, "simulation_results.html"))
-        )
+        if args.r2:
+            os.system(
+                'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\', quiet = TRUE)"'.format(
+                    "02_simulation_results_r2.Rmd",
+                    results_dir, vary_param_name, str(args.split_seed), str(show_vars),
+                    oj(path, "simulation_results_r2.html"))
+            )
+        else:
+            os.system(
+                'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\', quiet = TRUE)"'.format(
+                    "02_simulation_results.Rmd",
+                    results_dir, vary_param_name, str(args.split_seed), str(show_vars),
+                    oj(path, "simulation_results.html"))
+            )
         print("created rmd of simulation results successfully!")
 
 # %%

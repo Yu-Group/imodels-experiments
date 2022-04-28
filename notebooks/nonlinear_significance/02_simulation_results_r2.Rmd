@@ -1,0 +1,367 @@
+---
+title: "Simulation Results"
+author: ""
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: vthemes::vmodern
+params:
+  results_dir: 
+    label: "Results directory"
+    value: "results/test"
+  vary_param_name:
+    label: "Name of varying parameter"
+    value: NULL
+  seed:
+    label: "Seed"
+    value: 331
+  keep_vars:
+    label: "Max variables to keep in rejection probability plots"
+    value: NULL
+  rm_fi:
+    label: "Feature importance methods to omit"
+    value: NULL 
+    # value: ["T-Test", "Boruta"]
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+library(plotly)
+library(vthemes)  # devtools::install_github("Yu-Group/vthemes")
+library(data.table)
+
+chunk_idx <- 1
+
+# set parameters
+results_dir <- params$results_dir
+vary_param_name <- params$vary_param_name
+seed <- params$seed
+if (!is.null(params$keep_vars)) {
+  keep_vars <- 0:params$keep_vars
+} else {
+  keep_vars <- params$keep_vars
+}
+```
+
+```{r helper-functions, echo = FALSE}
+# reformat results
+reformat_results <- function(results) {
+  if (!("support") %in% colnames(results)) {
+    results <- results %>%
+      dplyr::mutate(support = NA)
+  }
+  if ("r2_x" %in% colnames(results)) {
+    results <- results %>%
+      dplyr::select(-r2_y) %>%
+      dplyr::rename(r2 = r2_x)
+  }
+  if (!is.null(params$rm_fi)) {
+    results <- results %>%
+      dplyr::filter(!(fi %in% params$rm_fi))
+  }
+  results_grouped <- results %>%
+    dplyr::group_by(index) %>%
+    tidyr::nest(
+      fi_scores = tidyselect::any_of(c("var", "importance", "r2", "support"))
+    ) %>%
+    dplyr::ungroup() %>%
+    dplyr::select(-index) %>%
+    dplyr::mutate(
+      fi = forcats::fct_recode(
+        fi, `R2F+` = "TreeSig", `R2F` = "TreeSigNoX"
+      )
+    )
+  return(results_grouped)
+}
+
+# plot metrics (mean value across repetitions with error bars)
+plot_metrics <- function(results, vary_param_name, show_errbars = TRUE) {
+  plt_df <- results %>%
+    tidyr::unite(col = "model", 
+                 fi, model, #min_samples_leaf, 
+                 na.rm = TRUE) %>%
+    dplyr::mutate(
+      model = forcats::fct_recode(model, `R2F+` = "R2F+_RF", `R2F` = "R2F_RF")
+    ) %>%
+    dplyr::select(rep, model, 
+                  tidyselect::all_of(c(paste0(vary_param_name, "_name"), 
+                                       metrics))) %>%
+    dplyr::mutate(rocauc = ifelse(stringr::str_detect(model, "R2F"),
+                                  r2_rocauc, rocauc),
+                  prauc = ifelse(stringr::str_detect(model, "R2F"),
+                                 r2_prauc, prauc)) %>%
+    tidyr::pivot_longer(cols = tidyselect::all_of(metrics), 
+                        names_to = "metric")  %>%
+    dplyr::filter(!(metric %in% c("r2_rocauc", "r2_prauc"))) %>%
+    dplyr::group_by(.data[[paste0(vary_param_name, "_name")]],
+                    model, metric) %>%
+    dplyr::summarise(mean = mean(value), sd = sd(value), .groups = "keep")
+  
+  if (length(unique(plt_df[[paste0(vary_param_name, "_name")]])) == 1) {
+    plt <- ggplot2::ggplot(plt_df) +
+      ggplot2::aes(x = model, y = mean) +
+      ggplot2::facet_wrap(~ metric, scales = "free_y", nrow = 1, ncol = 2) +
+      ggplot2::geom_point() +
+      vthemes::theme_vmodern() +
+      vthemes::scale_color_vmodern(discrete = TRUE) +
+      ggplot2::labs(x = "Model")
+    if (show_errbars) {
+      plt <- plt + 
+        ggplot2::geom_errorbar(
+          mapping = ggplot2::aes(x = model, ymin = mean - sd, ymax = mean + sd)
+        )
+    }
+  } else {
+    plt <- ggplot2::ggplot(plt_df) +
+      ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]], 
+                   y = mean, color = model)  +
+      ggplot2::facet_wrap(~ metric, scales = "free_y", nrow = 1, ncol = 2) +
+      ggplot2::geom_point() +
+      ggplot2::geom_line() +
+      vthemes::theme_vmodern() +
+      vthemes::scale_color_vmodern(discrete = TRUE) +
+      ggplot2::labs(x = vary_param_name)
+    if (show_errbars) {
+      plt <- plt + 
+        ggplot2::geom_errorbar(
+          mapping = ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]],
+                                 ymin = mean - sd, ymax = mean + sd)
+        )
+    }
+  }
+  return(plt)
+}
+
+# plot rejection probability curves
+plot_ecdf <- function(results, vary_param_name, keep_vars = NULL) {
+  plt_df <- results %>%
+    tidyr::unite(col = "model", 
+                 fi, model, #min_samples_leaf, 
+                 na.rm = TRUE) %>%
+    dplyr::mutate(
+      model = forcats::fct_recode(model, `R2F+` = "R2F+_RF", `R2F` = "R2F_RF")
+    ) %>%
+    tidyr::unnest(fi_scores) %>%
+    dplyr::filter(!is.na(support), !is.na(r2),
+                  !(stringr::str_detect(as.character(model), "Knockoff"))) 
+  if (nrow(plt_df) == 0) {
+    return(NULL)
+  }
+  plt_df <- plt_df %>%
+    dplyr::select(tidyselect::all_of(paste0(vary_param_name, "_name")), 
+                  rep, model, var, r2) %>%
+    dplyr::group_by(.data[[paste0(vary_param_name, "_name")]], model, var)  %>%
+    dplyr::summarise(.r2 = sort(unique(r2)),
+                     reject_prob = (stats::ecdf(r2))(.r2),
+                     .groups = "keep")
+  if (!is.null(keep_vars)) {
+    plt_df <- plt_df %>%
+      dplyr::filter(var %in% keep_vars)
+  }
+  
+  plt_ls <- list()
+  for (val in unique(plt_df[[paste0(vary_param_name, "_name")]])) {
+    plt_ls[[as.character(val)]] <- plt_df %>%
+      dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
+      ggplot2::ggplot() +
+      ggplot2::aes(x = .r2, y = reject_prob, color = model) +
+      # ggplot2::geom_abline(slope = 1, intercept = 0, color = "grey") +
+      ggplot2::geom_line() +
+      ggplot2::facet_wrap(~ var) +
+      ggplot2::coord_cartesian(ylim = c(0, 1)) +
+      ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
+                    x = "R^2", y = "Empirical Cumulative Distribution") +
+      vthemes::theme_vmodern() +
+      vthemes::scale_color_vmodern(discrete = TRUE)
+  }
+  return(plt_ls)
+}
+
+# plot feature importances
+plot_feature_importance <- function(results, vary_param_name, keep_vars = NULL, 
+                                    plot_type = c("boxplot", "bar")) {
+  plot_type <- match.arg(plot_type)
+  plt_df <- results %>%
+    tidyr::unite(col = "model", 
+                 fi, model, #min_samples_leaf, 
+                 na.rm = TRUE) %>%
+    dplyr::mutate(
+      model = forcats::fct_recode(model, `R2F+` = "R2F+_RF", `R2F` = "R2F_RF")
+    ) %>%
+    tidyr::unnest(fi_scores) %>%
+    dplyr::mutate(
+      importance = ifelse(stringr::str_detect(model, "R2F"), 
+                          r2, importance)
+    )
+  if (plot_type == "bar") {
+    plt_df <- plt_df %>%
+      dplyr::select(tidyselect::all_of(paste0(vary_param_name, "_name")),
+                    rep, model, var, importance) %>%
+      dplyr::group_by(.data[[paste0(vary_param_name, "_name")]], model, var)  %>%
+      dplyr::summarise(mean_fi = mean(importance), #sd_fi = sd(importance),
+                       .groups = "keep")
+  }
+  if (!is.null(keep_vars)) {
+    plt_df <- plt_df %>%
+      dplyr::filter(var %in% keep_vars)
+  }
+  plt_ls <- list()
+  for (val in unique(plt_df[[paste0(vary_param_name, "_name")]])) {
+    if (plot_type == "bar") {
+      plt <- plt_df %>%
+        dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
+        ggplot2::ggplot() +
+        ggplot2::aes(x = var, y = mean_fi) +
+        ggplot2::geom_bar(stat = "identity", color = "grey98", fill = "#00C5FF") +
+        ggplot2::facet_wrap(~ model, scales = "free", 
+                            ncol = 2, 
+                            nrow = ceiling(length(unique(plt_df$model)) / 2)) +
+        ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
+                      x = "Feature", y = "Mean Importance / Significance") +
+        vthemes::theme_vmodern()
+    } else if (plot_type == "boxplot") {
+      plt <- plt_df %>%
+        dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
+        ggplot2::ggplot() +
+        ggplot2::aes(x = var, y = importance, group = var) +
+        ggplot2::geom_boxplot() +
+        ggplot2::facet_wrap(~ model, scales = "free",
+                            ncol = 2, 
+                            nrow = ceiling(length(unique(plt_df$model)) / 2)) +
+        ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
+                      x = "Feature", y = "Importance / Significance") +
+        vthemes::theme_vmodern()
+    }
+    plt_ls[[as.character(val)]] <- plt
+  }
+  return(plt_ls)
+}
+
+# view results in Rmarkdown
+# notes: need to set 'results = "asis"' in the code chunk header
+view_results <- function(results_ls, metrics_plt_ls, metrics_errbar_plt_ls,
+                         power_plt_ls, fi_bar_plt_ls, fi_box_plt_ls, 
+                         interactive = TRUE) {
+  cat(sprintf("\n\n# %s {.tabset .tabset-vmodern}\n\n", 
+              basename(results_dir)))
+  
+  for (sim_name in names(results_ls)) {
+    vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
+    cat(sprintf("\n\n## %s {.tabset .tabset-pills}\n\n", sim_name))
+    
+    cat(sprintf("\n\n### Tables\n\n"))
+    vthemes::subchunkify(vthemes::pretty_DT(results_ls[[sim_name]]), 
+                         i = chunk_idx)
+    chunk_idx <<- chunk_idx + 1
+    
+    cat(sprintf("\n\n### Plots {.tabset .tabset-pills .tabset-square}\n\n"))
+    if (interactive) {
+      vthemes::subchunkify(plotly::ggplotly(metrics_plt_ls[[sim_name]]), 
+                           i = chunk_idx, other_args = "out.width = '100%'",
+                           fig_height = 4,
+                           add_class = "panel panel-default padded-panel")
+      chunk_idx <<- chunk_idx + 1
+      vthemes::subchunkify(plotly::ggplotly(metrics_errbar_plt_ls[[sim_name]]), 
+                           i = chunk_idx, other_args = "out.width = '100%'",
+                           fig_height = 4,
+                           add_class = "panel panel-default padded-panel")
+    } else {
+      vthemes::subchunkify(metrics_plt_ls[[sim_name]], i = chunk_idx,
+                           fig_height = 4)
+      chunk_idx <<- chunk_idx + 1
+      vthemes::subchunkify(metrics_errbar_plt_ls[[sim_name]], i = chunk_idx,
+                           fig_height = 4)
+    }
+    chunk_idx <<- chunk_idx + 1
+    
+    for (param_val in names(power_plt_ls[[sim_name]])) {
+      cat(sprintf("\n\n#### %s = %s\n\n\n", vary_param_name, param_val))
+      if (interactive) {
+        vthemes::subchunkify(plotly::ggplotly(power_plt_ls[[sim_name]][[param_val]]), 
+                             i = chunk_idx, other_args = "out.width = '100%'",
+                             add_class = "panel panel-default padded-panel")
+        chunk_idx <<- chunk_idx + 1
+        vthemes::subchunkify(plotly::ggplotly(fi_box_plt_ls[[sim_name]][[param_val]]), 
+                             i = chunk_idx, other_args = "out.width = '100%'",
+                             add_class = "panel panel-default padded-panel")
+        chunk_idx <<- chunk_idx + 1
+        vthemes::subchunkify(plotly::ggplotly(fi_bar_plt_ls[[sim_name]][[param_val]]), 
+                             i = chunk_idx, other_args = "out.width = '100%'",
+                             add_class = "panel panel-default padded-panel")
+      } else {
+        vthemes::subchunkify(power_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+        chunk_idx <<- chunk_idx + 1
+        vthemes::subchunkify(fi_box_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+        chunk_idx <<- chunk_idx + 1
+        vthemes::subchunkify(fi_bar_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+      }
+      chunk_idx <<- chunk_idx + 1
+    }
+  }
+}
+```
+
+```{r}
+# read in results
+results_ls <- list()
+for (results_subdir in list.dirs(results_dir, full.names = T, recursive = F)) {
+  if (!is.null(vary_param_name)) {
+    if (!(results_subdir %in% file.path(results_dir, 
+                                        paste0("varying_", vary_param_name)))) {
+      next
+    }
+  }
+  fname <- file.path(results_subdir, paste0("seed", seed), "results.csv")
+  if (file.exists(fname)) {
+    results_ls[[basename(results_subdir)]] <- data.table::fread(fname) %>%
+      reformat_results()
+  }
+}
+
+# plot evaluation metrics
+metrics_plt_ls <- list()
+metrics_errbar_plt_ls <- list()
+for (sim_name in names(results_ls)) {
+  metrics <- c("rocauc", "prauc", "r2_rocauc", "r2_prauc") %>%
+    intersect(colnames(results_ls[[sim_name]]))
+  if (length(metrics) > 0) {
+    vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
+    metrics_plt_ls[[sim_name]] <- plot_metrics(
+      results_ls[[sim_name]], vary_param_name, show_errbars = FALSE
+    )
+    metrics_errbar_plt_ls[[sim_name]] <- plot_metrics(
+      results_ls[[sim_name]], vary_param_name
+    )
+  } else {
+    metrics_plt_ls[[sim_name]] <- NULL
+    metrics_errbar_plt_ls[[sim_name]] <- NULL
+  }
+}
+
+# plot ecdf
+power_plt_ls <- list()
+for (sim_name in names(results_ls)) {
+  vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
+  power_plt_ls[[sim_name]] <- plot_ecdf(
+    results_ls[[sim_name]], vary_param_name, keep_vars
+  )
+}
+
+# plot feature importances
+fi_box_plt_ls <- list()
+fi_bar_plt_ls <- list()
+for (sim_name in names(results_ls)) {
+  vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
+  fi_box_plt_ls[[sim_name]] <- plot_feature_importance(
+    results_ls[[sim_name]], vary_param_name, keep_vars, plot_type = "boxplot"
+  )
+  fi_bar_plt_ls[[sim_name]] <- plot_feature_importance(
+    results_ls[[sim_name]], vary_param_name, keep_vars, plot_type = "bar"
+  )
+}
+```
+
+```{r results = "asis"}
+# display plots nicely in knitted html document
+view_results(results_ls, metrics_plt_ls, metrics_errbar_plt_ls, power_plt_ls,
+             fi_bar_plt_ls, fi_box_plt_ls)
+```
+
