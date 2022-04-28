@@ -162,7 +162,7 @@ class TreeTester:
                             stopping_index = np.nonzero(f_p_values > threshold)[0][0] # Find first index with nonsignificant p-value
                         filtered_transformed_feats_for_j = transformed_feats_for_j[:, np.arange(stopping_index)]
                     else:
-                        filtered_transformed_feats_for_j = transformed_feats_for_j[:, f_p_values > threshold]
+                        filtered_transformed_feats_for_j = transformed_feats_for_j[:, f_p_values <= threshold]
                     if filtered_transformed_feats_for_j.shape[1] == 0:
                         r_squared[i, j] = 0.0
                     else:
