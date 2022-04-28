@@ -29,7 +29,7 @@ def sample_enhancer_X(seed=None, permute=True, sample_frac=1.0,
         provided, all but the first s features get permuted (row-wise)
     :return:
     """
-    X = pd.read_csv("data/X_enhancer_uncorrelated.csv")
+    X = pd.read_csv("data/X_enhancer_uncorrelated_normalized.csv")
     np.random.seed()
     X = X.sample(frac=sample_frac, replace=False, random_state=1)
     if permute == True:
