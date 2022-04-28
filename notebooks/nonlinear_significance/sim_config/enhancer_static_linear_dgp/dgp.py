@@ -7,10 +7,11 @@ import sys
 sys.path.append("../..")
 from simulations_util import *
 
-X_DGP = sample_enhancer_X
+X_DGP = sample_real_X
 X_PARAMS_DICT = {
-    "sample_frac": 0.13,
-    "permute": False,
+    "fpath": "data/X_enhancer_uncorrelated.csv",
+    "sample_row_n": 1000,
+    "permute_col": False,
     "signal_features": ['wt_ZLD', 'gt2', 'hb1', 'kr1', 'twi1']
 }
 Y_DGP = linear_model

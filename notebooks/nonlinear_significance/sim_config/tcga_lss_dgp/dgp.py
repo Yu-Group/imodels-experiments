@@ -9,9 +9,7 @@ from simulations_util import *
 
 X_DGP = sample_real_X
 X_PARAMS_DICT = {
-    "fpath": "data/X_tcga_var_filtered_log_transformed_normalized.csv",
-    # "fpath": "data/X_tcga_var_filtered_log_transformed.csv",
-    "sample_row_n": None,
+    "fpath": "data/X_tcga_var_filtered_log_transformed.csv",
     "sample_col_n": 100
 }
 Y_DGP = lss_model

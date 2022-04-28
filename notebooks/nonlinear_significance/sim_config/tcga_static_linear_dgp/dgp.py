@@ -10,9 +10,9 @@ from simulations_util import *
 X_DGP = sample_real_X
 X_PARAMS_DICT = {
     "fpath": "data/X_tcga_var_filtered_log_transformed.csv",
-    "sample_row_n": None,
     "sample_col_n": 100,
-    "permute": False
+    "permute_col": False,
+    "signal_features": ["ESR1", "GABRP", "ANLN", "SPAG5", "TFF1"]
 }
 Y_DGP = linear_model
 Y_PARAMS_DICT = {

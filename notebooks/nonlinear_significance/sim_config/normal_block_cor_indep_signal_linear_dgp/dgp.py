@@ -23,18 +23,18 @@ Y_PARAMS_DICT = {
     "s": 5
 }
 
-# VARY_PARAM_NAME = "max_components"
-# VARY_PARAM_VALS = {"placeholder": 0}
+VARY_PARAM_NAME = "max_components"
+VARY_PARAM_VALS = {"placeholder": 0}
 
 # VARY_PARAM_NAME = "n_estimators"
 # VARY_PARAM_VALS = {"placeholder": 0}
 
-VARY_PARAM_NAME = "rho"
-VARY_PARAM_VALS = {"0": [0, 0, 0, 0, 0],
-                   "0.2": [0.2, 0, 0, 0, 0],
-                   "0.4": [0.4, 0, 0, 0, 0],
-                   "0.6": [0.6, 0, 0, 0, 0],
-                   "0.8": [0.8, 0, 0, 0, 0]}
+# VARY_PARAM_NAME = "rho"
+# VARY_PARAM_VALS = {"0": [0, 0, 0, 0, 0],
+#                    "0.2": [0.2, 0, 0, 0, 0],
+#                    "0.4": [0.4, 0, 0, 0, 0],
+#                    "0.6": [0.6, 0, 0, 0, 0],
+#                    "0.8": [0.8, 0, 0, 0, 0]}
 
 # VARY_PARAM_NAME = "n"
 # VARY_PARAM_VALS = {'100': 100, '250': 250, '500': 500}

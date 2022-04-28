@@ -19,11 +19,11 @@ Y_PARAMS_DICT = {
     "s": 5
 }
 
-# VARY_PARAM_NAME = "max_components"
-# VARY_PARAM_VALS = {"placeholder": 0}
+VARY_PARAM_NAME = "max_components"
+VARY_PARAM_VALS = {"placeholder": 0}
 
-VARY_PARAM_NAME = "n"
-VARY_PARAM_VALS = {'100': 100, '250': 250, '500': 500}
+# VARY_PARAM_NAME = "n"
+# VARY_PARAM_VALS = {'100': 100, '250': 250, '500': 500}
 
 # VARY_PARAM_NAME = "d"
 # VARY_PARAM_VALS = {'50': 50, '100': 100, '250': 250}

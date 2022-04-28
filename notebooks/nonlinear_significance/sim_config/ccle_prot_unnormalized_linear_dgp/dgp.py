@@ -9,8 +9,8 @@ from simulations_util import *
 
 X_DGP = sample_real_X
 X_PARAMS_DICT = {
-    "fpath": "data/X_tcga_var_filtered_log_transformed.csv",
-    "sample_col_n": 100
+    "fpath": "data/X_ccle_prot.csv",
+    "normalize": False
 }
 Y_DGP = linear_model
 Y_PARAMS_DICT = {
