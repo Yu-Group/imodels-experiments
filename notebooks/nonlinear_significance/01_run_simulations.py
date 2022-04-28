@@ -103,7 +103,7 @@ def compare_estimators(estimators: List[ModelConfig],
                     'fi': fi_est.name,
                     'splitting_strategy': splitting_strategy
                 }
-                fi_score = fi_est.cls(X_test, y_test, est)
+                fi_score = fi_est.cls(X_test, y_test, est, **fi_est.kwargs)
                 metric_results['fi_scores'] = copy.deepcopy(fi_score)
                 reject_features = None
                 if fi_est.pval:
