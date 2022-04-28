@@ -38,9 +38,9 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
     if permute_nonsignal_col is not None:
         assert n_signal_features is not None
         if permute_nonsignal_col == "block":
-            X = pd.concat([X.iloc[:, :n_signal_features],
-                           X.iloc[:, n_signal_features:].sample(frac=1.0, replace=False)], #, random_state=10)],
-                          axis=1, ignore_index=True)
+            X = np.hstack([X.iloc[:, :n_signal_features].to_numpy(),
+                           X.iloc[np.random.permutation(X.shape[0]), n_signal_features:].to_numpy()])
+            X = pd.DataFrame(X)
         elif permute_nonsignal_col == "indep":
             for j in range(n_signal_features, X.shape[1]):
                 X.iloc[:, j] = np.random.permutation(X.iloc[:, j])
