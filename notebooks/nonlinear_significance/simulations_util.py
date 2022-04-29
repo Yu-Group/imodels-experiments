@@ -27,12 +27,17 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
         X = (X-X.mean())/X.std()
     if seed is not None:
         np.random.seed(seed)
+    if permute_col:
+        X = X[np.random.permutation(X.columns)]
     if sample_row_n is not None:
         X = X.sample(n=sample_row_n, replace=False)#, random_state=1)
     if sample_col_n is not None:
-        X = X.sample(n=sample_col_n, replace=False, axis=1)#, random_state=2)
-    if permute_col:
-        X = X[np.random.permutation(X.columns)]
+        if signal_features is None:
+            X = X.sample(n=sample_col_n, replace=False, axis=1)#, random_state=2)
+        else:
+            rand_features = np.random.choice([col for col in X.columns if col not in signal_features],
+                                             sample_col_n-len(signal_features))
+            X = X[signal_features + list(rand_features)]
     if signal_features is not None:
         X = X[signal_features + [col for col in X.columns if col not in signal_features]]
     if permute_nonsignal_col is not None:
