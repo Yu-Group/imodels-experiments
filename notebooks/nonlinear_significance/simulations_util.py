@@ -275,8 +275,8 @@ def lss_model(X, sigma, m, r, tau, beta, return_support=False):
     else:
         return y_train
 
-def linear_lss_model(X,sigma,s,m,r,tau,beta,return_sipport = False):
-     """
+def linear_lss_model(X,sigma,s,m,r,tau,beta,return_support = False):
+    """
     This method creates response from an Linear + LSS model
 
     X: data matrix
@@ -290,6 +290,8 @@ def linear_lss_model(X,sigma,s,m,r,tau,beta,return_sipport = False):
     :return
     y_train: numpy array of shape (n)
     """
+    n,p = X.shape
+    
     def linear_func(x, s, beta):
         linear_term = 0
         for j in range(s):
@@ -303,22 +305,20 @@ def linear_lss_model(X,sigma,s,m,r,tau,beta,return_sipport = False):
             lss_term_components = x_bool[j * r:j * r + r]
             lss_term = int(all(lss_term_components))
             y += lss_term * beta[j]
-        return lss_term
+        return y
     
     beta_linear = generate_coef(beta, s)
     beta_lss = generate_coef(beta, m)
     
-    y_train_linear = np.array([linear_func(X[i, :], beta_linear) for i in range(n)])
+    y_train_linear = np.array([linear_func(X[i, :],s,beta_linear) for i in range(n)])
     y_train_lss = np.array([lss_func(X[i, :], beta_lss) for i in range(n)])
     y_train = np.array([y_train_linear[i]+y_train_lss[i] for i in range(n)])
     y_train = y_train + sigma * np.random.randn(n)
-    
-    return y_train
-    #if return_support:
-    #    support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
-    #    return y_train, support, beta
-    #else:
-    #    return y_train
+    if return_support:
+        support = np.concatenate((np.ones(max(m * r,s)), np.zeros(X.shape[1] - max((m * r),s))))
+        return y_train, support, beta_lss
+    else:
+        return y_train
     
     
 
