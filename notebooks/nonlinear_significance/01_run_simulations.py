@@ -358,20 +358,30 @@ if __name__ == '__main__':
         else:
             show_vars = args.show_vars
 
+        sim_rmd = os.path.basename(results_dir) + '_simulation_results.Rmd'
+        os.system(
+            'cp 02_simulation_results.Rmd \'{}\''.format(sim_rmd)
+        )
         os.system(
             'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\', quiet = TRUE)"'.format(
-                "02_simulation_results.Rmd",
+                sim_rmd,
                 results_dir, vary_param_name, str(args.split_seed), str(show_vars),
                 oj(path, "simulation_results.html"))
         )
+        os.system('rm \'{}\''.format(sim_rmd))
 
         if args.r2:
+            sim_r2_rmd = os.path.basename(results_dir) + '_simulation_results_r2.Rmd'
+            os.system(
+                'cp 02_simulation_results_r2.Rmd \'{}\''.format(sim_r2_rmd)
+            )
             os.system(
                 'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\', quiet = TRUE)"'.format(
-                    "02_simulation_results_r2.Rmd",
+                    sim_r2_rmd,
                     results_dir, vary_param_name, str(args.split_seed), str(show_vars),
                     oj(path, "simulation_results_r2.html"))
             )
+            os.system('rm \'{}\''.format(sim_r2_rmd))
         print("created rmd of simulation results successfully!")
 
 # %%
