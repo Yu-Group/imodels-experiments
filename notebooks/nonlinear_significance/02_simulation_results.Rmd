@@ -21,6 +21,7 @@ params:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 
+library(magrittr)
 chunk_idx <- 1
 
 # set parameters
