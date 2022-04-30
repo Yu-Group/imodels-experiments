@@ -58,7 +58,7 @@ class TreeTester:
         p_vals = np.zeros((num_splits, X.shape[1]))
         r_squared = np.zeros((num_splits, X.shape[1]))
         for i in tqdm(range(num_splits)):
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5)  # perform sample splitting
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state = i)  # perform sample splitting
             self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
             if self.max_components == 'median':
                 tree_transformer = TreeTransformer(estimator=self.estimator, max_components='median')
@@ -117,7 +117,7 @@ class TreeTester:
         return smt.multipletests(p_vals, method=method)[1]
 
 
-    def get_r_squared_sig_threshold(self, X, y, num_splits=10, add_linear=True, threshold=0.05, first_ns=True):
+    def get_r_squared_sig_threshold(self, X, y, num_splits=10, add_linear=True, threshold=0.05,num_components = 1.0, first_ns=True,diagnostics = False):
         """
         Get r squared values, but only with respect to a subset of the engineered features, depending on a thresholding
         criterion.
@@ -132,22 +132,24 @@ class TreeTester:
         :return:
         """
         r_squared = np.zeros((num_splits, X.shape[1]))
+        num_components_chosen = np.zeros((num_splits,X.shape[1]))
         for i in tqdm(range(num_splits)):
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5)  # perform sample splitting
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state = i)  # perform sample splitting
             self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
-            if self.max_components == 'median':
+            #if self.max_components == 'median':
+            if num_components == 'median':
                 tree_transformer = TreeTransformer(estimator=self.estimator, max_components='median')
             else:
-                tree_transformer = TreeTransformer(estimator=self.estimator,
-                                                   max_components=int(self.max_components * X_train.shape[0]))
+                tree_transformer = TreeTransformer(estimator=self.estimator,max_components=int(num_components * X_train.shape[0]))
+                                                   #max_components=int(self.max_components * X_train.shape[0]))
             tree_transformer.fit(X_train)  # Apply PCA on X_train
             transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
             for j in range(X.shape[1]):  # Iterate over original features
-                if self.max_components == 'median':
+                if num_components == 'median':#if self.max_components == 'median':
                     transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j, 0)
                 else:
-                    transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j,
-                                                                                          self.max_components)
+                    transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j, num_components)
+                                                                                          #self.max_components)
                 if add_linear:
                     transformed_feats_for_j = np.hstack(
                         [X_test[:, [j]] - np.mean(X_test[:, j]), transformed_feats_for_j])
@@ -158,8 +160,10 @@ class TreeTester:
                     if first_ns:
                         if np.all(f_p_values <= threshold):
                             stopping_index = transformed_feats_for_j.shape[1]
+                            num_components_chosen[i,j] = stopping_index#(stopping_index,transformed_feats_for_j.shape[1])
                         else:
                             stopping_index = np.nonzero(f_p_values > threshold)[0][0] # Find first index with nonsignificant p-value
+                            num_components_chosen[i,j] = stopping_index#(stopping_index,transformed_feats_for_j.shape[1])
                         filtered_transformed_feats_for_j = transformed_feats_for_j[:, np.arange(stopping_index)]
                     else:
                         filtered_transformed_feats_for_j = transformed_feats_for_j[:, f_p_values <= threshold]
@@ -169,8 +173,10 @@ class TreeTester:
                         OLS_for_j = sm.OLS(y_test - np.mean(y_test), filtered_transformed_feats_for_j).fit(cov_type="HC0")
                         r_squared[i, j] = OLS_for_j.rsquared
         r_squared = np.mean(r_squared, axis=0)
-
-        return r_squared
+        if diagnostics == True:
+            return r_squared,num_components_chosen
+        else:
+            return r_squared
 
 
 class optimalTreeTester:  # This class is trying to improve the power of TreeTester by implementing an optimal weighting scheme that favors big nodes...

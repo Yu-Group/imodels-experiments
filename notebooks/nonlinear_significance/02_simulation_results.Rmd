@@ -44,7 +44,7 @@ reformat_results <- function(results) {
   }
   results_grouped <- results %>%
     dplyr::group_by(index) %>%
-    tidyr::nest(fi_scores = c(var, importance, support)) %>%
+    tidyr::nest(fi_scores = var:(tidyselect::last_col())) %>%
     dplyr::ungroup() %>%
     dplyr::select(-index)
   return(results_grouped)

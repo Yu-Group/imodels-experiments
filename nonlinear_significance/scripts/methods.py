@@ -178,11 +178,12 @@ def tree_feature_significance(X, y, fit, type="default", max_components='median'
     tree_tester = TreeTester(fit, max_components=max_components, normalize=normalize)
     if type == "default":
         median_p_vals,r2 = tree_tester.get_feature_significance_and_ranking(X, y, num_splits=num_splits, add_linear=add_linear, joint=joint)
+        results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2}, columns=['importance','r2'])
     else:
-        r2 = tree_tester.get_r_squared_sig_threshold(X, y, num_splits=num_splits, add_linear=add_linear, threshold=threshold, first_ns=first_ns)
+        r2, n_components = tree_tester.get_r_squared_sig_threshold(X, y, num_splits=num_splits, add_linear=add_linear, threshold=threshold, first_ns=first_ns, diagnostics=True)
         median_p_vals = r2
+        results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2,'n_components':n_components.mean(axis=0)}, columns=['importance','r2','n_components'])
 
-    results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2}, columns=['importance','r2'])
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
     results.index.name = 'var'
