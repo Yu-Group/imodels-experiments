@@ -97,10 +97,10 @@ class TreeTester:
             else:
                 for j in range(X.shape[1]):  # Iterate over original features
                     transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
-                    if add_linear:
+                    if add_linear and transformed_feats_for_j is not None:
                         transformed_feats_for_j = np.hstack(
                             [X_test[:, [j]] - np.mean(X_test[:, j]), transformed_feats_for_j])
-                    if transformed_feats_for_j.shape[1] == 0:
+                    if transformed_feats_for_j is None:#if transformed_feats_for_j.shape[1] == 0:
                         p_vals[i, j] = 1.0
                         r_squared[i, j] = 0.0
                     else:
