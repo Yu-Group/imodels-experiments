@@ -145,7 +145,7 @@ class TreeTester:
             # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
             for j in range(X.shape[1]):  # Iterate over original features
                 transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
-                if transformed_feats_for_j.shape[1] == 0:
+                if transformed_feats_for_j is None:
                     r_squared[i, j] = 0.0
                     num_components_chosen[i, j] = 0
                 else:
