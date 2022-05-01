@@ -50,6 +50,14 @@ def get_r_squared(OLS_results, tree_transformer, transformed_feats, y_test, orig
 class TreeTester:
 
     def __init__(self, estimator, max_components='median', normalize=True):
+        """
+
+        :param estimator:
+        :param max_components: Method for choosing the number of components for PCA. Can be either "median", "max",
+            or a fraction in [0, 1]. If "median" (respectively "max") then this is set as the median (respectively max
+            number of splits on that feature in the RF. If a fraction, then this is set to be the fraction * n
+        :param normalize:
+        """
         self.estimator = estimator
         self.max_components = max_components
         self.normalize = normalize
@@ -58,47 +66,41 @@ class TreeTester:
         p_vals = np.zeros((num_splits, X.shape[1]))
         r_squared = np.zeros((num_splits, X.shape[1]))
         for i in tqdm(range(num_splits)):
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state = i)  # perform sample splitting
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
+                                                                random_state=i)  # perform sample splitting
             self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
-            if self.max_components == 'median':
-                tree_transformer = TreeTransformer(estimator=self.estimator, max_components='median')
-            else:
-                tree_transformer = TreeTransformer(estimator=self.estimator,
-                                                   max_components=int(self.max_components * X_train.shape[0]))
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
             tree_transformer.fit(X_train)  # Apply PCA on X_train
-            transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
+            # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
             if joint:  # Fit joint linear model
-                if add_linear:
-                    pass
-                if transformed_feats.shape[1] == 0:
-                    continue
-                OLS_results = sm.OLS(y_test, transformed_feats).fit()  # fit decision tree on honest sample
-                for j in range(X.shape[1]):
-                    num_stumps = transformed_feats.shape[1]
-                    num_regressors = len(tree_transformer.original_feat_to_transformed_mapping[j])
-                    # print(num_regressors)#tree_transformer.original_feat_to_transformed_mapping[j]
-                    # print("num stumps for feature "  + str(j) + " are: " + str(num_regressors))
-                    P_j = np.zeros((num_regressors, num_stumps))  # num_regressors
-                    if num_regressors == 0:
-                        p_vals[i, j] = 1.0
-                        r_squared[i, j] = 0.0
-                    else:
-                        for (row_num, feat) in enumerate(tree_transformer.original_feat_to_transformed_mapping[j]):
-                            P_j[row_num, feat] = 1.0
-                        p_vals[i, j] = OLS_results.wald_test(P_j,
-                                                             scalar=False).pvalue  # OLS_results.wald_test(P_j,scalar = False).pvalue
-                        r_squared[i, j] = get_r_squared(OLS_results, tree_transformer, transformed_feats, y_test, j)
+                raise NotImplementedError()
+                # if add_linear:
+                #     pass
+                # if transformed_feats.shape[1] == 0:
+                #     continue
+                # OLS_results = sm.OLS(y_test, transformed_feats).fit()  # fit decision tree on honest sample
+                # for j in range(X.shape[1]):
+                #     num_stumps = transformed_feats.shape[1]
+                #     num_regressors = len(tree_transformer.original_feat_to_transformed_mapping[j])
+                #     # print(num_regressors)#tree_transformer.original_feat_to_transformed_mapping[j]
+                #     # print("num stumps for feature "  + str(j) + " are: " + str(num_regressors))
+                #     P_j = np.zeros((num_regressors, num_stumps))  # num_regressors
+                #     if num_regressors == 0:
+                #         p_vals[i, j] = 1.0
+                #         r_squared[i, j] = 0.0
+                #     else:
+                #         for (row_num, feat) in enumerate(tree_transformer.original_feat_to_transformed_mapping[j]):
+                #             P_j[row_num, feat] = 1.0
+                #         p_vals[i, j] = OLS_results.wald_test(P_j,
+                #                                              scalar=False).pvalue  # OLS_results.wald_test(P_j,scalar = False).pvalue
+                #         r_squared[i, j] = get_r_squared(OLS_results, tree_transformer, transformed_feats, y_test, j)
             else:
                 for j in range(X.shape[1]):  # Iterate over original features
-                    if self.max_components == 'median':
-                        transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j, 0)
-                    else:
-                        transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j,
-                                                                                              self.max_components)
-                    if add_linear:
+                    transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                    if add_linear and transformed_feats_for_j is not None:
                         transformed_feats_for_j = np.hstack(
                             [X_test[:, [j]] - np.mean(X_test[:, j]), transformed_feats_for_j])
-                    if transformed_feats_for_j.shape[1] == 0:
+                    if transformed_feats_for_j is None:#if transformed_feats_for_j.shape[1] == 0:
                         p_vals[i, j] = 1.0
                         r_squared[i, j] = 0.0
                     else:
@@ -116,8 +118,8 @@ class TreeTester:
     def multiple_testing_correction(self, p_vals, method='bonferroni', alpha=0.05):
         return smt.multipletests(p_vals, method=method)[1]
 
-
-    def get_r_squared_sig_threshold(self, X, y, num_splits=10, add_linear=True, threshold=0.05,num_components = 1.0, first_ns=True,diagnostics = False):
+    def get_r_squared_sig_threshold(self, X, y, num_splits=10, add_linear=True, threshold=0.05, first_ns=True,
+                                    diagnostics=False):
         """
         Get r squared values, but only with respect to a subset of the engineered features, depending on a thresholding
         criterion.
@@ -132,49 +134,51 @@ class TreeTester:
         :return:
         """
         r_squared = np.zeros((num_splits, X.shape[1]))
-        num_components_chosen = np.zeros((num_splits,X.shape[1]))
+        num_components_chosen = np.zeros((num_splits, X.shape[1]))
         for i in tqdm(range(num_splits)):
-            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state = i)  # perform sample splitting
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
+                                                                random_state=i)  # perform sample splitting
             self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
-            #if self.max_components == 'median':
-            if num_components == 'median':
-                tree_transformer = TreeTransformer(estimator=self.estimator, max_components='median')
-            else:
-                tree_transformer = TreeTransformer(estimator=self.estimator,max_components=int(num_components * X_train.shape[0]))
-                                                   #max_components=int(self.max_components * X_train.shape[0]))
+            # if self.max_components == 'median':
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
             tree_transformer.fit(X_train)  # Apply PCA on X_train
-            transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
+            # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
             for j in range(X.shape[1]):  # Iterate over original features
-                if num_components == 'median':#if self.max_components == 'median':
-                    transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j, 0)
-                else:
-                    transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(transformed_feats, j, num_components)
-                                                                                          #self.max_components)
-                if add_linear:
-                    transformed_feats_for_j = np.hstack(
-                        [X_test[:, [j]] - np.mean(X_test[:, j]), transformed_feats_for_j])
-                if transformed_feats_for_j.shape[1] == 0:
+                transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                if transformed_feats_for_j is None:
                     r_squared[i, j] = 0.0
+                    num_components_chosen[i, j] = 0
                 else:
+                #
+                # if add_linear:
+                #     transformed_feats_for_j = np.hstack(
+                #         [X_test[:, [j]] - np.mean(X_test[:, j]), transformed_feats_for_j])
+                # if transformed_feats_for_j.shape[1] == 0:
+                #     r_squared[i, j] = 0.0
+                #     num_components_chosen[i, j] = 0
+                # else:
                     f_p_values = sequential_F_test(transformed_feats_for_j, y_test - np.mean(y_test))
                     if first_ns:
                         if np.all(f_p_values <= threshold):
                             stopping_index = transformed_feats_for_j.shape[1]
-                            num_components_chosen[i,j] = stopping_index#(stopping_index,transformed_feats_for_j.shape[1])
                         else:
-                            stopping_index = np.nonzero(f_p_values > threshold)[0][0] # Find first index with nonsignificant p-value
-                            num_components_chosen[i,j] = stopping_index#(stopping_index,transformed_feats_for_j.shape[1])
+                            stopping_index = np.nonzero(f_p_values > threshold)[0][0]
+                        # num_components_chosen[i, j] = stopping_index  # (stopping_index,transformed_feats_for_j.shape[1])
                         filtered_transformed_feats_for_j = transformed_feats_for_j[:, np.arange(stopping_index)]
                     else:
                         filtered_transformed_feats_for_j = transformed_feats_for_j[:, f_p_values <= threshold]
+                    if add_linear:
+                        filtered_transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),
+                                                                      filtered_transformed_feats_for_j])
                     if filtered_transformed_feats_for_j.shape[1] == 0:
                         r_squared[i, j] = 0.0
                     else:
-                        OLS_for_j = sm.OLS(y_test - np.mean(y_test), filtered_transformed_feats_for_j).fit(cov_type="HC0")
+                        OLS_for_j = sm.OLS(y_test - np.mean(y_test), filtered_transformed_feats_for_j).fit(
+                            cov_type="HC0")
                         r_squared[i, j] = OLS_for_j.rsquared
         r_squared = np.mean(r_squared, axis=0)
         if diagnostics == True:
-            return r_squared,num_components_chosen
+            return r_squared, num_components_chosen
         else:
             return r_squared
 

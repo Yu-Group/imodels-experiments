@@ -10,17 +10,17 @@ from knockpy.knockoff_filter import KnockoffFilter
 import shap
 import math
 
-import rpy2.robjects as ro
-from rpy2.robjects.packages import importr
-import rpy2.robjects.numpy2ri
-from rpy2.robjects import pandas2ri
-from rpy2.robjects.conversion import localconverter
-from boruta import BorutaPy
-rpy2.robjects.numpy2ri.activate()
-base = importr('base')
-FOCI = importr('FOCI')
+#import rpy2.robjects as ro
+#from rpy2.robjects.packages import importr
+#import rpy2.robjects.numpy2ri
+#from rpy2.robjects import pandas2ri
+#from rpy2.robjects.conversion import localconverter
+#from boruta import BorutaPy
+#rpy2.robjects.numpy2ri.activate()
+#base = importr('base')
+#FOCI = importr('FOCI')
 
-#from nonlinear_significance.scripts.TreeTester import TreeTester, optimalTreeTester
+from nonlinear_significance.scripts.TreeTester import TreeTester, optimalTreeTester
 
 
 def lin_reg_t_test(X, y, fit):
@@ -180,7 +180,7 @@ def tree_feature_significance(X, y, fit, type="default", max_components='median'
         median_p_vals,r2 = tree_tester.get_feature_significance_and_ranking(X, y, num_splits=num_splits, add_linear=add_linear, joint=joint)
         results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2}, columns=['importance','r2'])
     else:
-        r2, n_components = tree_tester.get_r_squared_sig_threshold(X, y, num_splits=num_splits, add_linear=add_linear, threshold=threshold, first_ns=first_ns, diagnostics=True)
+        r2, n_components = tree_tester.get_r_squared_sig_threshold(X, y, num_splits=num_splits, add_linear=add_linear, threshold=threshold, first_ns=first_ns,diagnostics=True)
         median_p_vals = r2
         results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2,'n_components':n_components.mean(axis=0)}, columns=['importance','r2','n_components'])
 
