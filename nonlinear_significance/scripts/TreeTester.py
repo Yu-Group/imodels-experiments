@@ -26,10 +26,11 @@ from sklearn.base import TransformerMixin, BaseEstimator
 from sklearn.decomposition import PCA
 from sklearn.ensemble import BaseEnsemble
 from sklearn.metrics import r2_score
-import statistics
+import statistics,warnings
 import statsmodels.api as sm
 from sklearn.model_selection import train_test_split
 from nonlinear_significance.scripts.util import TreeTransformer
+from sklearn.linear_model import RidgeCV
 
 # from nonlinear_significance.scripts.util import *
 # from nonlinear_significance.scripts.util import TreeTransformer
@@ -62,7 +63,8 @@ class TreeTester:
         self.max_components = max_components
         self.normalize = normalize
 
-    def get_feature_significance_and_ranking(self, X, y, num_splits=10, add_linear=True, joint=False):
+    def get_feature_significance_and_ranking(self, X, y, num_splits=10
+                                             ,add_linear=True, joint=False):
         p_vals = np.zeros((num_splits, X.shape[1]))
         r_squared = np.zeros((num_splits, X.shape[1]))
         for i in tqdm(range(num_splits)):
@@ -107,7 +109,6 @@ class TreeTester:
                         OLS_for_j = sm.OLS(y_test - np.mean(y_test), transformed_feats_for_j).fit(cov_type="HC0")
                         r_squared[i, j] = OLS_for_j.rsquared
                         p_vals[i, j] = OLS_for_j.f_pvalue
-
         p_vals[np.isnan(p_vals)] = 1.0
         median_p_vals = 2 * np.median(p_vals, axis=0)
         r_squared = np.mean(r_squared, axis=0)
@@ -157,7 +158,9 @@ class TreeTester:
                 #     r_squared[i, j] = 0.0
                 #     num_components_chosen[i, j] = 0
                 # else:
+                    #print(transformed_feats_for_j.shape)
                     f_p_values = sequential_F_test(transformed_feats_for_j, y_test - np.mean(y_test))
+                    f_p_values = np.nan_to_num(f_p_values, copy=True, nan=1.0, posinf=None, neginf=None)
                     if first_ns:
                         if np.all(f_p_values <= threshold):
                             stopping_index = transformed_feats_for_j.shape[1]
@@ -182,7 +185,34 @@ class TreeTester:
         else:
             return r_squared
 
+    def get_r_squared_ridge(self, X, y, num_splits=10, add_linear=True):
+            r_squared = np.zeros((num_splits, X.shape[1]))
+            for i in tqdm(range(num_splits)):
+                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
+                                                                random_state=i)  # perform sample splitting
+                self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
+            # if self.max_components == 'median':
+                tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
+                tree_transformer.fit(X_train,always_pca = False)  # Apply PCA on X_train
+                tree_transformed_train = tree_transformer.transform(X_train)
+                tree_transformed_test = tree_transformer.transform(X_train)
+            # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
+                for j in range(X.shape[1]):  # Iterate over original features
+                    transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(tree_transformed_test,j,np.inf)
+                    if add_linear:
+                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),
+                                                                      transformed_feats_for_j])
+                    if transformed_feats_for_j is None:
+                        r_squared[i, j] = 0.0
+                        num_components_chosen[i, j] = 0
+                    else:
+                        clf = RidgeCV(alphas=[1e-3, 1e-2, 1e-1, 1,10.0,100.0]).fit(transformed_feats_for_j,y_test - np.mean(y_test))
+                        r_squared[i, j] = clf.score(transformed_feats_for_j,y_test - np.mean(y_test))
+                        #r2_score(y_test,clf.predict(#clf.score(transformed_feats_for_j,y_test)
+            r_squared = np.mean(r_squared, axis=0)
+            return r_squared
 
+            
 class optimalTreeTester:  # This class is trying to improve the power of TreeTester by implementing an optimal weighting scheme that favors big nodes...
 
     def __init__(self, estimator, normalize=True):
@@ -366,6 +396,8 @@ def sequential_F_test(X, y, cov_type="HC0"):
     for i in range(1, d):
         ols_restricted = ols_full
         ols_full = sm.OLS(y, X[:, np.arange(i + 1)]).fit(cov_type=cov_type)
-        p_values[i] = ols_full.compare_f_test(ols_restricted)[1]
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            p_values[i] = ols_full.compare_f_test(ols_restricted)[1]
 
     return p_values
