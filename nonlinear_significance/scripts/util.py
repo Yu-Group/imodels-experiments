@@ -189,15 +189,19 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
                 max_components = int(self.median_splits[k])
             elif self.max_components == "max":
                 max_components = int(self.max_splits[k])
+            elif self.max_components == np.inf:
+                max_components = np.inf
             else:
                 max_components = int(self.max_components * X.shape[0])
             restricted_stumps = [self.all_stumps[idx] for idx in self.original_feat_to_stump_mapping[k]]
             n_stumps = len(restricted_stumps)
             if n_stumps == 0:
                 pca = None
-            elif always_pca or (n_stumps > max_components):  # self.max_components:
+            elif max_components == 0 or (max_components == np.inf):
+                pca = None
+            elif always_pca or (n_stumps > max_components): #self.max_components:
                 transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
-                pca = PCA(n_components=max_components)  # self.max_components)
+                pca = PCA(n_components=min(max_components,n_stumps,X.shape[0]) ) # self.max_components)
                 pca.fit(transformed_feature_vectors)
             else:
                 pca = None
