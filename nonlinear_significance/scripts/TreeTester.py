@@ -194,8 +194,7 @@ class TreeTester:
             # if self.max_components == 'median':
                 tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
                 tree_transformer.fit(X_train,always_pca = False)  # Apply PCA on X_train
-                tree_transformed_train = tree_transformer.transform(X_train)
-                tree_transformed_test = tree_transformer.transform(X_train)
+                tree_transformed_test = tree_transformer.transform(X_test)
             # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
                 for j in range(X.shape[1]):  # Iterate over original features
                     transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(tree_transformed_test,j,np.inf)
