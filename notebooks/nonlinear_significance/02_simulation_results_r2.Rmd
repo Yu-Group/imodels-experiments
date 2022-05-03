@@ -20,6 +20,9 @@ params:
     label: "Feature importance methods to omit"
     value: NULL 
     # value: ["T-Test", "Boruta"]
+  abridged:
+    label: "Abridged Document"
+    value: TRUE
 ---
 
 ```{r setup, include=FALSE}
@@ -48,6 +51,7 @@ if (!is.null(params$keep_vars)) {
 } else {
   keep_vars <- params$keep_vars
 }
+abridged <- params$abridged
 ```
 
 ```{r helper-functions, echo = FALSE}
@@ -432,7 +436,7 @@ plot_ranking_heatmap <- function(results, vary_param_name, vary_param_name_vec,
 view_results <- function(results_ls, metrics_plt_ls, metrics_errbar_plt_ls,
                          power_plt_ls, fi_bar_plt_ls, fi_box_plt_ls,
                          heatmap_plt_ls, vary_param_name_vec,
-                         interactive = TRUE) {
+                         abridged, interactive = TRUE) {
   cat(sprintf("\n\n# %s {.tabset .tabset-vmodern}\n\n", 
               basename(results_dir)))
   if (is.null(vary_param_name_vec)) {
@@ -445,10 +449,12 @@ view_results <- function(results_ls, metrics_plt_ls, metrics_errbar_plt_ls,
     vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
     cat(sprintf("\n\n## %s {.tabset .tabset-pills}\n\n", sim_name))
     
-    cat(sprintf("\n\n### Tables\n\n"))
-    vthemes::subchunkify(vthemes::pretty_DT(results_ls[[sim_name]]), 
-                         i = chunk_idx)
-    chunk_idx <<- chunk_idx + 1
+    if (!abridged) {
+      cat(sprintf("\n\n### Tables\n\n"))
+      vthemes::subchunkify(vthemes::pretty_DT(results_ls[[sim_name]]), 
+                           i = chunk_idx)
+      chunk_idx <<- chunk_idx + 1
+    }
     
     cat(sprintf("\n\n### Plots {.tabset .tabset-pills .tabset-square}\n\n"))
     if (interactive) {
@@ -481,22 +487,26 @@ view_results <- function(results_ls, metrics_plt_ls, metrics_errbar_plt_ls,
           vthemes::subchunkify(plotly::ggplotly(fi_box_plt_ls[[sim_name]][[param_val]]), 
                                i = chunk_idx, other_args = "out.width = '100%'",
                                add_class = "panel panel-default padded-panel")
-          chunk_idx <<- chunk_idx + 1
-          vthemes::subchunkify(plotly::ggplotly(fi_bar_plt_ls[[sim_name]][[param_val]]), 
-                               i = chunk_idx, other_args = "out.width = '100%'",
-                               add_class = "panel panel-default padded-panel")
-          chunk_idx <<- chunk_idx + 1
-          vthemes::subchunkify(plotly::ggplotly(power_plt_ls[[sim_name]][[param_val]]), 
-                               i = chunk_idx, other_args = "out.width = '100%'",
-                               add_class = "panel panel-default padded-panel")
+          if (!abridged) {
+            chunk_idx <<- chunk_idx + 1
+            vthemes::subchunkify(plotly::ggplotly(fi_bar_plt_ls[[sim_name]][[param_val]]),
+                                 i = chunk_idx, other_args = "out.width = '100%'",
+                                 add_class = "panel panel-default padded-panel")
+            chunk_idx <<- chunk_idx + 1
+            vthemes::subchunkify(plotly::ggplotly(power_plt_ls[[sim_name]][[param_val]]),
+                                 i = chunk_idx, other_args = "out.width = '100%'",
+                                 add_class = "panel panel-default padded-panel")
+          }
         } else {
           vthemes::subchunkify(heatmap_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
           chunk_idx <<- chunk_idx + 1
           vthemes::subchunkify(fi_box_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
-          chunk_idx <<- chunk_idx + 1
-          vthemes::subchunkify(fi_bar_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
-          chunk_idx <<- chunk_idx + 1
-          vthemes::subchunkify(power_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+          if (!abridged) {
+            chunk_idx <<- chunk_idx + 1
+            vthemes::subchunkify(fi_bar_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+            chunk_idx <<- chunk_idx + 1
+            vthemes::subchunkify(power_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+          }
         }
         chunk_idx <<- chunk_idx + 1
       }
@@ -515,22 +525,26 @@ view_results <- function(results_ls, metrics_plt_ls, metrics_errbar_plt_ls,
             vthemes::subchunkify(plotly::ggplotly(fi_box_plt_ls[[sim_name]][[param_val1]][[param_val2]]), 
                                  i = chunk_idx, other_args = "out.width = '100%'",
                                  add_class = "panel panel-default padded-panel")
-            chunk_idx <<- chunk_idx + 1
-            vthemes::subchunkify(plotly::ggplotly(fi_bar_plt_ls[[sim_name]][[param_val1]][[param_val2]]), 
-                                 i = chunk_idx, other_args = "out.width = '100%'",
-                                 add_class = "panel panel-default padded-panel")
-            chunk_idx <<- chunk_idx + 1
-            vthemes::subchunkify(plotly::ggplotly(power_plt_ls[[sim_name]][[param_val1]][[param_val2]]), 
-                                 i = chunk_idx, other_args = "out.width = '100%'",
-                                 add_class = "panel panel-default padded-panel")
+            if (!abridged) {
+              chunk_idx <<- chunk_idx + 1
+              vthemes::subchunkify(plotly::ggplotly(fi_bar_plt_ls[[sim_name]][[param_val1]][[param_val2]]),
+                                   i = chunk_idx, other_args = "out.width = '100%'",
+                                   add_class = "panel panel-default padded-panel")
+              chunk_idx <<- chunk_idx + 1
+              vthemes::subchunkify(plotly::ggplotly(power_plt_ls[[sim_name]][[param_val1]][[param_val2]]),
+                                   i = chunk_idx, other_args = "out.width = '100%'",
+                                   add_class = "panel panel-default padded-panel")
+            }
           } else {
             vthemes::subchunkify(heatmap_plt_ls[[sim_name]][[param_val1]][[param_val2]], i = chunk_idx)
             chunk_idx <<- chunk_idx + 1
             vthemes::subchunkify(fi_box_plt_ls[[sim_name]][[param_val1]][[param_val2]], i = chunk_idx)
-            chunk_idx <<- chunk_idx + 1
-            vthemes::subchunkify(fi_bar_plt_ls[[sim_name]][[param_val1]][[param_val2]], i = chunk_idx)
-            chunk_idx <<- chunk_idx + 1
-            vthemes::subchunkify(power_plt_ls[[sim_name]][[param_val1]][[param_val2]], i = chunk_idx)
+            if (!abridged) {
+              chunk_idx <<- chunk_idx + 1
+              vthemes::subchunkify(fi_bar_plt_ls[[sim_name]][[param_val1]][[param_val2]], i = chunk_idx)
+              chunk_idx <<- chunk_idx + 1
+              vthemes::subchunkify(power_plt_ls[[sim_name]][[param_val1]][[param_val2]], i = chunk_idx)
+            }
           }
           chunk_idx <<- chunk_idx + 1
         }
@@ -613,6 +627,7 @@ for (sim_name in names(results_ls)) {
 ```{r results = "asis"}
 # display plots nicely in knitted html document
 view_results(results_ls, metrics_plt_ls, metrics_errbar_plt_ls, power_plt_ls,
-             fi_bar_plt_ls, fi_box_plt_ls, heatmap_plt_ls, vary_param_name_vec)
+             fi_bar_plt_ls, fi_box_plt_ls, heatmap_plt_ls, vary_param_name_vec, 
+             abridged)
 ```
 
