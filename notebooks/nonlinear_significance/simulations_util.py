@@ -287,7 +287,7 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, return_sup
     else:
         return y_train
 
-def linear_lss_model(X,sigma,s,m,r,tau,beta, heritability=None, snr=None, return_support = False):
+def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, return_support = False):
     """
     This method creates response from an Linear + LSS model
 
@@ -303,6 +303,8 @@ def linear_lss_model(X,sigma,s,m,r,tau,beta, heritability=None, snr=None, return
     y_train: numpy array of shape (n)
     """
     n,p = X.shape
+    if s is None:
+        s = m*r
     
     def linear_func(x, s, beta):
         linear_term = 0
