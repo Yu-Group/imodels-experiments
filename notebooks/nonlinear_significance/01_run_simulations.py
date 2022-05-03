@@ -108,7 +108,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 reject_features = None
                 if fi_est.pval:
                     if 'rejections' in fi_score.columns:
-                        reject_features = copy.deepcopy(fi_score[['var', 'rejections']]).\
+                        reject_features = copy.deepcopy(fi_score[['var', 'rejections']]). \
                             rename(columns={'rejections':'importance'})
                     else:
                         reject_features = get_rejected_features(fi_score, args.alpha)
@@ -273,78 +273,155 @@ if __name__ == '__main__':
         results_dir = oj(args.results_path, args.config + "_omitted_vars")
     else:
         results_dir = oj(args.results_path, args.config)
-    path = oj(results_dir, "varying_" + vary_param_name, "seed" + str(args.split_seed))
+
+    if isinstance(vary_param_name, list):
+        path = oj(results_dir, "varying_" + "_".join(vary_param_name), "seed" + str(args.split_seed))
+    else:
+        path = oj(results_dir, "varying_" + vary_param_name, "seed" + str(args.split_seed))
     os.makedirs(path, exist_ok=True)
 
     eval_out = defaultdict(list)
 
     vary_type = None
-    for val_name, val in vary_param_vals.items():
-        if vary_param_name in X_params_dict.keys() and vary_param_name in y_params_dict.keys():
-            raise ValueError('Cannot vary over parameter in both X and y DGPs.')
-        elif vary_param_name in X_params_dict.keys():
-            vary_type = "dgp"
-            X_params_dict[vary_param_name] = val
-        elif vary_param_name in y_params_dict.keys():
-            vary_type = "dgp"
-            y_params_dict[vary_param_name] = val
-        else:
-            est_kwargs = list(itertools.chain(*[list(est.kwargs.keys()) for est in list(itertools.chain(*ests))]))
-            fi_est_kwargs = list(itertools.chain(*[list(fi_est.kwargs.keys()) for fi_est in list(itertools.chain(*fi_ests))]))
-            if vary_param_name in est_kwargs:
-                vary_type = "est"
-            elif vary_param_name in fi_est_kwargs:
-                vary_type = "fi_est"
+    if isinstance(vary_param_name, list):
+        keys, values = zip(*vary_param_vals.items())
+        vary_param_dicts = [dict(zip(keys, v)) for v in itertools.product(*values)]
+        vary_type = {}
+        for vary_param_dict in vary_param_dicts:
+            for param_name, param_val in vary_param_dict.items():
+                if param_name in X_params_dict.keys() and param_name in y_params_dict.keys():
+                    raise ValueError('Cannot vary over parameter in both X and y DGPs.')
+                elif param_name in X_params_dict.keys():
+                    vary_type[param_name] = "dgp"
+                    X_params_dict[param_name] = vary_param_vals[param_name][param_val]
+                elif param_name in y_params_dict.keys():
+                    vary_type[param_name] = "dgp"
+                    y_params_dict[param_name] = vary_param_vals[param_name][param_val]
+                else:
+                    est_kwargs = list(itertools.chain(*[list(est.kwargs.keys()) for est in list(itertools.chain(*ests))]))
+                    fi_est_kwargs = list(itertools.chain(*[list(fi_est.kwargs.keys()) for fi_est in list(itertools.chain(*fi_ests))]))
+                    if param_name in est_kwargs:
+                        vary_type[param_name] = "est"
+                    elif param_name in fi_est_kwargs:
+                        vary_type[param_name] = "fi_est"
+                    else:
+                        raise ValueError('Invalid vary_param_name.')
+
+            for i in tqdm(range(args.nreps)):
+                os.makedirs(oj(path, "_".join(vary_param_dict.values()), "rep" + str(i)), exist_ok=True)
+                np.random.seed(i)
+                X = X_dgp(**X_params_dict)
+                y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
+                if args.omit_vars is not None:
+                    omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
+                    support = np.delete(support, omit_vars)
+                    X = np.delete(X, omit_vars, axis=1)
+                    del beta  # note: beta is not currently supported when using omit_vars
+
+                for est in ests:
+                    results = run_comparison(path=oj(path, "_".join(vary_param_dict.values()), "rep" + str(i)),
+                                             X=X, y=y, support=support,
+                                             metrics=metrics,
+                                             estimators=est,
+                                             fi_estimators=fi_ests,
+                                             args=args)
+    else:
+        for val_name, val in vary_param_vals.items():
+            if vary_param_name in X_params_dict.keys() and vary_param_name in y_params_dict.keys():
+                raise ValueError('Cannot vary over parameter in both X and y DGPs.')
+            elif vary_param_name in X_params_dict.keys():
+                vary_type = "dgp"
+                X_params_dict[vary_param_name] = val
+            elif vary_param_name in y_params_dict.keys():
+                vary_type = "dgp"
+                y_params_dict[vary_param_name] = val
             else:
-                raise ValueError('Invalid vary_param_name.')
+                est_kwargs = list(itertools.chain(*[list(est.kwargs.keys()) for est in list(itertools.chain(*ests))]))
+                fi_est_kwargs = list(itertools.chain(*[list(fi_est.kwargs.keys()) for fi_est in list(itertools.chain(*fi_ests))]))
+                if vary_param_name in est_kwargs:
+                    vary_type = "est"
+                elif vary_param_name in fi_est_kwargs:
+                    vary_type = "fi_est"
+                else:
+                    raise ValueError('Invalid vary_param_name.')
 
-        for i in tqdm(range(args.nreps)):
-            os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
-            np.random.seed(i)
-            X = X_dgp(**X_params_dict)
-            y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
-            if args.omit_vars is not None:
-                omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
-                support = np.delete(support, omit_vars)
-                X = np.delete(X, omit_vars, axis=1)
-                del beta  # note: beta is not currently supported when using omit_vars
+            for i in tqdm(range(args.nreps)):
+                os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
+                np.random.seed(i)
+                X = X_dgp(**X_params_dict)
+                y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
+                if args.omit_vars is not None:
+                    omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
+                    support = np.delete(support, omit_vars)
+                    X = np.delete(X, omit_vars, axis=1)
+                    del beta  # note: beta is not currently supported when using omit_vars
 
-            for est in ests:
-                results = run_comparison(path=oj(path, val_name, "rep" + str(i)),
-                                         X=X, y=y, support=support,
-                                         metrics=metrics,
-                                         estimators=est,
-                                         fi_estimators=fi_ests,
-                                         args=args)
+                for est in ests:
+                    results = run_comparison(path=oj(path, val_name, "rep" + str(i)),
+                                             X=X, y=y, support=support,
+                                             metrics=metrics,
+                                             estimators=est,
+                                             fi_estimators=fi_ests,
+                                             args=args)
 
     print('completed all experiments successfully!')
 
     # aggregate results
     results_list = []
-    for val_name, val in vary_param_vals.items():
-        for i in range(args.nreps):
-            all_files = glob.glob(oj(path, val_name, 'rep' + str(i), '*'))
-            model_files = sorted([f for f in all_files if '_comparisons' in f])
+    if isinstance(vary_param_name, list):
+        for vary_param_dict in vary_param_dicts:
+            val_name = "_".join(vary_param_dict.values())
 
-            if len(model_files) == 0:
-                print('No files found at ', oj(path, val_name, 'rep' + str(i)))
-                continue
+            for i in range(args.nreps):
+                all_files = glob.glob(oj(path, val_name, 'rep' + str(i), '*'))
+                model_files = sorted([f for f in all_files if '_comparisons' in f])
 
-            results = pd.concat(
-                [pkl.load(open(f, 'rb'))['df'] for f in model_files],
-                axis=0
-            )
-            if vary_type == "dgp":
-                if np.isscalar(val):
-                    results.insert(0, vary_param_name, val)
-                else:
-                    results.insert(0, vary_param_name, [val for i in range(results.shape[0])])
-                results.insert(1, vary_param_name + "_name", val_name)
-                results.insert(2, 'rep', i)
-            elif vary_type == "est" or vary_type == "fi_est":
-                results.insert(0, vary_param_name + "_name", copy.deepcopy(results[vary_param_name]))
-                results.insert(1, 'rep', i)
-            results_list.append(results)
+                if len(model_files) == 0:
+                    print('No files found at ', oj(path, val_name, 'rep' + str(i)))
+                    continue
+
+                results = pd.concat(
+                    [pkl.load(open(f, 'rb'))['df'] for f in model_files],
+                    axis=0
+                )
+
+                for param_name, param_val in vary_param_dict.items():
+                    val = vary_param_vals[param_name][param_val]
+                    if vary_type[param_name] == "dgp":
+                        if np.isscalar(val):
+                            results.insert(0, param_name, val)
+                        else:
+                            results.insert(0, param_name, [val for i in range(results.shape[0])])
+                        results.insert(1, param_name + "_name", param_val)
+                    elif vary_type[param_name] == "est" or vary_type[param_name] == "fi_est":
+                        results.insert(0, param_name + "_name", copy.deepcopy(results[param_name]))
+                results.insert(0, 'rep', i)
+                results_list.append(results)
+    else:
+        for val_name, val in vary_param_vals.items():
+            for i in range(args.nreps):
+                all_files = glob.glob(oj(path, val_name, 'rep' + str(i), '*'))
+                model_files = sorted([f for f in all_files if '_comparisons' in f])
+
+                if len(model_files) == 0:
+                    print('No files found at ', oj(path, val_name, 'rep' + str(i)))
+                    continue
+
+                results = pd.concat(
+                    [pkl.load(open(f, 'rb'))['df'] for f in model_files],
+                    axis=0
+                )
+                if vary_type == "dgp":
+                    if np.isscalar(val):
+                        results.insert(0, vary_param_name, val)
+                    else:
+                        results.insert(0, vary_param_name, [val for i in range(results.shape[0])])
+                    results.insert(1, vary_param_name + "_name", val_name)
+                    results.insert(2, 'rep', i)
+                elif vary_type == "est" or vary_type == "fi_est":
+                    results.insert(0, vary_param_name + "_name", copy.deepcopy(results[vary_param_name]))
+                    results.insert(1, 'rep', i)
+                results_list.append(results)
     results_merged = pd.concat(results_list, axis=0)
     pkl.dump(results_merged, open(oj(path, 'results.pkl'), 'wb'))
     results_df = reformat_results(results_merged)
@@ -358,20 +435,33 @@ if __name__ == '__main__':
         else:
             show_vars = args.show_vars
 
+        if isinstance(vary_param_name, list):
+            vary_param_name = "; ".join(vary_param_name)
+
+        sim_rmd = os.path.basename(results_dir) + '_simulation_results.Rmd'
+        os.system(
+            'cp 02_simulation_results.Rmd \'{}\''.format(sim_rmd)
+        )
         os.system(
             'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\', quiet = TRUE)"'.format(
-                "02_simulation_results.Rmd",
+                sim_rmd,
                 results_dir, vary_param_name, str(args.split_seed), str(show_vars),
                 oj(path, "simulation_results.html"))
         )
+        os.system('rm \'{}\''.format(sim_rmd))
 
         if args.r2:
+            sim_r2_rmd = os.path.basename(results_dir) + '_simulation_results_r2.Rmd'
+            os.system(
+                'cp 02_simulation_results_r2.Rmd \'{}\''.format(sim_r2_rmd)
+            )
             os.system(
                 'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\', quiet = TRUE)"'.format(
-                    "02_simulation_results_r2.Rmd",
+                    sim_r2_rmd,
                     results_dir, vary_param_name, str(args.split_seed), str(show_vars),
                     oj(path, "simulation_results_r2.html"))
             )
+            os.system('rm \'{}\''.format(sim_r2_rmd))
         print("created rmd of simulation results successfully!")
 
 # %%
