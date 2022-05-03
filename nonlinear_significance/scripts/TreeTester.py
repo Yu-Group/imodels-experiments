@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from collections import defaultdict
 
 from sklearn.base import TransformerMixin, BaseEstimator
@@ -212,21 +213,40 @@ class TreeTester:
                         r_squared[i, j] = OLS_for_j.rsquared      
         r_squared = np.mean(r_squared, axis=0)
         return r_squared
-                                
-                                          
-                        
-
+    
+    def get_r_squared_stepwise_adjusr2(self,X, y, num_splits=10, add_linear=True, threshold=0.05):
+        r_squared = np.zeros((num_splits, X.shape[1]))
+        num_components_chosen = np.zeros((num_splits, X.shape[1]))
+        for i in tqdm(range(num_splits)):
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state=i)  # perform sample splitting
+            self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
+            tree_transformer.fit(X_train)  # Apply PCA on X_train
+            for j in range(X.shape[1]):  # Iterate over original features
+                transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                if transformed_feats_for_j is None:
+                    r_squared[i, j] = 0.0
+                    num_components_chosen[i, j] = 0
+                else:
+                    if add_linear:
+                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:,j]),transformed_feats_for_j])
+                    transformed_feats_for_j = pd.DataFrame(transformed_feats_for_j)
+                    transformed_feats_for_j.columns = ['orig_feat']+['PC' + str(i) for i in range(1,transformed_feats_for_j.shape[1])]
+                    transformed_feats_for_j['response'] = y_test - np.mean(y_test)
+                    ols_r2_model,ols_r2 = forward_selected(transformed_feats_for_j, 'response')
+                    r_squared[i, j] = ols_r2
+            r_squared = np.mean(r_squared, axis=0)
+            return r_squared
+                    
     def get_r_squared_ridge(self, X, y, num_splits=10, add_linear=True):
             r_squared = np.zeros((num_splits, X.shape[1]))
             for i in tqdm(range(num_splits)):
                 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
                                                                 random_state=i)  # perform sample splitting
-                self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
-            # if self.max_components == 'median':
+                self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features # if self.max_components == 'median':
                 tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
                 tree_transformer.fit(X_train,always_pca = False)  # Apply PCA on X_train
-                tree_transformed_test = tree_transformer.transform(X_test)
-            # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
+                tree_transformed_test = tree_transformer.transform(X_test)  # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
                 for j in range(X.shape[1]):  # Iterate over original features
                     transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(tree_transformed_test,j,self.max_components)
                     if add_linear:
@@ -467,8 +487,51 @@ def stepwise_regression_test(X,y,threshold,cov_type = "HC0"):
             del p_vals_non_active_set[smallest_p_val_feat]
         else:
             break
-    print(active_set)
     return [active_feat for active_feat in active_set]
+
+
+import statsmodels.formula.api as smf
+
+
+def forward_selected(data, response):
+    """Linear model designed by forward selection.
+
+    Parameters:
+    -----------
+    data : pandas DataFrame with all possible predictors and response
+
+    response: string, name of response column in data
+
+    Returns:
+    --------
+    model: an "optimal" fitted statsmodels linear model
+           with an intercept
+           selected by forward selection
+           evaluated by adjusted R-squared
+    """
+    remaining = set(data.columns)
+    remaining.remove(response)
+    selected = []
+    current_score, best_new_score = 0.0, 0.0
+    while remaining and current_score == best_new_score:
+        scores_with_candidates = []
+        for candidate in remaining:
+            formula = "{} ~ {} + 1".format(response,
+                                           ' + '.join(selected + [candidate]))
+            score = smf.ols(formula, data).fit().rsquared_adj
+            scores_with_candidates.append((score, candidate))
+        scores_with_candidates.sort()
+        best_new_score, best_candidate = scores_with_candidates.pop()
+        pre_remaining = copy.deepcopy(remaining)
+        if current_score < best_new_score:
+            remaining.remove(best_candidate)
+            selected.append(best_candidate)
+            current_score = best_new_score
+        if pre_remaining == remaining:
+            break
+    formula = "{} ~ {} + 1".format(response,' + '.join(selected))
+    model = smf.ols(formula, data).fit()
+    return model,model.rsquared
 
 #print("active_set")  p_vals = np.nan_to_num(p_vals, copy=True, nan=1.0, posinf=None, neginf=None)
 #        print(active_set)
@@ -563,3 +626,4 @@ def stepwise_regression_test(X,y,threshold,cov_type = "HC0"):
     #        r_squared = np.mean(r_squared, axis=0)
     #        return r_squared
                 
+        
