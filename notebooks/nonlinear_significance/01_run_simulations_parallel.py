@@ -13,7 +13,8 @@ import time
 import warnings
 from scipy import stats
 import dask
-import dask.multiprocessing
+# import dask.multiprocessing
+from dask.distributed import Client
 
 from tqdm import tqdm
 import sys
@@ -222,8 +223,8 @@ def reformat_results(results):
         joined_df = fi_scores
     results_df = pd.merge(results, joined_df, left_index=True, right_on="index")
     return results_df
-    
-    
+
+
 def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args):
     os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
     np.random.seed(i)
@@ -275,8 +276,10 @@ if __name__ == '__main__':
     parser.add_argument('--show_vars', type=int, default=None)
 
     args = parser.parse_args()
-    
-    dask.config.set(scheduler='processes', num_workers=int(os.getenv("SLURM_CPUS_ON_NODE")))
+
+    print(os.getenv("SLURM_CPUS_ON_NODE"))
+    client = Client(n_workers=int(os.getenv("SLURM_CPUS_ON_NODE")))
+    # dask.config.set(scheduler='processes', num_workers=int(os.getenv("SLURM_CPUS_ON_NODE")))
 
     ests, fi_ests, \
     X_dgp, X_params_dict, y_dgp, y_params_dict, \
@@ -338,9 +341,9 @@ if __name__ == '__main__':
                         raise ValueError('Invalid vary_param_name.')
 
             futures = [dask.delayed(run_simulation)(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
-            results = dask.compute(futures)
+            results = dask.compute(*futures)
             assert all(results)
-            
+
     else:
         for val_name, val in vary_param_vals.items():
             if vary_param_name in X_params_dict.keys() and vary_param_name in y_params_dict.keys():
@@ -362,7 +365,7 @@ if __name__ == '__main__':
                     raise ValueError('Invalid vary_param_name.')
 
             futures = [dask.delayed(run_simulation)(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
-            results = dask.compute(futures)
+            results = dask.compute(*futures)
             assert all(results)
 
     print('completed all experiments successfully!')
