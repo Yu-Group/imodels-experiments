@@ -23,9 +23,9 @@ Y_PARAMS_DICT = {
 # VARY_PARAM_NAME = "n_estimators"
 # VARY_PARAM_VALS = {"placeholder": 0}
 
-VARY_PARAM_NAME = ["n", "heritability"]
-VARY_PARAM_VALS = {"n": {'100': 100, '250': 250},
-                   "heritability": {"0.05": 0.05, "0.1": 0.1}}
+VARY_PARAM_NAME = ["heritability", "n"]
+VARY_PARAM_VALS = {"heritability": {"0.05": 0.05, "0.1": 0.1},
+                   "n": {'100': 100, '250': 250}}
 #
 # # VARY_PARAM_NAME = "d"
 # # VARY_PARAM_VALS = {'50': 50, '100': 100, '250': 250}

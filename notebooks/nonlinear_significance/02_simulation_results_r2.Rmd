@@ -6,10 +6,10 @@ output: vthemes::vmodern
 params:
   results_dir: 
     label: "Results directory"
-    value: "results/test"
+    value: "results/test_two_params"
   vary_param_name:
     label: "Name of varying parameter"
-    value: NULL
+    value: "n; heritability"
   seed:
     label: "Seed"
     value: 331
@@ -31,6 +31,17 @@ chunk_idx <- 1
 # set parameters
 results_dir <- params$results_dir
 vary_param_name <- params$vary_param_name
+if (is.null(vary_param_name)) {
+  vary_param_name_vec <- NULL
+} else if (stringr::str_detect(vary_param_name, ";")) {
+  vary_param_name_vec <- stringr::str_split(vary_param_name, "; ")[[1]]
+  vary_param_name <- paste(vary_param_name_vec, collapse = "_")
+  if (length(vary_param_name_vec) != 2) {
+    stop("Rmarkdown report has not been configured to show results when >2 parameters are being varied.")
+  }
+} else {
+  vary_param_name_vec <- NULL
+}
 seed <- params$seed
 if (!is.null(params$keep_vars)) {
   keep_vars <- 0:params$keep_vars
@@ -80,7 +91,11 @@ reformat_results <- function(results) {
 }
 
 # plot metrics (mean value across repetitions with error bars)
-plot_metrics <- function(results, vary_param_name, show_errbars = TRUE) {
+plot_metrics <- function(results, vary_param_name, vary_param_name_vec, 
+                         show_errbars = TRUE) {
+  if (!is.null(vary_param_name_vec)) {
+    vary_param_name <- vary_param_name_vec
+  }
   plt_df <- results %>%
     dplyr::select(rep, method, 
                   tidyselect::all_of(c(paste0(vary_param_name, "_name"), 
@@ -93,38 +108,60 @@ plot_metrics <- function(results, vary_param_name, show_errbars = TRUE) {
       cols = tidyselect::all_of(metrics), names_to = "metric"
     )  %>%
     dplyr::filter(!(metric %in% c("r2_rocauc", "r2_prauc"))) %>%
-    dplyr::group_by(.data[[paste0(vary_param_name, "_name")]],
-                    method, metric) %>%
+    dplyr::group_by(
+      dplyr::across(tidyselect::all_of(paste0(vary_param_name, "_name"))),
+      method, metric
+    ) %>%
     dplyr::summarise(mean = mean(value), sd = sd(value), .groups = "keep")
   
-  if (length(unique(plt_df[[paste0(vary_param_name, "_name")]])) == 1) {
-    plt <- ggplot2::ggplot(plt_df) +
-      ggplot2::aes(x = method, y = mean) +
-      ggplot2::facet_wrap(~ metric, scales = "free_y", nrow = 1, ncol = 2) +
-      ggplot2::geom_point() +
-      vthemes::theme_vmodern() +
-      vthemes::scale_color_vmodern(discrete = TRUE) +
-      ggplot2::labs(x = "Method")
-    if (show_errbars) {
-      plt <- plt + 
-        ggplot2::geom_errorbar(
-          mapping = ggplot2::aes(x = method, ymin = mean - sd, ymax = mean + sd)
-        )
+  if (is.null(vary_param_name_vec)) {
+    if (length(unique(plt_df[[paste0(vary_param_name, "_name")]])) == 1) {
+      plt <- ggplot2::ggplot(plt_df) +
+        ggplot2::aes(x = method, y = mean) +
+        ggplot2::facet_wrap(~ metric, scales = "free_y", nrow = 1, ncol = 2) +
+        ggplot2::geom_point() +
+        vthemes::theme_vmodern() +
+        vthemes::scale_color_vmodern(discrete = TRUE) +
+        ggplot2::labs(x = "Method")
+      if (show_errbars) {
+        plt <- plt + 
+          ggplot2::geom_errorbar(
+            mapping = ggplot2::aes(x = method, ymin = mean - sd, ymax = mean + sd)
+          )
+      }
+    } else {
+      plt <- ggplot2::ggplot(plt_df) +
+        ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]], 
+                     y = mean, color = method)  +
+        ggplot2::facet_wrap(~ metric, scales = "free_y", nrow = 1, ncol = 2) +
+        ggplot2::geom_point() +
+        ggplot2::geom_line() +
+        vthemes::theme_vmodern() +
+        vthemes::scale_color_vmodern(discrete = TRUE) +
+        ggplot2::labs(x = vary_param_name)
+      if (show_errbars) {
+        plt <- plt + 
+          ggplot2::geom_errorbar(
+            mapping = ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]],
+                                   ymin = mean - sd, ymax = mean + sd)
+          )
+      }
     }
   } else {
-    plt <- ggplot2::ggplot(plt_df) +
-      ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]], 
-                   y = mean, color = method)  +
-      ggplot2::facet_wrap(~ metric, scales = "free_y", nrow = 1, ncol = 2) +
+    plt <- plt_df %>%
+      ggplot2::ggplot() +
+      ggplot2::aes(x = .data[[paste0(vary_param_name[2], "_name")]],
+                   y = mean, color = method) + 
+      ggplot2::facet_grid(metric ~ .data[[paste0(vary_param_name[1], "_name")]]) +
       ggplot2::geom_point() +
-      ggplot2::geom_line() +
-      vthemes::theme_vmodern() +
-      vthemes::scale_color_vmodern(discrete = TRUE) +
-      ggplot2::labs(x = vary_param_name)
+        ggplot2::geom_line() +
+        vthemes::theme_vmodern() +
+        vthemes::scale_color_vmodern(discrete = TRUE) +
+        ggplot2::labs(x = vary_param_name[2])
     if (show_errbars) {
       plt <- plt + 
         ggplot2::geom_errorbar(
-          mapping = ggplot2::aes(x = .data[[paste0(vary_param_name, "_name")]],
+          mapping = ggplot2::aes(x = .data[[paste0(vary_param_name[2], "_name")]],
                                  ymin = mean - sd, ymax = mean + sd)
         )
     }
@@ -133,7 +170,11 @@ plot_metrics <- function(results, vary_param_name, show_errbars = TRUE) {
 }
 
 # plot rejection probability curves
-plot_ecdf <- function(results, vary_param_name, keep_vars = NULL) {
+plot_ecdf <- function(results, vary_param_name, vary_param_name_vec, 
+                      keep_vars = NULL) {
+  if (!is.null(vary_param_name_vec)) {
+    vary_param_name <- vary_param_name_vec
+  }
   plt_df <- results %>%
     tidyr::unnest(fi_scores) %>%
     dplyr::filter(!is.na(support), !is.na(r2),
@@ -144,7 +185,10 @@ plot_ecdf <- function(results, vary_param_name, keep_vars = NULL) {
   plt_df <- plt_df %>%
     dplyr::select(tidyselect::all_of(paste0(vary_param_name, "_name")), 
                   rep, method, var, r2) %>%
-    dplyr::group_by(.data[[paste0(vary_param_name, "_name")]], method, var)  %>%
+    dplyr::group_by(
+      dplyr::across(tidyselect::all_of(paste0(vary_param_name, "_name"))), 
+      method, var
+    )  %>%
     dplyr::summarise(.r2 = sort(unique(r2)),
                      reject_prob = (stats::ecdf(r2))(.r2),
                      .groups = "keep")
@@ -154,26 +198,56 @@ plot_ecdf <- function(results, vary_param_name, keep_vars = NULL) {
   }
   
   plt_ls <- list()
-  for (val in unique(plt_df[[paste0(vary_param_name, "_name")]])) {
-    plt_ls[[as.character(val)]] <- plt_df %>%
-      dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
-      ggplot2::ggplot() +
-      ggplot2::aes(x = .r2, y = reject_prob, color = method) +
-      # ggplot2::geom_abline(slope = 1, intercept = 0, color = "grey") +
-      ggplot2::geom_line() +
-      ggplot2::facet_wrap(~ var) +
-      ggplot2::coord_cartesian(ylim = c(0, 1)) +
-      ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
-                    x = "R^2", y = "Empirical Cumulative Distribution") +
-      vthemes::theme_vmodern() +
-      vthemes::scale_color_vmodern(discrete = TRUE)
+  if (is.null(vary_param_name_vec)) {
+    for (val in unique(plt_df[[paste0(vary_param_name, "_name")]])) {
+      plt_ls[[as.character(val)]] <- plt_df %>%
+        dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
+        ggplot2::ggplot() +
+        ggplot2::aes(x = .r2, y = reject_prob, color = method) +
+        # ggplot2::geom_abline(slope = 1, intercept = 0, color = "grey") +
+        ggplot2::geom_line() +
+        ggplot2::facet_wrap(~ var) +
+        ggplot2::coord_cartesian(ylim = c(0, 1)) +
+        ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
+                      x = "R^2", y = "Empirical Cumulative Distribution") +
+        vthemes::theme_vmodern() +
+        vthemes::scale_color_vmodern(discrete = TRUE)
+    }
+  } else {
+    for (val1 in unique(plt_df[[paste0(vary_param_name[1], "_name")]])) {
+      plt_ls[[as.character(val1)]] <- list()
+      for (val2 in unique(plt_df[[paste0(vary_param_name[2], "_name")]])) {
+        plt_ls[[as.character(val1)]][[as.character(val2)]] <- plt_df %>%
+          dplyr::filter(
+            .data[[paste0(vary_param_name[1], "_name")]] == !!val1,
+            .data[[paste0(vary_param_name[2], "_name")]] == !!val2
+          ) %>%
+          ggplot2::ggplot() +
+          ggplot2::aes(x = .r2, y = reject_prob, color = method) +
+          ggplot2::geom_line() +
+          ggplot2::facet_wrap(~ var) +
+          ggplot2::coord_cartesian(ylim = c(0, 1)) +
+          ggplot2::labs(title = sprintf("%s = %s; %s = %s", 
+                                        vary_param_name[1], val1,
+                                        vary_param_name[2], val2),
+                        x = "R^2", y = "Empirical Cumulative Distribution") +
+          vthemes::theme_vmodern() +
+          vthemes::scale_color_vmodern(discrete = TRUE)
+      }
+    }
   }
+
   return(plt_ls)
 }
 
 # plot feature importances
-plot_feature_importance <- function(results, vary_param_name, keep_vars = NULL, 
+plot_feature_importance <- function(results, vary_param_name, vary_param_name_vec,
+                                    keep_vars = NULL, 
                                     plot_type = c("boxplot", "bar")) {
+  if (!is.null(vary_param_name_vec)) {
+    vary_param_name <- vary_param_name_vec
+  }
+  
   plot_type <- match.arg(plot_type)
   plt_df <- results %>%
     tidyr::unnest(fi_scores) %>%
@@ -185,7 +259,10 @@ plot_feature_importance <- function(results, vary_param_name, keep_vars = NULL,
     plt_df <- plt_df %>%
       dplyr::select(tidyselect::all_of(paste0(vary_param_name, "_name")),
                     rep, method, var, importance) %>%
-      dplyr::group_by(.data[[paste0(vary_param_name, "_name")]], method, var)  %>%
+      dplyr::group_by(
+        dplyr::across(tidyselect::all_of(paste0(vary_param_name, "_name"))), 
+        method, var
+      )  %>%
       dplyr::summarise(mean_fi = mean(importance), #sd_fi = sd(importance),
                        .groups = "keep")
   }
@@ -194,39 +271,89 @@ plot_feature_importance <- function(results, vary_param_name, keep_vars = NULL,
       dplyr::filter(var %in% keep_vars)
   }
   plt_ls <- list()
-  for (val in unique(plt_df[[paste0(vary_param_name, "_name")]])) {
-    if (plot_type == "bar") {
-      plt <- plt_df %>%
-        dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
-        ggplot2::ggplot() +
-        ggplot2::aes(x = var, y = mean_fi) +
-        ggplot2::geom_bar(stat = "identity", color = "grey98", fill = "#00C5FF") +
-        ggplot2::facet_wrap(~ method, scales = "free", 
-                            ncol = 2, 
-                            nrow = ceiling(length(unique(plt_df$method)) / 2)) +
-        ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
-                      x = "Feature", y = "Mean Importance / Significance") +
-        vthemes::theme_vmodern()
-    } else if (plot_type == "boxplot") {
-      plt <- plt_df %>%
-        dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
-        ggplot2::ggplot() +
-        ggplot2::aes(x = var, y = importance, group = var) +
-        ggplot2::geom_boxplot() +
-        ggplot2::facet_wrap(~ method, scales = "free",
-                            ncol = 2, 
-                            nrow = ceiling(length(unique(plt_df$method)) / 2)) +
-        ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
-                      x = "Feature", y = "Importance / Significance") +
-        vthemes::theme_vmodern()
+  if (is.null(vary_param_name_vec)) {
+    for (val in unique(plt_df[[paste0(vary_param_name, "_name")]])) {
+      if (plot_type == "bar") {
+        plt <- plt_df %>%
+          dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
+          ggplot2::ggplot() +
+          ggplot2::aes(x = var, y = mean_fi) +
+          ggplot2::geom_bar(stat = "identity", color = "grey98", fill = "#00C5FF") +
+          ggplot2::facet_wrap(~ method, scales = "free", 
+                              ncol = 2, 
+                              nrow = ceiling(length(unique(plt_df$method)) / 2)) +
+          ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
+                        x = "Feature", y = "Mean Importance / Significance") +
+          vthemes::theme_vmodern()
+      } else if (plot_type == "boxplot") {
+        plt <- plt_df %>%
+          dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
+          ggplot2::ggplot() +
+          ggplot2::aes(x = var, y = importance, group = var) +
+          ggplot2::geom_boxplot() +
+          ggplot2::facet_wrap(~ method, scales = "free",
+                              ncol = 2, 
+                              nrow = ceiling(length(unique(plt_df$method)) / 2)) +
+          ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
+                        x = "Feature", y = "Importance / Significance") +
+          vthemes::theme_vmodern()
+      }
+      plt_ls[[as.character(val)]] <- plt
     }
-    plt_ls[[as.character(val)]] <- plt
+  } else {
+    for (val1 in unique(plt_df[[paste0(vary_param_name[1], "_name")]])) {
+      plt_ls[[as.character(val1)]] <- list()
+      for (val2 in unique(plt_df[[paste0(vary_param_name[2], "_name")]])) {
+        if (plot_type == "bar") {
+          plt <- plt_df %>%
+            dplyr::filter(
+              .data[[paste0(vary_param_name[1], "_name")]] == !!val1,
+              .data[[paste0(vary_param_name[2], "_name")]] == !!val2
+            ) %>%
+            ggplot2::ggplot() +
+            ggplot2::aes(x = var, y = mean_fi) +
+            ggplot2::geom_bar(stat = "identity", color = "grey98", fill = "#00C5FF") +
+            ggplot2::facet_wrap(~ method, scales = "free", 
+                                ncol = 2, 
+                                nrow = ceiling(length(unique(plt_df$method)) / 2)) +
+            ggplot2::labs(title = sprintf("%s = %s; %s = %s", 
+                                          vary_param_name[1], val1,
+                                          vary_param_name[2], val2),
+                          x = "Feature", y = "Mean Importance / Significance") +
+            vthemes::theme_vmodern()
+        } else if (plot_type == "boxplot") {
+          plt <- plt_df %>%
+            dplyr::filter(
+              .data[[paste0(vary_param_name[1], "_name")]] == !!val1,
+              .data[[paste0(vary_param_name[2], "_name")]] == !!val2
+            ) %>%
+            ggplot2::ggplot() +
+            ggplot2::aes(x = var, y = importance, group = var) +
+            ggplot2::geom_boxplot() +
+            ggplot2::facet_wrap(~ method, scales = "free",
+                                ncol = 2, 
+                                nrow = ceiling(length(unique(plt_df$method)) / 2)) +
+            ggplot2::labs(title = sprintf("%s = %s; %s = %s", 
+                                          vary_param_name[1], val1,
+                                          vary_param_name[2], val2),
+                          x = "Feature", y = "Importance / Significance") +
+            vthemes::theme_vmodern()
+        }
+        plt_ls[[as.character(val1)]][[as.character(val2)]] <- plt
+      }
+    }
   }
+  
   return(plt_ls)
 }
 
 # plot ranking heatmap
-plot_ranking_heatmap <- function(results, vary_param_name, keep_vars = NULL) {
+plot_ranking_heatmap <- function(results, vary_param_name, vary_param_name_vec,
+                                 keep_vars = NULL) {
+  if (!is.null(vary_param_name_vec)) {
+    vary_param_name <- vary_param_name_vec
+  }
+  
   plt_df <- results %>%
     dplyr::mutate(
       fi_scores = mapply(name = fi, scores_df = fi_scores,
@@ -254,21 +381,48 @@ plot_ranking_heatmap <- function(results, vary_param_name, keep_vars = NULL) {
       dplyr::filter(var %in% keep_vars)
   }
   plt_ls <- list()
-  for (val in unique(plt_df[[paste0(vary_param_name, "_name")]])) {
-    plt <- plt_df %>%
-      dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
-      ggplot2::ggplot() +
-      ggplot2::aes(x = var, y = rep, fill = ranking, text = importance) +
-      ggplot2::geom_tile() +
-      ggplot2::facet_wrap(~ method, scales = "free",
-                          ncol = 2, 
-                          nrow = ceiling(length(unique(plt_df$method)) / 2)) +
-      ggplot2::coord_cartesian(expand = FALSE) +
-      ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
-                    x = "Feature", y = "Replicate", fill = "Ranking") +
-      vthemes::scale_fill_vmodern() +
-      vthemes::theme_vmodern()
-    plt_ls[[as.character(val)]] <- plt
+  if (is.null(vary_param_name_vec)) {
+    for (val in unique(plt_df[[paste0(vary_param_name, "_name")]])) {
+      plt <- plt_df %>%
+        dplyr::filter(.data[[paste0(vary_param_name, "_name")]] == !!val) %>%
+        ggplot2::ggplot() +
+        ggplot2::aes(x = var, y = rep, fill = ranking, text = importance) +
+        ggplot2::geom_tile() +
+        ggplot2::facet_wrap(~ method, scales = "free",
+                            ncol = 2, 
+                            nrow = ceiling(length(unique(plt_df$method)) / 2)) +
+        ggplot2::coord_cartesian(expand = FALSE) +
+        ggplot2::labs(title = sprintf("%s = %s", vary_param_name, val),
+                      x = "Feature", y = "Replicate", fill = "Ranking") +
+        vthemes::scale_fill_vmodern() +
+        vthemes::theme_vmodern()
+      plt_ls[[as.character(val)]] <- plt
+    }
+  } else {
+    for (val1 in unique(plt_df[[paste0(vary_param_name[1], "_name")]])) {
+      plt_ls[[as.character(val1)]] <- list()
+      for (val2 in unique(plt_df[[paste0(vary_param_name[2], "_name")]])) {
+        plt <- plt_df %>%
+          dplyr::filter(
+            .data[[paste0(vary_param_name[1], "_name")]] == !!val1,
+            .data[[paste0(vary_param_name[2], "_name")]] == !!val2
+          ) %>%
+          ggplot2::ggplot() +
+          ggplot2::aes(x = var, y = rep, fill = ranking, text = importance) +
+          ggplot2::geom_tile() +
+          ggplot2::facet_wrap(~ method, scales = "free",
+                              ncol = 2, 
+                              nrow = ceiling(length(unique(plt_df$method)) / 2)) +
+          ggplot2::coord_cartesian(expand = FALSE) +
+          ggplot2::labs(title = sprintf("%s = %s; %s = %s", 
+                                        vary_param_name[1], val1,
+                                        vary_param_name[2], val2),
+                        x = "Feature", y = "Replicate", fill = "Ranking") +
+          vthemes::scale_fill_vmodern() +
+          vthemes::theme_vmodern()
+        plt_ls[[as.character(val1)]][[as.character(val2)]] <- plt
+      }
+    }
   }
   return(plt_ls)
 }
@@ -277,9 +431,15 @@ plot_ranking_heatmap <- function(results, vary_param_name, keep_vars = NULL) {
 # notes: need to set 'results = "asis"' in the code chunk header
 view_results <- function(results_ls, metrics_plt_ls, metrics_errbar_plt_ls,
                          power_plt_ls, fi_bar_plt_ls, fi_box_plt_ls,
-                         heatmap_plt_ls, interactive = TRUE) {
+                         heatmap_plt_ls, vary_param_name_vec,
+                         interactive = TRUE) {
   cat(sprintf("\n\n# %s {.tabset .tabset-vmodern}\n\n", 
               basename(results_dir)))
+  if (is.null(vary_param_name_vec)) {
+    height <- 4
+  } else {
+    height <- 8
+  }
   
   for (sim_name in names(results_ls)) {
     vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
@@ -294,50 +454,87 @@ view_results <- function(results_ls, metrics_plt_ls, metrics_errbar_plt_ls,
     if (interactive) {
       vthemes::subchunkify(plotly::ggplotly(metrics_plt_ls[[sim_name]]), 
                            i = chunk_idx, other_args = "out.width = '100%'",
-                           fig_height = 4,
+                           fig_height = height,
                            add_class = "panel panel-default padded-panel")
       chunk_idx <<- chunk_idx + 1
       vthemes::subchunkify(plotly::ggplotly(metrics_errbar_plt_ls[[sim_name]]), 
                            i = chunk_idx, other_args = "out.width = '100%'",
-                           fig_height = 4,
+                           fig_height = height,
                            add_class = "panel panel-default padded-panel")
     } else {
       vthemes::subchunkify(metrics_plt_ls[[sim_name]], i = chunk_idx,
-                           fig_height = 4)
+                           fig_height = height)
       chunk_idx <<- chunk_idx + 1
       vthemes::subchunkify(metrics_errbar_plt_ls[[sim_name]], i = chunk_idx,
-                           fig_height = 4)
+                           fig_height = height)
     }
     chunk_idx <<- chunk_idx + 1
     
-    for (param_val in names(power_plt_ls[[sim_name]])) {
-      cat(sprintf("\n\n#### %s = %s\n\n\n", vary_param_name, param_val))
-      if (interactive) {
-        vthemes::subchunkify(plotly::ggplotly(power_plt_ls[[sim_name]][[param_val]]), 
-                             i = chunk_idx, other_args = "out.width = '100%'",
-                             add_class = "panel panel-default padded-panel")
+    if (is.null(vary_param_name_vec)) {
+      for (param_val in names(power_plt_ls[[sim_name]])) {
+        cat(sprintf("\n\n#### %s = %s\n\n\n", vary_param_name, param_val))
+        if (interactive) {
+          vthemes::subchunkify(plotly::ggplotly(heatmap_plt_ls[[sim_name]][[param_val]]), 
+                               i = chunk_idx, other_args = "out.width = '100%'",
+                               add_class = "panel panel-default padded-panel")
+          chunk_idx <<- chunk_idx + 1
+          vthemes::subchunkify(plotly::ggplotly(fi_box_plt_ls[[sim_name]][[param_val]]), 
+                               i = chunk_idx, other_args = "out.width = '100%'",
+                               add_class = "panel panel-default padded-panel")
+          chunk_idx <<- chunk_idx + 1
+          vthemes::subchunkify(plotly::ggplotly(fi_bar_plt_ls[[sim_name]][[param_val]]), 
+                               i = chunk_idx, other_args = "out.width = '100%'",
+                               add_class = "panel panel-default padded-panel")
+          chunk_idx <<- chunk_idx + 1
+          vthemes::subchunkify(plotly::ggplotly(power_plt_ls[[sim_name]][[param_val]]), 
+                               i = chunk_idx, other_args = "out.width = '100%'",
+                               add_class = "panel panel-default padded-panel")
+        } else {
+          vthemes::subchunkify(heatmap_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+          chunk_idx <<- chunk_idx + 1
+          vthemes::subchunkify(fi_box_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+          chunk_idx <<- chunk_idx + 1
+          vthemes::subchunkify(fi_bar_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+          chunk_idx <<- chunk_idx + 1
+          vthemes::subchunkify(power_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
+        }
         chunk_idx <<- chunk_idx + 1
-        vthemes::subchunkify(plotly::ggplotly(fi_box_plt_ls[[sim_name]][[param_val]]), 
-                             i = chunk_idx, other_args = "out.width = '100%'",
-                             add_class = "panel panel-default padded-panel")
-        chunk_idx <<- chunk_idx + 1
-        vthemes::subchunkify(plotly::ggplotly(fi_bar_plt_ls[[sim_name]][[param_val]]), 
-                             i = chunk_idx, other_args = "out.width = '100%'",
-                             add_class = "panel panel-default padded-panel")
-        chunk_idx <<- chunk_idx + 1
-        vthemes::subchunkify(plotly::ggplotly(heatmap_plt_ls[[sim_name]][[param_val]]), 
-                             i = chunk_idx, other_args = "out.width = '100%'",
-                             add_class = "panel panel-default padded-panel")
-      } else {
-        vthemes::subchunkify(power_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
-        chunk_idx <<- chunk_idx + 1
-        vthemes::subchunkify(fi_box_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
-        chunk_idx <<- chunk_idx + 1
-        vthemes::subchunkify(fi_bar_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
-        chunk_idx <<- chunk_idx + 1
-        vthemes::subchunkify(heatmap_plt_ls[[sim_name]][[param_val]], i = chunk_idx)
       }
-      chunk_idx <<- chunk_idx + 1
+    } else {
+      for (param_val1 in names(power_plt_ls[[sim_name]])) {
+        cat(sprintf("\n\n#### %s = %s {.tabset .tabset-pills .tabset-circle}\n\n\n",
+                    vary_param_name_vec[1], param_val1))
+        for (param_val2 in names(power_plt_ls[[sim_name]][[param_val1]])) {
+          cat(sprintf("\n\n##### %s = %s\n\n\n", 
+                      vary_param_name_vec[2], param_val2))
+          if (interactive) {
+            vthemes::subchunkify(plotly::ggplotly(heatmap_plt_ls[[sim_name]][[param_val1]][[param_val2]]), 
+                                 i = chunk_idx, other_args = "out.width = '100%'",
+                                 add_class = "panel panel-default padded-panel")
+            chunk_idx <<- chunk_idx + 1
+            vthemes::subchunkify(plotly::ggplotly(fi_box_plt_ls[[sim_name]][[param_val1]][[param_val2]]), 
+                                 i = chunk_idx, other_args = "out.width = '100%'",
+                                 add_class = "panel panel-default padded-panel")
+            chunk_idx <<- chunk_idx + 1
+            vthemes::subchunkify(plotly::ggplotly(fi_bar_plt_ls[[sim_name]][[param_val1]][[param_val2]]), 
+                                 i = chunk_idx, other_args = "out.width = '100%'",
+                                 add_class = "panel panel-default padded-panel")
+            chunk_idx <<- chunk_idx + 1
+            vthemes::subchunkify(plotly::ggplotly(power_plt_ls[[sim_name]][[param_val1]][[param_val2]]), 
+                                 i = chunk_idx, other_args = "out.width = '100%'",
+                                 add_class = "panel panel-default padded-panel")
+          } else {
+            vthemes::subchunkify(heatmap_plt_ls[[sim_name]][[param_val1]][[param_val2]], i = chunk_idx)
+            chunk_idx <<- chunk_idx + 1
+            vthemes::subchunkify(fi_box_plt_ls[[sim_name]][[param_val1]][[param_val2]], i = chunk_idx)
+            chunk_idx <<- chunk_idx + 1
+            vthemes::subchunkify(fi_bar_plt_ls[[sim_name]][[param_val1]][[param_val2]], i = chunk_idx)
+            chunk_idx <<- chunk_idx + 1
+            vthemes::subchunkify(power_plt_ls[[sim_name]][[param_val1]][[param_val2]], i = chunk_idx)
+          }
+          chunk_idx <<- chunk_idx + 1
+        }
+      }
     }
   }
 }
@@ -369,10 +566,11 @@ for (sim_name in names(results_ls)) {
   if (length(metrics) > 0) {
     vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
     metrics_plt_ls[[sim_name]] <- plot_metrics(
-      results_ls[[sim_name]], vary_param_name, show_errbars = FALSE
+      results_ls[[sim_name]], vary_param_name, vary_param_name_vec,
+      show_errbars = FALSE
     )
     metrics_errbar_plt_ls[[sim_name]] <- plot_metrics(
-      results_ls[[sim_name]], vary_param_name
+      results_ls[[sim_name]], vary_param_name, vary_param_name_vec
     )
   } else {
     metrics_plt_ls[[sim_name]] <- NULL
@@ -385,7 +583,7 @@ power_plt_ls <- list()
 for (sim_name in names(results_ls)) {
   vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
   power_plt_ls[[sim_name]] <- plot_ecdf(
-    results_ls[[sim_name]], vary_param_name, keep_vars
+    results_ls[[sim_name]], vary_param_name, vary_param_name_vec, keep_vars
   )
 }
 
@@ -395,10 +593,10 @@ fi_bar_plt_ls <- list()
 for (sim_name in names(results_ls)) {
   vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
   fi_box_plt_ls[[sim_name]] <- plot_feature_importance(
-    results_ls[[sim_name]], vary_param_name, keep_vars, plot_type = "boxplot"
+    results_ls[[sim_name]], vary_param_name, vary_param_name_vec, keep_vars, plot_type = "boxplot"
   )
   fi_bar_plt_ls[[sim_name]] <- plot_feature_importance(
-    results_ls[[sim_name]], vary_param_name, keep_vars, plot_type = "bar"
+    results_ls[[sim_name]], vary_param_name, vary_param_name_vec, keep_vars, plot_type = "bar"
   )
 }
 
@@ -407,7 +605,7 @@ heatmap_plt_ls <- list()
 for (sim_name in names(results_ls)) {
   vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
   heatmap_plt_ls[[sim_name]] <- plot_ranking_heatmap(
-    results_ls[[sim_name]], vary_param_name, keep_vars
+    results_ls[[sim_name]], vary_param_name, vary_param_name_vec, keep_vars
   )
 }
 ```
@@ -415,6 +613,6 @@ for (sim_name in names(results_ls)) {
 ```{r results = "asis"}
 # display plots nicely in knitted html document
 view_results(results_ls, metrics_plt_ls, metrics_errbar_plt_ls, power_plt_ls,
-             fi_bar_plt_ls, fi_box_plt_ls, heatmap_plt_ls)
+             fi_bar_plt_ls, fi_box_plt_ls, heatmap_plt_ls, vary_param_name_vec)
 ```
 
