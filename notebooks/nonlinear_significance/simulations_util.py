@@ -378,3 +378,37 @@ def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, return_suppo
     else:
         return y_train
 
+
+def sample_model_X(X_fun, X_params_dict, y, model):
+    X = X_fun(**X_params_dict)
+    model.fit(X, y)
+    X = X[:, [i[0] for i in sorted(enumerate(-model.feature_importances_), key=lambda x:x[1])]]
+    return X
+
+
+def model_based_y(X, y, model, sigma, s, heritability=None, snr=None, return_support=False):
+    '''
+    This method is used to crete responses from a linear model with hard sparsity
+    Parameters:
+    X: X matrix
+    y: reseponse vector
+    s: sparsity
+    sigma: s.d. of added noise
+    classification: boolean; whether or not this is a classification problem
+    Returns:
+    numpy array of shape (n)
+    '''
+    model.fit(X[:, :s], y)
+    y_train = model.predict(X[:, :s])
+
+    if heritability is not None:
+        sigma = (np.var(y_train)*((1.0-heritability)/(heritability)))**0.5
+    if snr is not None:
+        sigma = (np.var(y_train) / snr)**0.5
+    y_train = y_train + sigma * np.random.randn((len(X)))
+    if return_support:
+        beta = None
+        support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
+        return y_train, support, beta
+    else:
+        return y_train
