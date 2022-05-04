@@ -268,7 +268,7 @@ if __name__ == '__main__':
     parser.add_argument('--ignore_cache', action='store_true', default=False)
     parser.add_argument('--verbose', action='store_true', default=True)
     parser.add_argument('--parallel_id', nargs='+', type=int, default=None)
-    parser.add_argument('--n_cores', action=int, default=None)
+    parser.add_argument('--n_cores', type=int, default=None)
     parser.add_argument('--split_seed', type=int, default=0)
     parser.add_argument('--results_path', type=str, default=default_dir)
 
