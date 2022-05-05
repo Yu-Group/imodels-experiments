@@ -379,8 +379,14 @@ def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, return_suppo
         return y_train
 
 
-def sample_model_X(X_fun, X_params_dict, y, model):
+def sample_model_X(X_fun, X_params_dict, y, model, n=None):
     X = X_fun(**X_params_dict)
+
+    if n is not None:
+        keep_idx = np.random.choice(X.shape[0], n, replace=False)
+        X = X[keep_idx, :]
+        y = y[keep_idx]
+
     model.fit(X, y)
     X = X[:, [i[0] for i in sorted(enumerate(-model.feature_importances_), key=lambda x:x[1])]]
     return X
