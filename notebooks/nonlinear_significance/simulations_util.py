@@ -384,7 +384,7 @@ def sample_model_X(X_fun, X_params_dict, y, model, n=None):
 
     if n is not None:
         keep_idx = np.random.choice(X.shape[0], n, replace=False)
-        X = X[keep_idx, :]
+        X = IndexedArray(X[keep_idx, :], index=keep_idx)
         y = y[keep_idx]
 
     model.fit(X, y)
@@ -404,6 +404,9 @@ def model_based_y(X, y, model, sigma, s, heritability=None, snr=None, return_sup
     Returns:
     numpy array of shape (n)
     '''
+
+    if isinstance(X, IndexedArray):
+        y = y[X.index]
     model.fit(X[:, :s], y)
     y_train = model.predict(X[:, :s])
 
@@ -418,3 +421,13 @@ def model_based_y(X, y, model, sigma, s, heritability=None, snr=None, return_sup
         return y_train, support, beta
     else:
         return y_train
+
+
+class IndexedArray(np.ndarray):
+    def __new__(cls, input_array, index=None):
+        obj = np.asarray(input_array).view(cls)
+        obj.index = index
+        return obj
+    def __array_finalize__(self, obj):
+        if obj is None: return
+        self.index = getattr(obj, 'index', None)
