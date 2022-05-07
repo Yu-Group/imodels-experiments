@@ -11,14 +11,14 @@ from scipy import stats
 from sklearn.model_selection import train_test_split
 import statsmodels.stats.multitest as smt
 from tqdm import tqdm
-import torch
+# import torch
 import sys, os
-from torch import nn
+# from torch import nn
 from numpy import linalg as LA
-from torch.functional import F
+# from torch.functional import F
 import copy
 from sklearn.model_selection import GridSearchCV
-from torch.autograd import Variable
+# from torch.autograd import Variable
 import numpy as np
 from collections import defaultdict
 from joblib import delayed, Parallel
@@ -33,11 +33,12 @@ from sklearn.model_selection import train_test_split
 from nonlinear_significance.scripts.util import TreeTransformer
 from sklearn.linear_model import RidgeCV,LassoCV
 
-# from nonlinear_significance.scripts.util import *
-# from nonlinear_significance.scripts.util import TreeTransformer
-# sys.path.append("../../nonlinear_significance/scripts/")
-# from util import TreeTransformer
-# os.chdir("../../nonlinear_significance/scripts/")
+
+#from nonlinear_significance.scripts.util import *
+from nonlinear_significance.scripts.util import TreeTransformer
+#sys.path.append("../../nonlinear_significance/scripts/")
+#from util import TreeTransformer
+#os.chdir("../../nonlinear_significance/scripts/")
 from util import *
 
 
