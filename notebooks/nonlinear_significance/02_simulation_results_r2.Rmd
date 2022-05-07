@@ -6,16 +6,16 @@ output: vthemes::vmodern
 params:
   results_dir: 
     label: "Results directory"
-    value: "results/test_two_params"
+    value: "results/test"
   vary_param_name:
     label: "Name of varying parameter"
-    value: "n; heritability"
+    value: "n"
   seed:
     label: "Seed"
     value: 331
   keep_vars:
     label: "Max variables to keep in rejection probability plots"
-    value: NULL
+    value: 100
   rm_fi:
     label: "Feature importance methods to omit"
     value: NULL 
@@ -169,6 +169,69 @@ plot_metrics <- function(results, vary_param_name, vary_param_name_vec,
                                  ymin = mean - sd, ymax = mean + sd)
         )
     }
+  }
+  return(plt)
+}
+
+# plot true positive rate across # positives
+plot_tpr <- function(results, vary_param_name, vary_param_name_vec) {
+  if (!is.null(vary_param_name_vec)) {
+    vary_param_name <- vary_param_name_vec
+  }
+  if (is.null(results)) {
+    return(NULL)
+  }
+  
+  plt_df <- results %>%
+    dplyr::mutate(
+      fi_scores = mapply(name = fi, scores_df = fi_scores,
+                         function(name, scores_df) {
+                           if (stringr::str_detect(name, "R2F")) {
+                             scores_df <- scores_df %>% 
+                               dplyr::mutate(ranking = rank(-r2),
+                                             importance = r2)
+                           } else if (name %in% c("T-Test")) {
+                             scores_df <- scores_df %>% 
+                               dplyr::mutate(ranking = rank(importance))
+                           } else {
+                             scores_df <- scores_df %>%
+                               dplyr::mutate(ranking = rank(-importance))
+                           }
+                           scores_df <- scores_df %>%
+                             dplyr::arrange(ranking) %>%
+                             # dplyr::mutate(.tp = cumsum(true_support))
+                             dplyr::mutate(.tp = cumsum(true_support) / sum(true_support))
+                           return(scores_df)
+                         }, SIMPLIFY = FALSE)
+    ) %>%
+    tidyr::unnest(fi_scores) %>%
+    dplyr::select(tidyselect::all_of(paste0(vary_param_name, "_name")),
+                  rep, method, ranking, .tp) %>%
+    dplyr::group_by(
+      dplyr::across(tidyselect::all_of(paste0(vary_param_name, "_name"))),
+      method, ranking
+    ) %>%
+    dplyr::summarise(.tp = mean(.tp), .groups = "keep")
+  
+  if (is.null(vary_param_name_vec)) {
+    plt <- ggplot2::ggplot(plt_df) +
+      ggplot2::aes(x = ranking, y = .tp, color = method) +
+      ggplot2::geom_line() +
+      ggplot2::facet_wrap(reformulate(paste0(vary_param_name, "_name"))) +
+      ggplot2::labs(x = "Top n", y = "True Positive Rate", fill = "Method") +
+      vthemes::scale_color_vmodern(discrete = TRUE) +
+      vthemes::theme_vmodern()
+  } else {
+    plt <- ggplot2::ggplot(plt_df) +
+      ggplot2::aes(x = ranking, y = .tp, color = method) +
+      ggplot2::geom_line() +
+      ggplot2::facet_grid(
+        reformulate(paste0(vary_param_name[1], "_name"), 
+                    paste0(vary_param_name[2], "_name"))
+      ) +
+      ggplot2::labs(x = "Top n", y = "True Positives Rate", fill = "Method") +
+      vthemes::scale_color_vmodern(discrete = TRUE) +
+      vthemes::theme_vmodern()
   }
   return(plt)
 }
@@ -434,15 +497,18 @@ plot_ranking_heatmap <- function(results, vary_param_name, vary_param_name_vec,
 # view results in Rmarkdown
 # notes: need to set 'results = "asis"' in the code chunk header
 view_results <- function(results_ls, metrics_plt_ls, metrics_errbar_plt_ls,
-                         power_plt_ls, fi_bar_plt_ls, fi_box_plt_ls,
+                         tpr_plt_ls, power_plt_ls, fi_bar_plt_ls, fi_box_plt_ls,
                          heatmap_plt_ls, vary_param_name_vec,
                          abridged, interactive = TRUE) {
   cat(sprintf("\n\n# %s {.tabset .tabset-vmodern}\n\n", 
               basename(results_dir)))
   if (is.null(vary_param_name_vec)) {
     height <- 4
+    tpr_height <- height
   } else {
     height <- 8
+    tpr_height <- 4 * length(unique(results_ls[[paste0(vary_param_name_vec[2],
+                                                       "_name")]]))
   }
   
   for (sim_name in names(results_ls)) {
@@ -467,11 +533,19 @@ view_results <- function(results_ls, metrics_plt_ls, metrics_errbar_plt_ls,
                            i = chunk_idx, other_args = "out.width = '100%'",
                            fig_height = height,
                            add_class = "panel panel-default padded-panel")
+      chunk_idx <<- chunk_idx + 1
+      vthemes::subchunkify(plotly::ggplotly(tpr_plt_ls[[sim_name]]), 
+                           i = chunk_idx, other_args = "out.width = '100%'",
+                           fig_height = height,
+                           add_class = "panel panel-default padded-panel")
     } else {
       vthemes::subchunkify(metrics_plt_ls[[sim_name]], i = chunk_idx,
                            fig_height = height)
       chunk_idx <<- chunk_idx + 1
       vthemes::subchunkify(metrics_errbar_plt_ls[[sim_name]], i = chunk_idx,
+                           fig_height = height)
+      chunk_idx <<- chunk_idx + 1
+      vthemes::subchunkify(tpr_plt_ls[[sim_name]], i = chunk_idx,
                            fig_height = height)
     }
     chunk_idx <<- chunk_idx + 1
@@ -592,6 +666,15 @@ for (sim_name in names(results_ls)) {
   }
 }
 
+# plot tpr
+tpr_plt_ls <- list()
+for (sim_name in names(results_ls)) {
+  vary_param_name <- stringr::str_remove(sim_name, "^varying\\_")
+  tpr_plt_ls[[sim_name]] <- plot_tpr(
+    results_ls[[sim_name]], vary_param_name, vary_param_name_vec
+  )
+}
+
 # plot ecdf
 power_plt_ls <- list()
 for (sim_name in names(results_ls)) {
@@ -626,8 +709,8 @@ for (sim_name in names(results_ls)) {
 
 ```{r results = "asis"}
 # display plots nicely in knitted html document
-view_results(results_ls, metrics_plt_ls, metrics_errbar_plt_ls, power_plt_ls,
-             fi_bar_plt_ls, fi_box_plt_ls, heatmap_plt_ls, vary_param_name_vec, 
-             abridged)
+view_results(results_ls, metrics_plt_ls, metrics_errbar_plt_ls, tpr_plt_ls,
+             power_plt_ls, fi_bar_plt_ls, fi_box_plt_ls, heatmap_plt_ls,
+             vary_param_name_vec, abridged)
 ```
 

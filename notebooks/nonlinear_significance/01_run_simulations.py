@@ -12,6 +12,9 @@ import pickle as pkl
 import time
 import warnings
 from scipy import stats
+import dask
+# import dask.multiprocessing
+from dask.distributed import Client
 
 from tqdm import tqdm
 import sys
@@ -39,8 +42,6 @@ import itertools
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
-from viz import *
-
 
 def compare_estimators(estimators: List[ModelConfig],
                        fi_estimators: List[FIModelConfig],
@@ -61,20 +62,15 @@ def compare_estimators(estimators: List[ModelConfig],
     # loop over model estimators
     for model in tqdm(estimators, leave=False):
         est = model.cls(**model.kwargs)
-        est_type = model.model_type
-        fi_ests_ls = [fi_estimator for fi_estimator in itertools.chain(*fi_estimators) \
-                      if fi_estimator.model_type in est_type]
-        if len(fi_ests_ls) == 0:
-            continue
 
         # get kwargs for all fi_ests
         fi_kwargs = {}
-        for fi_est in fi_ests_ls:
+        for fi_est in fi_estimators:
             fi_kwargs.update(fi_est.kwargs)
 
         # get groups of estimators for each splitting strategy
         fi_ests_dict = defaultdict(list)
-        for fi_est in fi_ests_ls:
+        for fi_est in fi_estimators:
             fi_ests_dict[fi_est.splitting_strategy].append(fi_est)
 
         # loop over splitting strategies
@@ -104,7 +100,8 @@ def compare_estimators(estimators: List[ModelConfig],
                     'splitting_strategy': splitting_strategy
                 }
                 fi_score = fi_est.cls(X_test, y_test, est, **fi_est.kwargs)
-                metric_results['fi_scores'] = copy.deepcopy(fi_score)
+                support_df = pd.DataFrame({"var": np.arange(len(support)), "true_support": support})
+                metric_results['fi_scores'] = pd.merge(copy.deepcopy(fi_score), support_df, on="var", how="left")
                 reject_features = None
                 if fi_est.pval:
                     if 'rejections' in fi_score.columns:
@@ -157,12 +154,22 @@ def run_comparison(path: str,
                    fi_estimators: List[FIModelConfig],
                    args):
     estimator_name = estimators[0].name.split(' - ')[0]
-    model_comparison_file = oj(path, f'{estimator_name}_comparisons.pkl')
+    fi_estimators_all = [fi_estimator for fi_estimator in itertools.chain(*fi_estimators) \
+                         if fi_estimator.model_type in estimators[0].model_type]
+    model_comparison_files_all = [oj(path, f'{estimator_name}_{fi_estimator.name}_comparisons.pkl') for fi_estimator in fi_estimators_all]
     if args.parallel_id is not None:
-        model_comparison_file = f'_{args.parallel_id[0]}.'.join(model_comparison_file.split('.'))
+        model_comparison_files_all = [f'_{args.parallel_id[0]}.'.join(model_comparison_file.split('.')) for model_comparison_file in model_comparison_files_all]
 
-    if os.path.isfile(model_comparison_file) and not args.ignore_cache:
-        print(f'{estimator_name} results already computed and cached. use --ignore_cache to recompute')
+    fi_estimators = []
+    model_comparison_files = []
+    for model_comparison_file, fi_estimator in zip(model_comparison_files_all, fi_estimators_all):
+        if os.path.isfile(model_comparison_file) and not args.ignore_cache:
+            print(f'{estimator_name} with {fi_estimator.name} results already computed and cached. use --ignore_cache to recompute')
+        else:
+            fi_estimators.append(fi_estimator)
+            model_comparison_files.append(model_comparison_file)
+
+    if len(fi_estimators) == 0:
         return
 
     results = compare_estimators(estimators=estimators,
@@ -172,23 +179,23 @@ def run_comparison(path: str,
                                  args=args)
 
     estimators_list = [e.name for e in estimators]
-    fi_estimators_list = [f.name for f in itertools.chain(*fi_estimators)]
     metrics_list = [m[0] for m in metrics]
 
     df = pd.DataFrame.from_dict(results)
     df['split_seed'] = args.split_seed
 
-    output_dict = {
-        # metadata
-        'sim_name': args.config,
-        'estimators': estimators_list,
-        'fi_estimators': fi_estimators_list,
-        'metrics': metrics_list,
+    for model_comparison_file, fi_estimator in zip(model_comparison_files, fi_estimators):
+        output_dict = {
+            # metadata
+            'sim_name': args.config,
+            'estimators': estimators_list,
+            'fi_estimators': fi_estimator.name,
+            'metrics': metrics_list,
 
-        # actual values
-        'df': df,
-    }
-    pkl.dump(output_dict, open(model_comparison_file, 'wb'))
+            # actual values
+            'df': df.loc[df.fi == fi_estimator.name],
+        }
+        pkl.dump(output_dict, open(model_comparison_file, 'wb'))
     return df
 
 
@@ -222,9 +229,36 @@ def reformat_results(results):
     return results_df
 
 
+def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args):
+    os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
+    np.random.seed(i)
+    X = X_dgp(**X_params_dict)
+    y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
+    if args.omit_vars is not None:
+        omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
+        support = np.delete(support, omit_vars)
+        X = np.delete(X, omit_vars, axis=1)
+        del beta  # note: beta is not currently supported when using omit_vars
+
+    for est in ests:
+        results = run_comparison(path=oj(path, val_name, "rep" + str(i)),
+                                 X=X, y=y, support=support,
+                                 metrics=metrics,
+                                 estimators=est,
+                                 fi_estimators=fi_ests,
+                                 args=args)
+    return True
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
+
+    default_dir = os.getenv("SCRATCH")
+    if default_dir is not None:
+        default_dir = oj(default_dir, "nonlinear-significance", "results")
+    else:
+        default_dir = oj(os.path.dirname(os.path.realpath(__file__)), 'results')
 
     parser.add_argument('--nreps', type=int, default=2)
     parser.add_argument('--model', type=str, default=None)  # , default='c4')
@@ -237,16 +271,26 @@ if __name__ == '__main__':
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)
     parser.add_argument('--verbose', action='store_true', default=True)
+    parser.add_argument('--parallel', action='store_true', default=False)
     parser.add_argument('--parallel_id', nargs='+', type=int, default=None)
+    parser.add_argument('--n_cores', type=int, default=None)
     parser.add_argument('--split_seed', type=int, default=0)
-    parser.add_argument('--results_path', type=str,
-                        default=oj(os.path.dirname(os.path.realpath(__file__)), 'results'))
+    parser.add_argument('--results_path', type=str, default=default_dir)
 
     # arguments for rmd output of results
     parser.add_argument('--create_rmd', action='store_true', default=False)
     parser.add_argument('--show_vars', type=int, default=None)
 
     args = parser.parse_args()
+
+    if args.parallel:
+        if args.n_cores is None:
+            print(os.getenv("SLURM_CPUS_ON_NODE"))
+            n_cores = int(os.getenv("SLURM_CPUS_ON_NODE"))
+        else:
+            n_cores = args.n_cores
+        client = Client(n_workers=n_cores)
+        # dask.config.set(scheduler='processes', num_workers=int(os.getenv("SLURM_CPUS_ON_NODE")))
 
     ests, fi_ests, \
     X_dgp, X_params_dict, y_dgp, y_params_dict, \
@@ -307,24 +351,13 @@ if __name__ == '__main__':
                     else:
                         raise ValueError('Invalid vary_param_name.')
 
-            for i in tqdm(range(args.nreps)):
-                os.makedirs(oj(path, "_".join(vary_param_dict.values()), "rep" + str(i)), exist_ok=True)
-                np.random.seed(i)
-                X = X_dgp(**X_params_dict)
-                y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
-                if args.omit_vars is not None:
-                    omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
-                    support = np.delete(support, omit_vars)
-                    X = np.delete(X, omit_vars, axis=1)
-                    del beta  # note: beta is not currently supported when using omit_vars
+            if args.parallel:
+                futures = [dask.delayed(run_simulation)(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
+                results = dask.compute(*futures)
+            else:
+                results = [run_simulation(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
+            assert all(results)
 
-                for est in ests:
-                    results = run_comparison(path=oj(path, "_".join(vary_param_dict.values()), "rep" + str(i)),
-                                             X=X, y=y, support=support,
-                                             metrics=metrics,
-                                             estimators=est,
-                                             fi_estimators=fi_ests,
-                                             args=args)
     else:
         for val_name, val in vary_param_vals.items():
             if vary_param_name in X_params_dict.keys() and vary_param_name in y_params_dict.keys():
@@ -345,24 +378,12 @@ if __name__ == '__main__':
                 else:
                     raise ValueError('Invalid vary_param_name.')
 
-            for i in tqdm(range(args.nreps)):
-                os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
-                np.random.seed(i)
-                X = X_dgp(**X_params_dict)
-                y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
-                if args.omit_vars is not None:
-                    omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
-                    support = np.delete(support, omit_vars)
-                    X = np.delete(X, omit_vars, axis=1)
-                    del beta  # note: beta is not currently supported when using omit_vars
-
-                for est in ests:
-                    results = run_comparison(path=oj(path, val_name, "rep" + str(i)),
-                                             X=X, y=y, support=support,
-                                             metrics=metrics,
-                                             estimators=est,
-                                             fi_estimators=fi_ests,
-                                             args=args)
+            if args.parallel:
+                futures = [dask.delayed(run_simulation)(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
+                results = dask.compute(*futures)
+            else:
+                results = [run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
+            assert all(results)
 
     print('completed all experiments successfully!')
 
