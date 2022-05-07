@@ -96,14 +96,23 @@ def make_stump(node_no, tree_struct, parent_stump, is_right_child, normalize=Fal
 
     if not normalize:
         return LocalDecisionStump(feature, threshold, -1, 1, a_features, a_thresholds, a_signs)
+    # else:
+    #     # parent_size = tree_struct.n_node_samples[node_no]
+    #     left_child = tree_struct.children_left[node_no]
+    #     right_child = tree_struct.children_right[node_no]
+    #     left_size = tree_struct.n_node_samples[left_child]
+    #     right_size = tree_struct.n_node_samples[right_child]
+    #     left_val = - np.sqrt(right_size / left_size)
+    #     right_val = np.sqrt(left_size / right_size)
+    #     return LocalDecisionStump(feature, threshold, left_val, right_val, a_features, a_thresholds, a_signs)
     else:
-        # parent_size = tree_struct.n_node_samples[node_no]
+        parent_size = tree_struct.n_node_samples[node_no]
         left_child = tree_struct.children_left[node_no]
         right_child = tree_struct.children_right[node_no]
         left_size = tree_struct.n_node_samples[left_child]
         right_size = tree_struct.n_node_samples[right_child]
-        left_val = - np.sqrt(right_size / left_size)
-        right_val = np.sqrt(left_size / right_size)
+        left_val = - np.sqrt(right_size / (left_size * parent_size))
+        right_val = np.sqrt(left_size / (right_size * parent_size))
         return LocalDecisionStump(feature, threshold, left_val, right_val, a_features, a_thresholds, a_signs)
 
 
