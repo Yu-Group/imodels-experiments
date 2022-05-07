@@ -12,6 +12,9 @@ import pickle as pkl
 import time
 import warnings
 from scipy import stats
+import dask
+# import dask.multiprocessing
+from dask.distributed import Client
 
 from tqdm import tqdm
 import sys
@@ -222,9 +225,36 @@ def reformat_results(results):
     return results_df
 
 
+def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args):
+    os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
+    np.random.seed(i)
+    X = X_dgp(**X_params_dict)
+    y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
+    if args.omit_vars is not None:
+        omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
+        support = np.delete(support, omit_vars)
+        X = np.delete(X, omit_vars, axis=1)
+        del beta  # note: beta is not currently supported when using omit_vars
+
+    for est in ests:
+        results = run_comparison(path=oj(path, val_name, "rep" + str(i)),
+                                 X=X, y=y, support=support,
+                                 metrics=metrics,
+                                 estimators=est,
+                                 fi_estimators=fi_ests,
+                                 args=args)
+    return True
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
+
+    default_dir = os.getenv("SCRATCH")
+    if default_dir is not None:
+        default_dir = oj(default_dir, "nonlinear-significance", "results")
+    else:
+        default_dir = oj(os.path.dirname(os.path.realpath(__file__)), 'results')
 
     parser.add_argument('--nreps', type=int, default=2)
     parser.add_argument('--model', type=str, default=None)  # , default='c4')
@@ -237,16 +267,26 @@ if __name__ == '__main__':
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)
     parser.add_argument('--verbose', action='store_true', default=True)
+    parser.add_argument('--parallel', action='store_true', default=False)
     parser.add_argument('--parallel_id', nargs='+', type=int, default=None)
+    parser.add_argument('--n_cores', type=int, default=None)
     parser.add_argument('--split_seed', type=int, default=0)
-    parser.add_argument('--results_path', type=str,
-                        default=oj(os.path.dirname(os.path.realpath(__file__)), 'results'))
+    parser.add_argument('--results_path', type=str, default=default_dir)
 
     # arguments for rmd output of results
     parser.add_argument('--create_rmd', action='store_true', default=False)
     parser.add_argument('--show_vars', type=int, default=None)
 
     args = parser.parse_args()
+
+    if args.parallel:
+        if args.n_cores is None:
+            print(os.getenv("SLURM_CPUS_ON_NODE"))
+            n_cores = int(os.getenv("SLURM_CPUS_ON_NODE"))
+        else:
+            n_cores = args.n_cores
+        client = Client(n_workers=n_cores)
+        # dask.config.set(scheduler='processes', num_workers=int(os.getenv("SLURM_CPUS_ON_NODE")))
 
     ests, fi_ests, \
     X_dgp, X_params_dict, y_dgp, y_params_dict, \
@@ -307,24 +347,13 @@ if __name__ == '__main__':
                     else:
                         raise ValueError('Invalid vary_param_name.')
 
-            for i in tqdm(range(args.nreps)):
-                os.makedirs(oj(path, "_".join(vary_param_dict.values()), "rep" + str(i)), exist_ok=True)
-                np.random.seed(i)
-                X = X_dgp(**X_params_dict)
-                y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
-                if args.omit_vars is not None:
-                    omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
-                    support = np.delete(support, omit_vars)
-                    X = np.delete(X, omit_vars, axis=1)
-                    del beta  # note: beta is not currently supported when using omit_vars
+            if args.parallel:
+                futures = [dask.delayed(run_simulation)(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
+                results = dask.compute(*futures)
+            else:
+                results = [run_simulation(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
+            assert all(results)
 
-                for est in ests:
-                    results = run_comparison(path=oj(path, "_".join(vary_param_dict.values()), "rep" + str(i)),
-                                             X=X, y=y, support=support,
-                                             metrics=metrics,
-                                             estimators=est,
-                                             fi_estimators=fi_ests,
-                                             args=args)
     else:
         for val_name, val in vary_param_vals.items():
             if vary_param_name in X_params_dict.keys() and vary_param_name in y_params_dict.keys():
@@ -345,24 +374,12 @@ if __name__ == '__main__':
                 else:
                     raise ValueError('Invalid vary_param_name.')
 
-            for i in tqdm(range(args.nreps)):
-                os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
-                np.random.seed(i)
-                X = X_dgp(**X_params_dict)
-                y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
-                if args.omit_vars is not None:
-                    omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
-                    support = np.delete(support, omit_vars)
-                    X = np.delete(X, omit_vars, axis=1)
-                    del beta  # note: beta is not currently supported when using omit_vars
-
-                for est in ests:
-                    results = run_comparison(path=oj(path, val_name, "rep" + str(i)),
-                                             X=X, y=y, support=support,
-                                             metrics=metrics,
-                                             estimators=est,
-                                             fi_estimators=fi_ests,
-                                             args=args)
+            if args.parallel:
+                futures = [dask.delayed(run_simulation)(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
+                results = dask.compute(*futures)
+            else:
+                results = [run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
+            assert all(results)
 
     print('completed all experiments successfully!')
 
