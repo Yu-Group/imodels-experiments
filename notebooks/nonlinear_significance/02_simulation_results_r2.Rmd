@@ -188,14 +188,14 @@ plot_tpr <- function(results, vary_param_name, vary_param_name_vec) {
                          function(name, scores_df) {
                            if (stringr::str_detect(name, "R2F")) {
                              scores_df <- scores_df %>% 
-                               dplyr::mutate(ranking = rank(-r2),
+                               dplyr::mutate(ranking = rank(-r2, ties.method = "random"),
                                              importance = r2)
                            } else if (name %in% c("T-Test")) {
                              scores_df <- scores_df %>% 
-                               dplyr::mutate(ranking = rank(importance))
+                               dplyr::mutate(ranking = rank(importance, ties.method = "random"))
                            } else {
                              scores_df <- scores_df %>%
-                               dplyr::mutate(ranking = rank(-importance))
+                               dplyr::mutate(ranking = rank(-importance, ties.method = "random"))
                            }
                            scores_df <- scores_df %>%
                              dplyr::arrange(ranking) %>%
