@@ -25,22 +25,19 @@ from sklearn.neighbors import KernelDensity
 from sklearn.neural_network import MLPClassifier
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
-pd.set_option('display.max_rows', 500)
-pd.set_option('display.max_columns', 50)
-mpl.rcParams['figure.dpi'] = 250
 np.random.seed(0)
 
-# change working directory to project root
-# while os.getcwd().split('/')[-1] != 'imodels-experiments':
+# add project root to path
 sys.path.append(oj(os.path.realpath(__file__).split('notebooks')[0]))
 
 import validate
 
 DATASET = 'iai'
+RUN_VAL = False
 
 if DATASET == 'iai':
 
-    # small proportion of positive class labels makes some random splits
+    # much smaller proportion of positive class labels makes some random splits
     #   and spec94 metric too noisy to use
     seeds = [0, 1, 2, 4, 7, 11, 12, 13, 15, 16]
     VAL_METRICS = ['spec90']
@@ -53,10 +50,9 @@ tao_iter_options = [1, 5]
 
 for seed in tqdm(seeds):
     SPLIT_SEED = seed
-    RESULT_PATH = f'notebooks/transfertree/results/{DATASET}/seed_{SPLIT_SEED}'
+    RESULT_PATH = f'notebooks/transfertree/results_2/{DATASET}/seed_{SPLIT_SEED}'
     if not os.path.exists(RESULT_PATH):
         os.makedirs(RESULT_PATH)
-
 
     def all_stats_curve(y_test, preds_proba, plot=False, thresholds=None, model_name=None):
         '''preds_proba should be 1d
@@ -177,7 +173,7 @@ for seed in tqdm(seeds):
         for x, y, suffix in zip([X_test],
                                 [y_test],
                                 ['_tune']):
-            stats, threshes = all_stats_curve(y, model.predict_proba(x)[:, 1], plot=suffix == '_tune', model_name=model_name)
+            stats, threshes = all_stats_curve(y, model.predict_proba(x)[:, 1], plot=False, model_name=model_name)
             for stat in stats.keys():
                 results[stat + suffix] = stats[stat]
             results['threshes' + suffix] = threshes
@@ -199,26 +195,27 @@ for seed in tqdm(seeds):
     if DATASET == 'tbi':
         y_prop = X_df_prop_raw['AgeTwoPlus']
         X_df_prop = X_df_prop_raw.drop(columns=['AgeinYears', 'AgeInMonth', 'AgeTwoPlus', 'outcome'])
-        C = 2.783
     elif DATASET == 'csi':
         y_prop = (X_df_prop_raw['AgeInYears'] >= 2).astype(int)
         X_df_prop = X_df_prop_raw.drop(columns=['AgeInYears', 'outcome'])
-        C = 2.783
     elif DATASET == 'iai':
         y_prop = X_df_prop_raw['Age<2_no']
-        # y_prop = (X_df_prop_raw['Age'] >= 3).astype(int)
         X_df_prop = X_df_prop_raw.drop(columns=['Age', 'Age<2_no', 'Age<2_yes', 'outcome'])
-        C = 0.359
 
     X_prop = X_df_prop.values
     X_prop_train_full, X_prop_test, y_prop_train_full, y_prop_test = model_selection.train_test_split(X_prop, y_prop, test_size=0.2, random_state=SPLIT_SEED)
 
     prop_models = {}
     prop_scores = {}
-    prop_models['L'] = LogisticRegression(C=C, penalty='l2', solver='liblinear')
-    prop_models['GB'] = GradientBoostingClassifier()
-    # prop_models['RF'] = RandomForestClassifier()
-    # prop_models['LDA'] = LinearDiscriminantAnalysis()
+    if DATASET == 'csi':
+        # much smaller val set so try not to overfit prop model
+        prop_models['L'] = LogisticRegression(C=2.783, penalty='l2', solver='liblinear')
+        prop_models['GBL'] = GradientBoostingClassifier()
+    else:
+        prop_models['LL'] = LogisticRegression(C=2.783, penalty='l2', solver='liblinear')
+        prop_models['LS'] = LogisticRegression(C=0.01, penalty='l2', solver='liblinear')
+        prop_models['GBL'] = GradientBoostingClassifier()
+        prop_models['GBS'] = GradientBoostingClassifier(n_estimators=50)
 
     for m in prop_models:
         prop_models[m].fit(X_prop_train_full, y_prop_train_full)
@@ -257,6 +254,7 @@ for seed in tqdm(seeds):
     # print(f'seed {SPLIT_SEED} all test', cls_ratio(y_test))
     # continue
 
+    # weight up positive examples due to high-sensitivity medical context
     cls_ratio_train_young = cls_ratio(y_train_young)
     cls_ratio_train_old = cls_ratio(y_train_old)
     cls_ratio_train = cls_ratio(y_train)
@@ -339,24 +337,26 @@ for seed in tqdm(seeds):
             if all:
                 whole.fit(X_train, y_train, sw_train)
                 log_results(whole, name_whole, X_val, y_val, model_args)
+    
+    if RUN_VAL:
+        # CART validation
+        fit_models(DecisionTreeClassifier, 'CART', all=True)
+        fit_models(DecisionTreeClassifier, 'PCART', prop=True)
+        # # fit_models(imodels.TaoTreeClassifier, 'TTCART', tt=True)
 
-    ### CART
-    # fit_models(DecisionTreeClassifier, 'CART', all=True)
-    # fit_models(DecisionTreeClassifier, 'PCART', prop=True)
-    # # fit_models(imodels.TaoTreeClassifier, 'TTCART', tt=True)
-    # ### FIGS
-    # fit_models(imodels.FIGSClassifier, 'FIGS', all=True)
-    # fit_models(imodels.FIGSClassifier, 'PFIGS', prop=True)
-    # ### TAO
-    # fit_models(imodels.TaoTreeClassifier, 'TAO', all=True)
-    ### Validation results for all models
-    ### JUST RAN EXPS
-    # val_df = pd.DataFrame.from_dict(results, orient='index', columns=columns)
-    # val_df.to_csv(oj(RESULT_PATH, 'val.csv'))
+        # FIGS validation
+        fit_models(imodels.FIGSClassifier, 'FIGS', all=True)
+        fit_models(imodels.FIGSClassifier, 'PFIGS', prop=True)
+        
+        # TAO validation
+        fit_models(imodels.TaoTreeClassifier, 'TAO', all=True)
 
-    ### LOADING PREVIOUSLY RUN EXPS
-    val_df = pd.read_csv(oj(RESULT_PATH, 'val.csv')).set_index('Unnamed: 0')
-    val_df['args'] = val_df['args'].apply(eval)
+        val_df = pd.DataFrame.from_dict(results, orient='index', columns=columns)
+        val_df.to_csv(oj(RESULT_PATH, 'val.csv'))
+    else:
+        # Loading previously run validation
+        val_df = pd.read_csv(oj(RESULT_PATH, 'val.csv')).set_index('Unnamed: 0')
+        val_df['args'] = val_df['args'].apply(eval)
 
     args = val_df['args']
     best_models = {}
@@ -365,14 +365,14 @@ for seed in tqdm(seeds):
         return val_df_group.filter(regex=model_name, axis=0).round(round).sort_values(
             by=VAL_METRICS, kind='mergesort', ascending=False)['args'].iloc[0]
     
+    # results for simple all-data fits
     all_results = val_df[val_df.index.str.contains('all')]
-    all_results[VAL_METRICS].style.background_gradient()
     best_models['cart_all'] = DecisionTreeClassifier(**get_best_args(all_results, 'CART')).fit(X_train_full, y_train_full, sw_train_full)
     best_models['figs_all'] = imodels.FIGSClassifier(**get_best_args(all_results, 'FIGS')).fit(X_train_full, y_train_full, sample_weight=sw_train_full)
     best_models['tao_all'] = imodels.TaoTreeClassifier(**get_best_args(all_results, 'TAO')).fit(X_train_full, y_train_full, sample_weight=sw_train_full)
-    ### Validation results for >2 group
+    
+    # results for >2 group
     old_results = val_df[val_df.index.str.contains('>2')]
-    old_results[['spec90', 'aps', 'auc']].style.background_gradient()
     best_models['cart_old'] = DecisionTreeClassifier(**get_best_args(old_results, '^CART')).fit(
         X_train_full_old, y_train_full_old, sw_train_full_old)
     best_models['figs_old'] = imodels.FIGSClassifier(**get_best_args(old_results, '^FIGS')).fit(
@@ -380,9 +380,9 @@ for seed in tqdm(seeds):
     best_models['tao_old'] = imodels.TaoTreeClassifier(**get_best_args(old_results, '^TAO')).fit(
         X_train_full_old, y_train_full_old, sample_weight = sw_train_full_old)
     best_models['pecarn_old'] = PECARNModel(young=False)
-    ### results for <2 group
+    
+    # results for <2 group
     young_results = val_df[val_df.index.str.contains('<2')]
-    young_results[['spec90', 'aps', 'auc']].style.background_gradient()
     best_models['cart_young'] = DecisionTreeClassifier(**get_best_args(young_results, '^CART')).fit(
         X_train_full_young, y_train_full_young, sw_train_full_young)
     best_models['figs_young'] = imodels.FIGSClassifier(**get_best_args(young_results, '^FIGS')).fit(
@@ -390,13 +390,16 @@ for seed in tqdm(seeds):
     best_models['tao_young'] = imodels.TaoTreeClassifier(**get_best_args(young_results, '^TAO')).fit(
         X_train_full_young, y_train_full_young, sample_weight = sw_train_full_young)
     best_models['pecarn_young'] = PECARNModel(young=True)
-    ### all ages results
+
+    # all ages results
     for model_name in ['pecarn', 'figs', 'tao', 'cart']:
         best_models[f'{model_name}_combine'] = TransferTree(
             best_models[f'{model_name}_young'], best_models[f'{model_name}_old'], is_group_1_test)
+
+    # use validation to select best propensity model and most 
     results_pmodel = defaultdict(lambda:[])
     for model, cls in [('PFIGS', imodels.FIGSClassifier), ('PCART', DecisionTreeClassifier)]:
-
+        model_parent = model[1:]
         for pmodel_name in prop_models:
             best_young_model = cls(**get_best_args(young_results, f'^{pmodel_name}{model}')).fit(
             X_train, y_train, sample_weight=(1 - prop_scores[pmodel_name]) * sw_train)
@@ -404,10 +407,10 @@ for seed in tqdm(seeds):
             X_train, y_train, sample_weight=prop_scores[pmodel_name] * sw_train)
 
             combine = TransferTree(best_young_model, best_old_model, is_group_1_val)
-            best_figs_train_only = imodels.FIGSClassifier(**get_best_args(all_results, '^FIGS')).fit(
+            best_parent_train_only = cls(**get_best_args(all_results, f'^{model_parent}')).fit(
                 X_train, y_train, sample_weight=sw_train)
-            pmix_young = TransferTree(best_young_model, best_figs_train_only, is_group_1_val)
-            pmix_old = TransferTree(best_figs_train_only, best_old_model, is_group_1_val)
+            pmix_young = TransferTree(best_young_model, best_parent_train_only, is_group_1_val)
+            pmix_old = TransferTree(best_parent_train_only, best_old_model, is_group_1_val)
 
             log_results(combine, f'{model}_{pmodel_name}_all', X_val, y_val, pmodel_name, results_pmodel)
             log_results(pmix_young, f'MIX{model}_{pmodel_name}_young', X_val, y_val, 'young', results_pmodel)
@@ -434,24 +437,56 @@ for seed in tqdm(seeds):
             
         if best_pmix == 'young':
             best_models[f'{model}_mix'.lower()] = TransferTree(
-                best_models[f'{model}_young'.lower()], best_models['figs_all'], is_group_1_test)
+                best_models[f'{model}_young'.lower()], best_models[f'{model_parent}_all'.lower()], is_group_1_test)
         else:
             best_models[f'{model}_mix'.lower()] = TransferTree(
-                best_models['figs_all'], best_models[f'{model}_old'.lower()], is_group_1_test)
+                best_models[f'{model_parent}_all'.lower()], best_models[f'{model}_old'.lower()], is_group_1_test)
 
     results_pmodel_df.to_csv(oj(RESULT_PATH, 'pmodel_val.csv'))
 
-    # best_models['pecarn_old'].predict_proba(X_train_full_old)
-    for model_name in ['cart_all', 'figs_all', 'tao_all', 'cart_combine', 'figs_combine', 'tao_combine', 'pcart_combine', 'pfigs_combine', 'pfigs_mix', 'pcart_mix', 'pecarn_combine']:
+    # use validation to select the best mix 
+    results_pmix = defaultdict(lambda:[])
+    for model, cls in [
+        ('FIGS', imodels.FIGSClassifier), ('CART', DecisionTreeClassifier), ('TAO', imodels.TaoTreeClassifier)]:
+
+        best_young_model = cls(**get_best_args(young_results, f'^{model}')).fit(
+            X_train_young, y_train_young, sample_weight=sw_train_young)
+        best_old_model = cls(**get_best_args(old_results, f'^{model}')).fit(
+            X_train_old, y_train_old, sample_weight=sw_train_old)
+
+        best_parent_train_only = cls(**get_best_args(all_results, f'^{model}')).fit(
+            X_train, y_train, sample_weight=sw_train)
+        pmix_young = TransferTree(best_young_model, best_parent_train_only, is_group_1_val)
+        pmix_old = TransferTree(best_parent_train_only, best_old_model, is_group_1_val)
+    
+        log_results(pmix_young, f'MIX{model}_young', X_val, y_val, 'young', results_pmix)
+        log_results(pmix_old, f'MIX{model}_old', X_val, y_val, 'old', results_pmix)
+        
+        results_pmix_df = pd.DataFrame.from_dict(results_pmix, orient='index', columns=columns)
+        best_pmix = get_best_args(results_pmix_df, f'^MIX{model}')
+
+        if best_pmix == 'young':
+            best_models[f'{model}_mix'.lower()] = TransferTree(
+                best_models[f'{model}_young'.lower()], best_models[f'{model}_all'.lower()], is_group_1_test)
+        else:
+            best_models[f'{model}_mix'.lower()] = TransferTree(
+                best_models[f'{model}_all'.lower()], best_models[f'{model}_old'.lower()], is_group_1_test)
+
+    results_pmix_df.to_csv(oj(RESULT_PATH, 'pmix_val.csv'))
+    
+    for model_name in [
+        'cart_all', 'cart_combine', 'cart_mix', 
+        'tao_all', 'tao_combine', 'tao_mix',
+        'figs_all', 'figs_combine', 'figs_mix', 
+        'pcart_combine', 'pcart_mix', 'pfigs_combine', 'pfigs_mix', 'pecarn_combine']:
         predict_and_save(best_models[f'{model_name}'], X_test, y_test, f'{model_name}', 'all')
-    plt.xlim(0.5, 1.1)
-    plt.legend()
-    for model_name in ['cart_old', 'pcart_old', 'pfigs_old', 'figs_old', 'tao_old', 'pecarn_old', 'cart_all', 'figs_all', 'tao_all']:
+
+    for model_name in [
+        'cart_old', 'pcart_old', 'pfigs_old', 'figs_old', 'tao_old', 'pecarn_old', 'cart_all', 'figs_all', 'tao_all']:
         predict_and_save(best_models[f'{model_name}'], X_test_old, y_test_old, f'{model_name}', 'old')
-    plt.legend()
-    plt.xlim(0.5, 1.1)
-    for model_name in ['cart_young', 'pcart_young', 'figs_young', 'pfigs_young', 'tao_young', 'pecarn_young', 'cart_all', 'figs_all', 'tao_all']:
+
+    for model_name in [
+        'cart_young', 'pcart_young', 'figs_young', 'pfigs_young', 'tao_young', 'pecarn_young', 'cart_all', 'figs_all', 'tao_all']:
         predict_and_save(best_models[f'{model_name}'], X_test_young, y_test_young, f'{model_name}', 'young')
-    plt.xlim(0.5, 1.1)
-    plt.legend()
+
     pkl.dump(best_models, open(oj(RESULT_PATH, 'best_models.pkl'), 'wb'))
