@@ -50,8 +50,8 @@ FI_ESTIMATORS = [
     [FIModelConfig('MDI', tree_mdi, None, False, model_type='tree')],
     [FIModelConfig('Permutation', perm_importance, None, False, model_type='tree')],
     [FIModelConfig('TreeSHAP', tree_shap_mean, None, False, model_type='tree')],
-    # [FIModelConfig('Boruta', boruta_rank, None, False, model_type='rf')],
-    # [FIModelConfig('FOCI', foci_rank, None, False, model_type='linear')],  # model_type=None in reality
+    [FIModelConfig('Boruta', boruta_rank, None, False, model_type='rf')],
+    [FIModelConfig('FOCI', foci_rank, None, False, model_type='linear')],  # model_type=None in reality
     [FIModelConfig('Knockoff', knockpy_swap_integral, None, True, model_type='tree', other_params={'knockoff_fdr':0.05})]
 ]
 
