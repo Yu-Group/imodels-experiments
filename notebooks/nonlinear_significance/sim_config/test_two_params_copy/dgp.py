@@ -1,0 +1,37 @@
+# Example usage: run in command line
+# cd notebooks/nonlinear_significance
+# python 01_run_simulations.py --nreps 2 --config test --split_seed 331 --ignore_cache
+# python 01_run_simulations.py --nreps 2 --config test --split_seed 331 --ignore_cache --create_rmd --show_vars 50
+
+import sys
+sys.path.append("../..")
+from simulations_util import *
+
+X_DGP = sample_normal_X
+X_PARAMS_DICT = {
+    "n": 250,
+    "d": 50
+}
+Y_DGP = linear_model
+Y_PARAMS_DICT = {
+    "beta": 1,
+    "sigma": None,
+    "heritability": 0.1,
+    "s": 5
+}
+
+# VARY_PARAM_NAME = "n_estimators"
+# VARY_PARAM_VALS = {"placeholder": 0}
+
+VARY_PARAM_NAME = ["heritability", "n"]
+VARY_PARAM_VALS = {"heritability": {"0.05": 0.05, "0.1": 0.1},
+                   "n": {'100': 100, '250': 250}}
+#
+# # VARY_PARAM_NAME = "d"
+# # VARY_PARAM_VALS = {'50': 50, '100': 100, '250': 250}
+#
+# # VARY_PARAM_NAME = "s"
+# # VARY_PARAM_VALS = {'5': 5, '10': 10, '15': 15}
+#
+# # VARY_PARAM_NAME = "sigma"
+# # VARY_PARAM_VALS = {'0.1': 0.1, '1': 1, '2': 2}
