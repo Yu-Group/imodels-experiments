@@ -21,6 +21,7 @@ import math
 #FOCI = importr('FOCI')
 
 from nonlinear_significance.scripts.TreeTester import TreeTester, optimalTreeTester
+from nonlinear_significance.scripts.competing_methods import *
 
 
 def lin_reg_t_test(X, y, fit):
@@ -73,6 +74,36 @@ def tree_mdi(X, y, fit):
     results.reset_index(inplace=True)
 
     return results
+
+def tree_mdi_OOB(X,y,fit,type = 'oob',
+                 normalized = True, balanced = False, demean=False,normal_fX = False):
+    
+    reshaped_y = y.reshape((len(y),1))
+    results = MDI_OOB(fit, X, reshaped_y, type = type,normalized = normalized,balanced = balanced, 
+            demean=demean,normal_fX = normal_fX)[0]
+    results = pd.DataFrame(data=results, columns=['importance'])
+    if isinstance(X, pd.DataFrame):
+        results.index = X.columns
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+    
+    return results
+
+def tree_MDA(X,y,fit,type = 'oob', n_trials = 10, metric = 'mse'):
+    reshaped_y = y.reshape((len(y),1))
+    results = MDA(fit, X, reshaped_y,type = type, n_trials = 10, metric = 'mse')[0]
+    results = pd.DataFrame(data=results, columns=['importance'])
+    if isinstance(X, pd.DataFrame):
+        results.index = X.columns
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+    
+    return results
+    
+
+    
+    
+    
 
 
 def perm_importance(X, y, fit, n_repeats=10):
