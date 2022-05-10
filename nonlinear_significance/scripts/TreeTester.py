@@ -651,7 +651,7 @@ def nonsequential_bic(X,y,direction = "forward",cov_type = "HC0"):
     non_active_set = set(range(0,d))
     bic_vals_non_active_set = {i:0 for i in range(0,d)}
     while (len(bic_vals_non_active_set) != 0): #any(val < threshold for val in p_vals_non_active_set.values()) and
-        print(len(bic_vals_non_active_set))
+        # print(len(bic_vals_non_active_set))
         if len(active_set) == 0:
             for feat_considered in copy.deepcopy(non_active_set):
                 X_feat = X[:,feat_considered]
