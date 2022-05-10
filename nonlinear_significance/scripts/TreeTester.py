@@ -319,14 +319,13 @@ class TreeTester:
             tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
                                                    fraction_chosen=self.fraction_chosen, normalize=self.normalize)
             tree_transformer.fit(X_train)
-            max_num_pcs = tree_transformer.transform(X_test).shape[1]
-            pc_grid = np.geomspace(1, max_num_pcs, num=geom_grid_spacing, dtype=int)
             for j in range(X.shape[1]):
                 transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
                 if transformed_feats_for_j is None:
                     r_squared[i, j] = 0.0
                     num_components_chosen[i, j] = 0
                 else:
+                    pc_grid = np.geomspace(1, transformed_feats_for_j.shape[1], num=geom_grid_spacing, dtype=int)
                     all_scores = []
                     for fold in range(cv):
                         fold_scores = []
