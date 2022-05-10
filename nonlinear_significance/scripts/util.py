@@ -209,7 +209,7 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
                 pca = None
             elif max_components == 0 or (max_components == np.inf):
                 pca = None
-            elif always_pca or (n_stumps > max_components): #self.max_components:
+            elif always_pca or (n_stumps >= max_components): #self.max_components:
                 transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
                 pca = PCA(n_components=min(max_components, n_stumps, n_samples))
                 pca.fit(transformed_feature_vectors)
