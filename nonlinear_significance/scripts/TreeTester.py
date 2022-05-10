@@ -219,7 +219,7 @@ class TreeTester:
         r_squared = np.mean(r_squared, axis=0)
         return r_squared
 
-    def get_r_squared_stepwise_bic(self,X, y, num_splits=10, add_linear=True, direction = "forward"):
+    def get_r_squared_nonsequential_bic(self,X, y, num_splits=10, add_linear=True, direction = "forward"):
         r_squared = np.zeros((num_splits, X.shape[1]))
         num_components_chosen = np.zeros((num_splits, X.shape[1]))
         for i in tqdm(range(num_splits)):
@@ -236,7 +236,7 @@ class TreeTester:
                 else:
                     if add_linear:
                         transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:,j]),transformed_feats_for_j])
-                    active_set = stepwise_bic(transformed_feats_for_j,y_test- np.mean(y_test),direction)
+                    active_set = nonsequential_bic(transformed_feats_for_j,y_test- np.mean(y_test),direction)
                     if len(active_set) == 0:
                         r_squared[i, j] = 0.0
                     else:
@@ -629,7 +629,7 @@ def stepwise_regression_test(X,y,threshold,cov_type = "HC0"):
             break
     return [active_feat for active_feat in active_set]
 
-def stepwise_bic(X,y,direction = "forward",cov_type = "HC0"):
+def nonsequential_bic(X,y,direction = "forward",cov_type = "HC0"):
     d = X.shape[1]
     active_set = set() #indices of features to be included in model
     non_active_set = set(range(0,d))
