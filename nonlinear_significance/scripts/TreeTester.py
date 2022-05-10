@@ -271,7 +271,7 @@ class TreeTester:
             r_squared = np.mean(r_squared, axis=0)
             return r_squared
 
-    def get_pca_var_explained(self, X, y, num_splits=10, add_linear=True, threshold=0.5, diagnostics=False):
+    def get_r_squared_pca_var_explained(self, X, y, num_splits=10, add_linear=True, threshold=0.5, diagnostics=False):
         r_squared = np.zeros((num_splits, X.shape[1]))
         num_components_chosen = np.zeros((num_splits, X.shape[1]))
         for i in tqdm(range(num_splits)):
