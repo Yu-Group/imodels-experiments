@@ -173,7 +173,7 @@ def tree_feature_significance(X, y, fit, type="default", max_components='median'
     :return:
     """
 
-    assert type in ["default", "sequential_stepwise","ridge","stepwise"]
+    assert type in ["default", "sequential_stepwise","ridge","stepwise","pca_cv"]
 
     tree_tester = TreeTester(fit, max_components=max_components, normalize=normalize)
     if type == "default":
@@ -187,6 +187,11 @@ def tree_feature_significance(X, y, fit, type="default", max_components='median'
         r2 =  tree_tester.get_r_squared_ridge(X, y, num_splits=num_splits, add_linear=add_linear)
         median_p_vals = r2
         results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2}, columns=['importance','r2'])
+    elif type == "pca_cv":
+        r2, n_components = tree_tester.get_r_squared_pca_cv(X, y, num_splits=num_splits,                                                             add_linear=add_linear,threshold=threshold, first_ns=first_ns,diagnostics=True)
+        median_p_vals = r2
+        results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2,'n_components':n_components.mean(axis=0)}, columns=['importance','r2','n_components'])
+        
     else:
         r2 =  tree_tester.get_r_squared_stepwise_regression(X, y, num_splits=num_splits, add_linear=add_linear)
         median_p_vals = r2
