@@ -31,7 +31,7 @@ import statistics,warnings
 import statsmodels.api as sm
 from sklearn.model_selection import train_test_split
 from nonlinear_significance.scripts.util import TreeTransformer
-from sklearn.linear_model import RidgeCV,LassoCV
+from sklearn.linear_model import RidgeCV,LassoCV,LinearRegression
 
 
 #from nonlinear_significance.scripts.util import *
@@ -329,9 +329,8 @@ class TreeTester:
                     all_scores = []
                     for fold in range(cv):
                         fold_scores = []
-                        test_size = 1.0 - (1.0/self.cv)
-                        transformed_feats_for_j_train,transformed_feats_for_j_test,
-                        y_test_train,y_test_val = train_test_split(transformed_feats_for_j,y_test,test_size = test_size)
+                        test_size = 1.0 - (1.0/cv)
+                        transformed_feats_for_j_train,transformed_feats_for_j_test,y_test_train,y_test_val = train_test_split(transformed_feats_for_j,y_test,test_size = test_size)
                         for num_pcs in pc_grid:
                             transformed_feats_for_j_train_limited_pcs = transformed_feats_for_j_train[:,:num_pcs]
                             transformed_feats_for_j_test_limited_pcs = transformed_feats_for_j_test[:,:num_pcs]
@@ -340,10 +339,9 @@ class TreeTester:
                         all_scores.append(fold_scores)
                     pc_scores_for_j =  np.mean(all_scores, axis=0)
                     optimal_pcs_for_j = pc_grid[np.argmax(pc_scores_for_j)]
-                    transformed_feats_for_j = transformed_feats_for_j[:,optimal_pcs_for_j]
+                    transformed_feats_for_j = transformed_feats_for_j[:,:optimal_pcs_for_j]
                     if add_linear:
-                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),
-                                                                      transformed_feats_for_j])
+                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),transformed_feats_for_j])
                     OLS_for_j = sm.OLS(y_test - np.mean(y_test),transformed_feats_for_j).fit(cov_type="HC0")       
                     r_squared[i, j] = OLS_for_j.rsquared 
                     num_components_chosen[i,j] = optimal_pcs_for_j
