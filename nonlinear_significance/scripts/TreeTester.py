@@ -329,8 +329,8 @@ class TreeTester:
                     all_scores = []
                     for fold in range(cv):
                         fold_scores = []
-                        test_size = 1.0 - (1.0/cv)
-                        transformed_feats_for_j_train,transformed_feats_for_j_test,y_test_train,y_test_val = train_test_split(transformed_feats_for_j,y_test,test_size = test_size)
+                        train_size = 1.0 - (1.0/cv)
+                        transformed_feats_for_j_train,transformed_feats_for_j_test,y_test_train,y_test_val = train_test_split(transformed_feats_for_j,y_test,train_size = train_size)
                         for num_pcs in pc_grid:
                             transformed_feats_for_j_train_limited_pcs = transformed_feats_for_j_train[:,:num_pcs]
                             transformed_feats_for_j_test_limited_pcs = transformed_feats_for_j_test[:,:num_pcs]
