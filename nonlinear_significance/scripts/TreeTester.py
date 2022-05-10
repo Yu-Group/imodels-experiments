@@ -219,7 +219,7 @@ class TreeTester:
         r_squared = np.mean(r_squared, axis=0)
         return r_squared
 
-    def get_r_squared_nonsequential_bic(self,X, y, num_splits=10, add_linear=True, direction = "forward"):
+    def get_r_squared_nonsequential_bic(self,X, y, num_splits=10, add_linear=True, direction = "forward",diagnostics=False):
         r_squared = np.zeros((num_splits, X.shape[1]))
         num_components_chosen = np.zeros((num_splits, X.shape[1]))
         for i in tqdm(range(num_splits)):
@@ -239,13 +239,18 @@ class TreeTester:
                     active_set = nonsequential_bic(transformed_feats_for_j,y_test- np.mean(y_test),direction)
                     if len(active_set) == 0:
                         r_squared[i, j] = 0.0
+                        num_components_chosen[i, j] = 0
                     else:
                         OLS_for_j = sm.OLS(y_test - np.mean(y_test),transformed_feats_for_j[:,active_set] ).fit(cov_type="HC0")         
-                        r_squared[i, j] = OLS_for_j.rsquared      
+                        r_squared[i, j] = OLS_for_j.rsquared
+                        num_components_chosen[i, j] = len(active_set)  
         r_squared = np.mean(r_squared, axis=0)
-        return r_squared
+        if diagnostics == True:
+                return r_squared, num_components_chosen
+        else:
+            return r_squared
 
-    def get_r_squared_sequential_bic(self,X, y, num_splits=10, add_linear=True):
+    def get_r_squared_sequential_bic(self,X, y, num_splits=10, add_linear=True,diagnostics=False):
         r_squared = np.zeros((num_splits, X.shape[1]))
         num_components_chosen = np.zeros((num_splits, X.shape[1]))
         for i in tqdm(range(num_splits)):
@@ -265,11 +270,16 @@ class TreeTester:
                     active_set = sequential_bic(transformed_feats_for_j,y_test- np.mean(y_test))
                     if len(active_set) == 0:
                         r_squared[i, j] = 0.0
+                        num_components_chosen[i,j] = 0
                     else:
                         OLS_for_j = sm.OLS(y_test - np.mean(y_test),transformed_feats_for_j[:,active_set] ).fit(cov_type="HC0")         
-                        r_squared[i, j] = OLS_for_j.rsquared      
+                        r_squared[i, j] = OLS_for_j.rsquared
+                        num_components_chosen[i,j] = len(active_set)      
         r_squared = np.mean(r_squared, axis=0)
-        return r_squared
+        if diagnostics == True:
+                return r_squared, num_components_chosen
+        else:
+            return r_squared
     
     def get_r_squared_stepwise_adjusr2(self,X, y, num_splits=10, add_linear=True, threshold=0.05):
         r_squared = np.zeros((num_splits, X.shape[1]))
@@ -294,7 +304,10 @@ class TreeTester:
                     ols_r2_model,ols_r2 = forward_selected(transformed_feats_for_j, 'response')
                     r_squared[i, j] = ols_r2
             r_squared = np.mean(r_squared, axis=0)
-            return r_squared
+            if diagnostics == True:
+                return r_squared, num_components_chosen
+            else:
+                return r_squared
                     
     def get_r_squared_ridge(self, X, y, num_splits=10, add_linear=True):
             r_squared = np.zeros((num_splits, X.shape[1]))
@@ -321,7 +334,10 @@ class TreeTester:
                             r_squared[i, j] = clf.score(transformed_feats_for_j,y_test - np.mean(y_test))
                         #r2_score(y_test,clf.predict(#clf.score(transformed_feats_for_j,y_test)
             r_squared = np.mean(r_squared, axis=0)
-            return r_squared
+            if diagnostics == True:
+                return r_squared, num_components_chosen
+            else:
+                return r_squared
 
     def get_r_squared_pca_var_explained(self, X, y, num_splits=10, add_linear=True, threshold=0.5, diagnostics=False):
         r_squared = np.zeros((num_splits, X.shape[1]))
