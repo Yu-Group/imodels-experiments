@@ -52,7 +52,7 @@ def get_r_squared(OLS_results, tree_transformer, transformed_feats, y_test, orig
 
 class TreeTester:
 
-    def __init__(self, estimator, max_components_type='median', fraction_chosen=1.0, normalize=True):
+    def __init__(self, estimator, max_components_type='median', fraction_chosen=1.0, normalize=False):
         """
 
         :param estimator:
