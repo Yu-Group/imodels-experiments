@@ -52,7 +52,7 @@ def get_r_squared(OLS_results, tree_transformer, transformed_feats, y_test, orig
 
 class TreeTester:
 
-    def __init__(self, estimator, max_components='median', normalize=True):
+    def __init__(self, estimator, max_components_type='median', fraction_chosen=1.0, normalize=True):
         """
 
         :param estimator:
@@ -62,7 +62,8 @@ class TreeTester:
         :param normalize:
         """
         self.estimator = estimator
-        self.max_components = max_components
+        self.max_components_type = max_components_type
+        self.fraction_chosen = fraction_chosen
         self.normalize = normalize
 
     def get_feature_significance_and_ranking(self, X, y, num_splits=10
@@ -73,7 +74,8 @@ class TreeTester:
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
                                                                 random_state=i)  # perform sample splitting
             self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
-            tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
             tree_transformer.fit(X_train)  # Apply PCA on X_train
             # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
             if joint:  # Fit joint linear model
@@ -145,7 +147,8 @@ class TreeTester:
                                                                 random_state=i)  # perform sample splitting
             self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
             # if self.max_components == 'median':
-            tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
             tree_transformer.fit(X_train)  # Apply PCA on X_train
             #transformed_feats = tree_transformer.transform(X_test)
             # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
@@ -196,7 +199,8 @@ class TreeTester:
         for i in tqdm(range(num_splits)):
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state=i)  # perform sample splitting
             self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
-            tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
             tree_transformer.fit(X_train)  # Apply PCA on X_train
             for j in range(X.shape[1]):  # Iterate over original features
                 transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
@@ -221,7 +225,8 @@ class TreeTester:
         for i in tqdm(range(num_splits)):
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state=i)  # perform sample splitting
             self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
-            tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
             tree_transformer.fit(X_train)  # Apply PCA on X_train
             for j in range(X.shape[1]):  # Iterate over original features
                 transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
@@ -245,11 +250,12 @@ class TreeTester:
                 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
                                                                 random_state=i)  # perform sample splitting
                 self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features # if self.max_components == 'median':
-                tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
+                tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                                   fraction_chosen=self.fraction_chosen, normalize=self.normalize)
                 tree_transformer.fit(X_train,always_pca = False)  # Apply PCA on X_train
                 tree_transformed_test = tree_transformer.transform(X_test)  # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
                 for j in range(X.shape[1]):  # Iterate over original features
-                    transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(tree_transformed_test,j,self.max_components)
+                    transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(tree_transformed_test, j, self.max_components_type)
                     if add_linear:
                         transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),
                                                                       transformed_feats_for_j])
@@ -291,14 +297,14 @@ class optimalTreeTester:  # This class is trying to improve the power of TreeTes
                 self.estimator.fit(X_sel, y_sel)
 
             if max_components == 'median':
-                tree_transformer_sel = TreeTransformer(estimator=copy.deepcopy(self.estimator), max_components='median')
-                tree_transformer_inf = TreeTransformer(estimator=copy.deepcopy(self.estimator), max_components='median')
+                tree_transformer_sel = TreeTransformer(estimator=copy.deepcopy(self.estimator), max_components_type='median')
+                tree_transformer_inf = TreeTransformer(estimator=copy.deepcopy(self.estimator), max_components_type='median')
 
             else:
                 tree_transformer_sel = TreeTransformer(estimator=self.estimator,
-                                                       max_components=int(self.max_components * X_train.shape[0]))
+                                                       max_components_type=int(self.max_components * X_train.shape[0]))
                 tree_transformer_inf = TreeTransformer(estimator=self.estimator,
-                                                       max_components=int(self.max_components * X_train.shape[0]))
+                                                       max_components_type=int(self.max_components * X_train.shape[0]))
 
             # tree_transformer_sel = TreeTransformer(estimator = copy.deepcopy(self.estimator), max_components= int(X_sel.shape[0]*max_components) )
             tree_transformer_sel.fit(X_sel)
