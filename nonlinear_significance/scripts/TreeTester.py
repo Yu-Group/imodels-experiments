@@ -303,11 +303,11 @@ class TreeTester:
                                                                       filtered_transformed_feats_for_j])
                     OLS_for_j = sm.OLS(y_test - np.mean(y_test), filtered_transformed_feats_for_j).fit(cov_type="HC0")
                     r_squared[i, j] = OLS_for_j.rsquared
-            r_squared = np.mean(r_squared, axis=0)
-            if diagnostics:
-                return r_squared, num_components_chosen
-            else:
-                return r_squared
+        r_squared = np.mean(r_squared, axis=0)
+        if diagnostics:
+            return r_squared, num_components_chosen
+        else:
+            return r_squared
 
         
     def get_r_squared_pca_cv(self,X,y,num_splits=10,cv = 5
