@@ -93,27 +93,19 @@ def make_stump(node_no, tree_struct, parent_stump, is_right_child, normalize=Fal
 
     feature = tree_struct.feature[node_no]
     threshold = tree_struct.threshold[node_no]
-
+    parent_size = tree_struct.n_node_samples[node_no]
+    left_child = tree_struct.children_left[node_no]
+    right_child = tree_struct.children_right[node_no]
+    left_size = tree_struct.n_node_samples[left_child]
+    right_size = tree_struct.n_node_samples[right_child]
     if not normalize:
-        return LocalDecisionStump(feature, threshold, -1, 1, a_features, a_thresholds, a_signs)
-    # else:
-    #     # parent_size = tree_struct.n_node_samples[node_no]
-    #     left_child = tree_struct.children_left[node_no]
-    #     right_child = tree_struct.children_right[node_no]
-    #     left_size = tree_struct.n_node_samples[left_child]
-    #     right_size = tree_struct.n_node_samples[right_child]
-    #     left_val = - np.sqrt(right_size / left_size)
-    #     right_val = np.sqrt(left_size / right_size)
-    #     return LocalDecisionStump(feature, threshold, left_val, right_val, a_features, a_thresholds, a_signs)
+        # return LocalDecisionStump(feature, threshold, -1, 1, a_features, a_thresholds, a_signs)
+        left_val = - np.sqrt(right_size / left_size)
+        right_val = np.sqrt(left_size / right_size)
     else:
-        parent_size = tree_struct.n_node_samples[node_no]
-        left_child = tree_struct.children_left[node_no]
-        right_child = tree_struct.children_right[node_no]
-        left_size = tree_struct.n_node_samples[left_child]
-        right_size = tree_struct.n_node_samples[right_child]
         left_val = - np.sqrt(right_size / (left_size * parent_size))
         right_val = np.sqrt(left_size / (right_size * parent_size))
-        return LocalDecisionStump(feature, threshold, left_val, right_val, a_features, a_thresholds, a_signs)
+    return LocalDecisionStump(feature, threshold, left_val, right_val, a_features, a_thresholds, a_signs)
 
 
 def make_stumps(tree_struct, normalize=False):
@@ -155,17 +147,18 @@ def tree_feature_transform(stumps, X):
 
 class TreeTransformer(TransformerMixin, BaseEstimator):
 
-    def __init__(self, estimator, max_components="median", normalize=True):
+    def __init__(self, estimator, max_components_type="median", fraction_chosen=1.0, normalize=False):
         """
 
         :param estimator:
-        :param max_components: Method for choosing the number of components for PCA. Can be either "median", "max",
+        :param max_components_type: Method for choosing the number of components for PCA. Can be either "median", "max",
             or a fraction in [0, 1]. If "median" (respectively "max") then this is set as the median (respectively max
             number of splits on that feature in the RF. If a fraction, then this is set to be the fraction * n
         :param normalize:
         """
         self.estimator = estimator
-        self.max_components = max_components
+        self.max_components_type = max_components_type
+        self.fraction_chosen = fraction_chosen
         self.normalize = normalize
         num_splits_per_feature_all = []
         if isinstance(estimator, BaseEnsemble):
@@ -194,23 +187,31 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
     def fit(self, X, y=None, parallelize=False, always_pca=True):
 
         def pca_on_stumps(k):
-            if self.max_components == 'median':
-                max_components = int(self.median_splits[k])
-            elif self.max_components == "max":
-                max_components = int(self.max_splits[k])
-            elif self.max_components == np.inf:
-                max_components = np.inf
-            else:
-                max_components = int(self.max_components * X.shape[0])
             restricted_stumps = [self.all_stumps[idx] for idx in self.original_feat_to_stump_mapping[k]]
             n_stumps = len(restricted_stumps)
+            n_samples = X.shape[0]
+            if self.max_components_type == 'median':
+                max_components = int(self.median_splits[k] * self.fraction_chosen)
+            elif self.max_components_type == "max":
+                max_components = int(self.max_splits[k] * self.fraction_chosen)
+            elif self.max_components_type == "n":
+                max_components = int(n_samples * self.fraction_chosen)
+            elif self.max_components_type == "minnp":
+                max_components = int(min(n_samples, n_stumps) * self.fraction_chosen)
+            elif self.max_components_type == "none":
+                max_components = np.inf
+            elif isinstance(self.max_components_type, int):
+                max_components = self.max_components_type
+            else:
+                raise ValueError("Invalid max components type")
+
             if n_stumps == 0:
                 pca = None
             elif max_components == 0 or (max_components == np.inf):
                 pca = None
-            elif always_pca or (n_stumps > max_components): #self.max_components:
+            elif always_pca or (n_stumps >= max_components): #self.max_components:
                 transformed_feature_vectors = tree_feature_transform(restricted_stumps, X)
-                pca = PCA(n_components=min(max_components,n_stumps,X.shape[0]) ) # self.max_components)
+                pca = PCA(n_components=min(max_components, n_stumps, n_samples))
                 pca.fit(transformed_feature_vectors)
             else:
                 pca = None

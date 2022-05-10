@@ -31,7 +31,7 @@ import statistics,warnings
 import statsmodels.api as sm
 from sklearn.model_selection import train_test_split
 from nonlinear_significance.scripts.util import TreeTransformer
-from sklearn.linear_model import RidgeCV,LassoCV
+from sklearn.linear_model import RidgeCV,LassoCV,LinearRegression
 
 
 #from nonlinear_significance.scripts.util import *
@@ -52,7 +52,7 @@ def get_r_squared(OLS_results, tree_transformer, transformed_feats, y_test, orig
 
 class TreeTester:
 
-    def __init__(self, estimator, max_components='median', normalize=True):
+    def __init__(self, estimator, max_components_type='median', fraction_chosen=1.0, normalize=False):
         """
 
         :param estimator:
@@ -62,7 +62,8 @@ class TreeTester:
         :param normalize:
         """
         self.estimator = estimator
-        self.max_components = max_components
+        self.max_components_type = max_components_type
+        self.fraction_chosen = fraction_chosen
         self.normalize = normalize
 
     def get_feature_significance_and_ranking(self, X, y, num_splits=10
@@ -73,7 +74,8 @@ class TreeTester:
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
                                                                 random_state=i)  # perform sample splitting
             self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
-            tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
             tree_transformer.fit(X_train)  # Apply PCA on X_train
             # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
             if joint:  # Fit joint linear model
@@ -145,7 +147,8 @@ class TreeTester:
                                                                 random_state=i)  # perform sample splitting
             self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
             # if self.max_components == 'median':
-            tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
             tree_transformer.fit(X_train)  # Apply PCA on X_train
             #transformed_feats = tree_transformer.transform(X_test)
             # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
@@ -171,7 +174,7 @@ class TreeTester:
                             stopping_index = transformed_feats_for_j.shape[1]
                         else:
                             stopping_index = np.nonzero(f_p_values > threshold)[0][0]
-                        # num_components_chosen[i, j] = stopping_index  # (stopping_index,transformed_feats_for_j.shape[1])
+                        num_components_chosen[i, j] = stopping_index  # (stopping_index,transformed_feats_for_j.shape[1])
                         filtered_transformed_feats_for_j = transformed_feats_for_j[:, np.arange(stopping_index)]
                     else:
                         filtered_transformed_feats_for_j = transformed_feats_for_j[:, f_p_values <= threshold]
@@ -196,7 +199,8 @@ class TreeTester:
         for i in tqdm(range(num_splits)):
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state=i)  # perform sample splitting
             self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
-            tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
             tree_transformer.fit(X_train)  # Apply PCA on X_train
             for j in range(X.shape[1]):  # Iterate over original features
                 transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
@@ -214,14 +218,77 @@ class TreeTester:
                         r_squared[i, j] = OLS_for_j.rsquared      
         r_squared = np.mean(r_squared, axis=0)
         return r_squared
-    
-    def get_r_squared_stepwise_adjusr2(self,X, y, num_splits=10, add_linear=True, threshold=0.05):
+
+    def get_r_squared_nonsequential_bic(self,X, y, num_splits=10, add_linear=True, direction = "forward",diagnostics=False):
         r_squared = np.zeros((num_splits, X.shape[1]))
         num_components_chosen = np.zeros((num_splits, X.shape[1]))
         for i in tqdm(range(num_splits)):
             X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state=i)  # perform sample splitting
             self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
-            tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
+            tree_transformer.fit(X_train)  # Apply PCA on X_train
+            for j in range(X.shape[1]):  # Iterate over original features
+                transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                if transformed_feats_for_j is None:
+                    r_squared[i, j] = 0.0
+                    num_components_chosen[i, j] = 0
+                else:
+                    if add_linear:
+                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:,j]),transformed_feats_for_j])
+                    active_set = nonsequential_bic(transformed_feats_for_j,y_test- np.mean(y_test),direction)
+                    if len(active_set) == 0:
+                        r_squared[i, j] = 0.0
+                        num_components_chosen[i, j] = 0
+                    else:
+                        OLS_for_j = sm.OLS(y_test - np.mean(y_test),transformed_feats_for_j[:,active_set] ).fit(cov_type="HC0")         
+                        r_squared[i, j] = OLS_for_j.rsquared
+                        num_components_chosen[i, j] = len(active_set)  
+        r_squared = np.mean(r_squared, axis=0)
+        if diagnostics == True:
+                return r_squared, num_components_chosen
+        else:
+            return r_squared
+
+    def get_r_squared_sequential_bic(self,X, y, num_splits=10, add_linear=True,diagnostics=False):
+        r_squared = np.zeros((num_splits, X.shape[1]))
+        num_components_chosen = np.zeros((num_splits, X.shape[1]))
+        for i in tqdm(range(num_splits)):
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state=i)  # perform sample splitting
+            self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
+            tree_transformer.fit(X_train)  # Apply PCA on X_train
+            for j in range(X.shape[1]):  # Iterate over original features
+                transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                if transformed_feats_for_j is None:
+                    r_squared[i, j] = 0.0
+                    num_components_chosen[i, j] = 0
+                else:
+                    if add_linear:
+                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:,j]),transformed_feats_for_j])
+                    active_set = sequential_bic(transformed_feats_for_j,y_test- np.mean(y_test))
+                    if len(active_set) == 0:
+                        r_squared[i, j] = 0.0
+                        num_components_chosen[i,j] = 0
+                    else:
+                        OLS_for_j = sm.OLS(y_test - np.mean(y_test),transformed_feats_for_j[:,active_set] ).fit(cov_type="HC0")         
+                        r_squared[i, j] = OLS_for_j.rsquared
+                        num_components_chosen[i,j] = len(active_set)      
+        r_squared = np.mean(r_squared, axis=0)
+        if diagnostics:
+            return r_squared, num_components_chosen
+        else:
+            return r_squared
+    
+    def get_r_squared_stepwise_adjusr2(self,X, y, num_splits=10, add_linear=True, threshold=0.05, diagnostics=False):
+        r_squared = np.zeros((num_splits, X.shape[1]))
+        num_components_chosen = np.zeros((num_splits, X.shape[1]))
+        for i in tqdm(range(num_splits)):
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state=i)  # perform sample splitting
+            self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
             tree_transformer.fit(X_train)  # Apply PCA on X_train
             for j in range(X.shape[1]):  # Iterate over original features
                 transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
@@ -237,36 +304,125 @@ class TreeTester:
                     ols_r2_model,ols_r2 = forward_selected(transformed_feats_for_j, 'response')
                     r_squared[i, j] = ols_r2
             r_squared = np.mean(r_squared, axis=0)
-            return r_squared
-                    
-    def get_r_squared_ridge(self, X, y, num_splits=10, add_linear=True):
-            r_squared = np.zeros((num_splits, X.shape[1]))
-            for i in tqdm(range(num_splits)):
-                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
-                                                                random_state=i)  # perform sample splitting
-                self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features # if self.max_components == 'median':
-                tree_transformer = TreeTransformer(estimator=self.estimator, max_components=self.max_components)
-                tree_transformer.fit(X_train,always_pca = False)  # Apply PCA on X_train
-                tree_transformed_test = tree_transformer.transform(X_test)  # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
-                for j in range(X.shape[1]):  # Iterate over original features
-                    transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(tree_transformed_test,j,self.max_components)
+            if diagnostics:
+                return r_squared, num_components_chosen
+            else:
+                return r_squared
+
+    def get_r_squared_ridge(self, X, y, num_splits=10, add_linear=True, diagnostics=False):
+        r_squared = np.zeros((num_splits, X.shape[1]))
+        num_components_chosen = np.zeros((num_splits, X.shape[1]))
+        for i in tqdm(range(num_splits)):
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
+                                                            random_state=i)  # perform sample splitting
+            self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features # if self.max_components == 'median':
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
+            tree_transformer.fit(X_train)  # Apply PCA on X_train
+            # tree_transformed_test = tree_transformer.transform(X_test)  # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
+            for j in range(X.shape[1]):  # Iterate over original features
+                transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                if transformed_feats_for_j is None:
+                    r_squared[i, j] = 0.0
+                    num_components_chosen[i, j] = 0
+                else:
                     if add_linear:
                         transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),
-                                                                      transformed_feats_for_j])
-                    if transformed_feats_for_j is None:
-                        r_squared[i, j] = 0.0
-                        num_components_chosen[i, j] = 0
-                    else:
-                        with warnings.catch_warnings():
-                            warnings.filterwarnings("ignore")
-                            clf = RidgeCV(alphas=[1e-3, 1e-2, 1e-1, 1,10.0,100.0,500.0]).fit(transformed_feats_for_j,y_test - np.mean(y_test))
-                            r_squared[i, j] = clf.score(transformed_feats_for_j,y_test - np.mean(y_test))
-                        #r2_score(y_test,clf.predict(#clf.score(transformed_feats_for_j,y_test)
-            r_squared = np.mean(r_squared, axis=0)
+                                                             transformed_feats_for_j])
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore")
+                        clf = RidgeCV(alphas=[1e-3, 1e-2, 1e-1, 1,10.0,100.0,500.0]).fit(transformed_feats_for_j,y_test - np.mean(y_test))
+                        r_squared[i, j] = clf.score(transformed_feats_for_j,y_test - np.mean(y_test))
+                    #r2_score(y_test,clf.predict(#clf.score(transformed_feats_for_j,y_test)
+        r_squared = np.mean(r_squared, axis=0)
+        if diagnostics:
+            return r_squared, num_components_chosen
+        else:
             return r_squared
+
+
+    def get_r_squared_pca_var_explained(self, X, y, num_splits=10, add_linear=True, threshold=0.5, diagnostics=False):
+        r_squared = np.zeros((num_splits, X.shape[1]))
+        num_components_chosen = np.zeros((num_splits, X.shape[1]))
+        for i in tqdm(range(num_splits)):
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
+                                                                random_state=i)  # perform sample splitting
+            self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
+            # if self.max_components == 'median':
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
+            tree_transformer.fit(X_train)  # Apply PCA on X_train
+            # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
+            for j in range(X.shape[1]):  # Iterate over original features
+                transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                if transformed_feats_for_j is None:
+                    r_squared[i, j] = 0.0
+                    num_components_chosen[i, j] = 0
+                else:
+                    pca_var_explained = tree_transformer.pca_transformers[j].explained_variance_ratio_
+                    cum_var_explained = np.cumsum(pca_var_explained)
+                    if cum_var_explained[-1] < threshold:
+                        stopping_index = len(pca_var_explained)
+                    else:
+                        stopping_index = np.where(cum_var_explained >= threshold)[0][0]
+                    num_components_chosen[i, j] = stopping_index
+                    transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                    filtered_transformed_feats_for_j = transformed_feats_for_j[:, np.arange(stopping_index)]
+                    if add_linear:
+                        filtered_transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),
+                                                                      filtered_transformed_feats_for_j])
+                    OLS_for_j = sm.OLS(y_test - np.mean(y_test), filtered_transformed_feats_for_j).fit(cov_type="HC0")
+                    r_squared[i, j] = OLS_for_j.rsquared
+        r_squared = np.mean(r_squared, axis=0)
+        if diagnostics:
+            return r_squared, num_components_chosen
+        else:
+            return r_squared
+
         
-   
-   
+    def get_r_squared_pca_cv(self, X, y, num_splits=10, cv=5, geom_grid_spacing=8, add_linear=True, diagnostics=False):
+        r_squared = np.zeros((num_splits,X.shape[1]))
+        num_components_chosen = np.zeros((num_splits,X.shape[1]))
+        for i in tqdm(range(num_splits)):
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state=i)
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                                   fraction_chosen=self.fraction_chosen, normalize=self.normalize)
+            tree_transformer.fit(X_train)
+            for j in range(X.shape[1]):
+                transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                if transformed_feats_for_j is None:
+                    r_squared[i, j] = 0.0
+                    num_components_chosen[i, j] = 0
+                else:
+                    pc_grid = np.geomspace(1, transformed_feats_for_j.shape[1], num=geom_grid_spacing, dtype=int)
+                    all_scores = []
+                    for fold in range(cv):
+                        fold_scores = []
+                        train_size = 1.0 - (1.0/cv)
+                        transformed_feats_for_j_train,transformed_feats_for_j_test,y_test_train,y_test_val = train_test_split(transformed_feats_for_j,y_test,train_size = train_size)
+                        for num_pcs in pc_grid:
+                            transformed_feats_for_j_train_limited_pcs = transformed_feats_for_j_train[:,:num_pcs]
+                            transformed_feats_for_j_test_limited_pcs = transformed_feats_for_j_test[:,:num_pcs]
+                            reg = LinearRegression().fit(transformed_feats_for_j_train_limited_pcs, y_test_train)
+                            fold_scores.append(r2_score(y_test_val,reg.predict(transformed_feats_for_j_test_limited_pcs)))
+                        all_scores.append(fold_scores)
+                    pc_scores_for_j =  np.mean(all_scores, axis=0)
+                    optimal_pcs_for_j = pc_grid[np.argmax(pc_scores_for_j)]
+                    transformed_feats_for_j = transformed_feats_for_j[:,:optimal_pcs_for_j]
+                    if add_linear:
+                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),transformed_feats_for_j])
+                    OLS_for_j = sm.OLS(y_test - np.mean(y_test),transformed_feats_for_j).fit(cov_type="HC0")       
+                    r_squared[i, j] = OLS_for_j.rsquared 
+                    num_components_chosen[i,j] = optimal_pcs_for_j
+        r_squared = np.mean(r_squared, axis=0)
+        if diagnostics:
+            return r_squared, num_components_chosen
+        else:
+            return r_squared
+                
+                
+                        
+                        
 
             
 class optimalTreeTester:  # This class is trying to improve the power of TreeTester by implementing an optimal weighting scheme that favors big nodes...
@@ -291,14 +447,14 @@ class optimalTreeTester:  # This class is trying to improve the power of TreeTes
                 self.estimator.fit(X_sel, y_sel)
 
             if max_components == 'median':
-                tree_transformer_sel = TreeTransformer(estimator=copy.deepcopy(self.estimator), max_components='median')
-                tree_transformer_inf = TreeTransformer(estimator=copy.deepcopy(self.estimator), max_components='median')
+                tree_transformer_sel = TreeTransformer(estimator=copy.deepcopy(self.estimator), max_components_type='median')
+                tree_transformer_inf = TreeTransformer(estimator=copy.deepcopy(self.estimator), max_components_type='median')
 
             else:
                 tree_transformer_sel = TreeTransformer(estimator=self.estimator,
-                                                       max_components=int(self.max_components * X_train.shape[0]))
+                                                       max_components_type=int(self.max_components * X_train.shape[0]))
                 tree_transformer_inf = TreeTransformer(estimator=self.estimator,
-                                                       max_components=int(self.max_components * X_train.shape[0]))
+                                                       max_components_type=int(self.max_components * X_train.shape[0]))
 
             # tree_transformer_sel = TreeTransformer(estimator = copy.deepcopy(self.estimator), max_components= int(X_sel.shape[0]*max_components) )
             tree_transformer_sel.fit(X_sel)
@@ -490,6 +646,62 @@ def stepwise_regression_test(X,y,threshold,cov_type = "HC0"):
             break
     return [active_feat for active_feat in active_set]
 
+def nonsequential_bic(X,y,direction = "forward",cov_type = "HC0"):
+    d = X.shape[1]
+    active_set = set() #indices of features to be included in model
+    non_active_set = set(range(0,d))
+    bic_vals_non_active_set = {i:0 for i in range(0,d)}
+    while (len(bic_vals_non_active_set) != 0): #any(val < threshold for val in p_vals_non_active_set.values()) and
+        # print(len(bic_vals_non_active_set))
+        if len(active_set) == 0:
+            for feat_considered in copy.deepcopy(non_active_set):
+                X_feat = X[:,feat_considered]
+                ols = sm.OLS(y,X_feat).fit(cov_type=cov_type)
+                bic_vals_non_active_set[feat_considered] = ols.bic
+        else:
+            X_active_set = X[:,list(active_set)]
+            ols_active_set = sm.OLS(y,X_active_set).fit(cov_type=cov_type)
+            for feat_considered in copy.deepcopy(non_active_set):
+                active_set_under_consideration = copy.deepcopy(active_set)
+                active_set_under_consideration.add(feat_considered)
+                X_active_union_feat = X[:,list(active_set_under_consideration)]
+                ols_active_union_feat = sm.OLS(y,X_active_union_feat).fit(cov_type=cov_type)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore")
+                    bic_vals_non_active_set[feat_considered] = ols_active_union_feat.bic
+        smallest_bic_val_feat = min(bic_vals_non_active_set, key=bic_vals_non_active_set.get)  #np.argmin(p_vals) + 1
+        smallest_bic_val = bic_vals_non_active_set[smallest_bic_val_feat]
+        if len(active_set) == 0:
+            current_bic = smallest_bic_val
+            active_set.add(smallest_bic_val_feat)
+            non_active_set.remove(smallest_bic_val_feat)
+            del bic_vals_non_active_set[smallest_bic_val_feat]
+        else:
+            if smallest_bic_val < current_bic:
+                active_set.add(smallest_bic_val_feat)
+                non_active_set.remove(smallest_bic_val_feat)
+                del bic_vals_non_active_set[smallest_bic_val_feat]
+            else:
+                break
+    return [active_feat for active_feat in active_set]
+
+def sequential_bic(X,y,cov_type = "HC0"):
+    d = X.shape[1]
+    active_set = set()
+    bic_values = np.zeros(d)
+    ols_full = sm.OLS(y, X[:, 0]).fit(cov_type=cov_type)
+    bic_values[0] = ols_full.bic
+    active_set.add(0)
+    for i in range(1, d):
+        ols_full = sm.OLS(y, X[:, np.arange(i + 1)]).fit(cov_type=cov_type)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            bic_values[i] = ols_full.bic
+        if bic_values[i] < bic_values[i-1]:
+            active_set.add(i)
+        else:
+            break
+    return [active_feat for active_feat in active_set]
 
 import statsmodels.formula.api as smf
 
