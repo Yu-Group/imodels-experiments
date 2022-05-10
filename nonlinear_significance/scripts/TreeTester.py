@@ -296,31 +296,35 @@ class TreeTester:
             r_squared = np.mean(r_squared, axis=0)
             return r_squared
                     
-    def get_r_squared_ridge(self, X, y, num_splits=10, add_linear=True):
-            r_squared = np.zeros((num_splits, X.shape[1]))
-            for i in tqdm(range(num_splits)):
-                X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
-                                                                random_state=i)  # perform sample splitting
-                self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features # if self.max_components == 'median':
-                tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
-                                                   fraction_chosen=self.fraction_chosen, normalize=self.normalize)
-                tree_transformer.fit(X_train)  # Apply PCA on X_train
-                tree_transformed_test = tree_transformer.transform(X_test)  # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
-                for j in range(X.shape[1]):  # Iterate over original features
-                    transformed_feats_for_j = tree_transformer.get_transformed_X_for_feat(tree_transformed_test, j, self.max_components_type)
-                    if add_linear:
-                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),
-                                                                      transformed_feats_for_j])
-                    if transformed_feats_for_j is None:
-                        r_squared[i, j] = 0.0
-                        num_components_chosen[i, j] = 0
-                    else:
-                        with warnings.catch_warnings():
-                            warnings.filterwarnings("ignore")
-                            clf = RidgeCV(alphas=[1e-3, 1e-2, 1e-1, 1,10.0,100.0,500.0]).fit(transformed_feats_for_j,y_test - np.mean(y_test))
-                            r_squared[i, j] = clf.score(transformed_feats_for_j,y_test - np.mean(y_test))
-                        #r2_score(y_test,clf.predict(#clf.score(transformed_feats_for_j,y_test)
-            r_squared = np.mean(r_squared, axis=0)
+    def get_r_squared_ridge(self, X, y, num_splits=10, add_linear=True, diagnostics=False):
+        r_squared = np.zeros((num_splits, X.shape[1]))
+        num_components_chosen = np.zeros((num_splits, X.shape[1]))
+        for i in tqdm(range(num_splits)):
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
+                                                            random_state=i)  # perform sample splitting
+            self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features # if self.max_components == 'median':
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
+            tree_transformer.fit(X_train)  # Apply PCA on X_train
+            # tree_transformed_test = tree_transformer.transform(X_test)  # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
+            for j in range(X.shape[1]):  # Iterate over original features
+                transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                if add_linear:
+                    transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),
+                                                                  transformed_feats_for_j])
+                if transformed_feats_for_j is None:
+                    r_squared[i, j] = 0.0
+                    num_components_chosen[i, j] = 0
+                else:
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore")
+                        clf = RidgeCV(alphas=[1e-3, 1e-2, 1e-1, 1,10.0,100.0,500.0]).fit(transformed_feats_for_j,y_test - np.mean(y_test))
+                        r_squared[i, j] = clf.score(transformed_feats_for_j,y_test - np.mean(y_test))
+                    #r2_score(y_test,clf.predict(#clf.score(transformed_feats_for_j,y_test)
+        r_squared = np.mean(r_squared, axis=0)
+        if diagnostics:
+            return r_squared, num_components_chosen
+        else:
             return r_squared
 
     def get_r_squared_pca_var_explained(self, X, y, num_splits=10, add_linear=True, threshold=0.5, diagnostics=False):
@@ -362,8 +366,7 @@ class TreeTester:
             return r_squared
 
         
-    def get_r_squared_pca_cv(self,X,y,num_splits=10,cv = 5
-                             ,geom_grid_spacing = 8,add_linear=True,diagnostics = True):
+    def get_r_squared_pca_cv(self, X, y, num_splits=10, cv=5, geom_grid_spacing=8, add_linear=True, diagnostics=False):
         r_squared = np.zeros((num_splits,X.shape[1]))
         num_components_chosen = np.zeros((num_splits,X.shape[1]))
         for i in tqdm(range(num_splits)):
@@ -398,7 +401,7 @@ class TreeTester:
                     r_squared[i, j] = OLS_for_j.rsquared 
                     num_components_chosen[i,j] = optimal_pcs_for_j
         r_squared = np.mean(r_squared, axis=0)
-        if diagnostics == True:
+        if diagnostics:
             return r_squared, num_components_chosen
         else:
             return r_squared
