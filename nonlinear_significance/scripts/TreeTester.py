@@ -276,12 +276,12 @@ class TreeTester:
                         r_squared[i, j] = OLS_for_j.rsquared
                         num_components_chosen[i,j] = len(active_set)      
         r_squared = np.mean(r_squared, axis=0)
-        if diagnostics == True:
-                return r_squared, num_components_chosen
+        if diagnostics:
+            return r_squared, num_components_chosen
         else:
             return r_squared
     
-    def get_r_squared_stepwise_adjusr2(self,X, y, num_splits=10, add_linear=True, threshold=0.05):
+    def get_r_squared_stepwise_adjusr2(self,X, y, num_splits=10, add_linear=True, threshold=0.05, diagnostics=False):
         r_squared = np.zeros((num_splits, X.shape[1]))
         num_components_chosen = np.zeros((num_splits, X.shape[1]))
         for i in tqdm(range(num_splits)):
@@ -304,7 +304,7 @@ class TreeTester:
                     ols_r2_model,ols_r2 = forward_selected(transformed_feats_for_j, 'response')
                     r_squared[i, j] = ols_r2
             r_squared = np.mean(r_squared, axis=0)
-            if diagnostics == True:
+            if diagnostics:
                 return r_squared, num_components_chosen
             else:
                 return r_squared
@@ -322,13 +322,13 @@ class TreeTester:
             # tree_transformed_test = tree_transformer.transform(X_test)  # transformed_feats = tree_transformer.transform(X_test)  # apply tree mapping on X_test
             for j in range(X.shape[1]):  # Iterate over original features
                 transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
-                if add_linear:
-                    transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),
-                                                                  transformed_feats_for_j])
                 if transformed_feats_for_j is None:
                     r_squared[i, j] = 0.0
                     num_components_chosen[i, j] = 0
                 else:
+                    if add_linear:
+                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),
+                                                             transformed_feats_for_j])
                     with warnings.catch_warnings():
                         warnings.filterwarnings("ignore")
                         clf = RidgeCV(alphas=[1e-3, 1e-2, 1e-1, 1,10.0,100.0,500.0]).fit(transformed_feats_for_j,y_test - np.mean(y_test))
