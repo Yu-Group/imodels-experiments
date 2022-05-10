@@ -218,6 +218,58 @@ class TreeTester:
                         r_squared[i, j] = OLS_for_j.rsquared      
         r_squared = np.mean(r_squared, axis=0)
         return r_squared
+
+    def get_r_squared_stepwise_bic(self,X, y, num_splits=10, add_linear=True, direction = "forward"):
+        r_squared = np.zeros((num_splits, X.shape[1]))
+        num_components_chosen = np.zeros((num_splits, X.shape[1]))
+        for i in tqdm(range(num_splits)):
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state=i)  # perform sample splitting
+            self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
+            tree_transformer.fit(X_train)  # Apply PCA on X_train
+            for j in range(X.shape[1]):  # Iterate over original features
+                transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                if transformed_feats_for_j is None:
+                    r_squared[i, j] = 0.0
+                    num_components_chosen[i, j] = 0
+                else:
+                    if add_linear:
+                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:,j]),transformed_feats_for_j])
+                    active_set = stepwise_bic(transformed_feats_for_j,y_test- np.mean(y_test),direction)
+                    if len(active_set) == 0:
+                        r_squared[i, j] = 0.0
+                    else:
+                        OLS_for_j = sm.OLS(y_test - np.mean(y_test),transformed_feats_for_j[:,active_set] ).fit(cov_type="HC0")         
+                        r_squared[i, j] = OLS_for_j.rsquared      
+        r_squared = np.mean(r_squared, axis=0)
+        return r_squared
+
+    def get_r_squared_sequential_bic(self,X, y, num_splits=10, add_linear=True):
+        r_squared = np.zeros((num_splits, X.shape[1]))
+        num_components_chosen = np.zeros((num_splits, X.shape[1]))
+        for i in tqdm(range(num_splits)):
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,random_state=i)  # perform sample splitting
+            self.estimator.fit(X_train, y_train)  # fit on half of sample to learn tree structure and features
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
+            tree_transformer.fit(X_train)  # Apply PCA on X_train
+            for j in range(X.shape[1]):  # Iterate over original features
+                transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                if transformed_feats_for_j is None:
+                    r_squared[i, j] = 0.0
+                    num_components_chosen[i, j] = 0
+                else:
+                    if add_linear:
+                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:,j]),transformed_feats_for_j])
+                    active_set = sequential_bic(transformed_feats_for_j,y_test- np.mean(y_test))
+                    if len(active_set) == 0:
+                        r_squared[i, j] = 0.0
+                    else:
+                        OLS_for_j = sm.OLS(y_test - np.mean(y_test),transformed_feats_for_j[:,active_set] ).fit(cov_type="HC0")         
+                        r_squared[i, j] = OLS_for_j.rsquared      
+        r_squared = np.mean(r_squared, axis=0)
+        return r_squared
     
     def get_r_squared_stepwise_adjusr2(self,X, y, num_splits=10, add_linear=True, threshold=0.05):
         r_squared = np.zeros((num_splits, X.shape[1]))
@@ -496,6 +548,62 @@ def stepwise_regression_test(X,y,threshold,cov_type = "HC0"):
             break
     return [active_feat for active_feat in active_set]
 
+def stepwise_bic(X,y,direction = "forward",cov_type = "HC0"):
+    d = X.shape[1]
+    active_set = set() #indices of features to be included in model
+    non_active_set = set(range(0,d))
+    bic_vals_non_active_set = {i:0 for i in range(0,d)}
+    while (len(bic_vals_non_active_set) != 0): #any(val < threshold for val in p_vals_non_active_set.values()) and
+        print(len(bic_vals_non_active_set))
+        if len(active_set) == 0:
+            for feat_considered in copy.deepcopy(non_active_set):
+                X_feat = X[:,feat_considered]
+                ols = sm.OLS(y,X_feat).fit(cov_type=cov_type)
+                bic_vals_non_active_set[feat_considered] = ols.bic
+        else:
+            X_active_set = X[:,list(active_set)]
+            ols_active_set = sm.OLS(y,X_active_set).fit(cov_type=cov_type)
+            for feat_considered in copy.deepcopy(non_active_set):
+                active_set_under_consideration = copy.deepcopy(active_set)
+                active_set_under_consideration.add(feat_considered)
+                X_active_union_feat = X[:,list(active_set_under_consideration)]
+                ols_active_union_feat = sm.OLS(y,X_active_union_feat).fit(cov_type=cov_type)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore")
+                    bic_vals_non_active_set[feat_considered] = ols_active_union_feat.bic
+        smallest_bic_val_feat = min(bic_vals_non_active_set, key=bic_vals_non_active_set.get)  #np.argmin(p_vals) + 1
+        smallest_bic_val = bic_vals_non_active_set[smallest_bic_val_feat]
+        if len(active_set) == 0:
+            current_bic = smallest_bic_val
+            active_set.add(smallest_bic_val_feat)
+            non_active_set.remove(smallest_bic_val_feat)
+            del bic_vals_non_active_set[smallest_bic_val_feat]
+        else:
+            if smallest_bic_val < current_bic:
+                active_set.add(smallest_bic_val_feat)
+                non_active_set.remove(smallest_bic_val_feat)
+                del bic_vals_non_active_set[smallest_bic_val_feat]
+            else:
+                break
+    return [active_feat for active_feat in active_set]
+
+def sequential_bic(X,y,cov_type = "HC0"):
+    d = X.shape[1]
+    active_set = set()
+    bic_values = np.zeros(d)
+    ols_full = sm.OLS(y, X[:, 0]).fit(cov_type=cov_type)
+    bic_values[0] = ols_full.bic
+    active_set.add(0)
+    for i in range(1, d):
+        ols_full = sm.OLS(y, X[:, np.arange(i + 1)]).fit(cov_type=cov_type)
+        with warnings.catch_warnings():
+            warnings.filterwarnings("ignore")
+            bic_values[i] = ols_full.bic
+        if bic_values[i] < bic_values[i-1]:
+            active_set.add(i)
+        else:
+            break
+    return [active_feat for active_feat in active_set]
 
 import statsmodels.formula.api as smf
 
