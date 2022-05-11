@@ -337,7 +337,8 @@ def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, r
         return y_train, support, beta_lss
     else:
         return y_train
-    
+
+  
     
 def hierarchical_poly(X,sigma,m,r,beta,heritability=None, snr=None, return_support = False):
     """
@@ -362,7 +363,7 @@ def hierarchical_poly(X,sigma,m,r,beta,heritability=None, snr=None, return_suppo
         for i in range(m):
             hier_term = 1.0
             for j in range(r):
-                hier_term += x[i*r+j]*hier_term
+                hier_term *= x[i*r+j]
             y += hier_term * beta[i]
         return y
 
@@ -379,9 +380,6 @@ def hierarchical_poly(X,sigma,m,r,beta,heritability=None, snr=None, return_suppo
         return y_train, support, beta
     else:
         return y_train
-
-
-    
     
     
 def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, return_support=False):
