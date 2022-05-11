@@ -735,6 +735,7 @@ def nonsequential_bic(X, y, direction="forward", cov_type="HC0"):
                 smallest_bic_val = bic_vals_tmp[smallest_bic_val_feat]
 
                 if smallest_bic_val < current_bic:
+                    current_bic = smallest_bic_val
                     active_set.remove(smallest_bic_val_feat)
                     non_active_set.add(smallest_bic_val_feat)
                     bic_vals_non_active_set[smallest_bic_val_feat] = smallest_bic_val
