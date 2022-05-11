@@ -683,29 +683,29 @@ def stepwise_regression_test(X, y, threshold, cov_type="HC0"):
 
 def nonsequential_bic(X, y, direction="forward", cov_type="HC0"):
     d = X.shape[1]
-    active_set = set()  # indices of features to be included in model
-    non_active_set = set(range(0, d))
-    bic_vals_non_active_set = {i: 0 for i in range(0, d)}
-    while (len(bic_vals_non_active_set) != 0):  # any(val < threshold for val in p_vals_non_active_set.values()) and
+    active_set = set() #indices of features to be included in model
+    non_active_set = set(range(0,d))
+    bic_vals_non_active_set = {i:0 for i in range(0,d)}
+    while (len(bic_vals_non_active_set) != 0):
         # print(len(bic_vals_non_active_set))
         if len(active_set) == 0:
             for feat_considered in copy.deepcopy(non_active_set):
-                X_feat = X[:, feat_considered]
-                ols = sm.OLS(y, X_feat).fit(cov_type=cov_type)
+                X_feat = X[:,feat_considered]
+                ols = sm.OLS(y,X_feat).fit(cov_type=cov_type)
                 bic_vals_non_active_set[feat_considered] = ols.bic
         else:
-            X_active_set = X[:, list(active_set)]
-            ols_active_set = sm.OLS(y, X_active_set).fit(cov_type=cov_type)
             for feat_considered in copy.deepcopy(non_active_set):
                 active_set_under_consideration = copy.deepcopy(active_set)
                 active_set_under_consideration.add(feat_considered)
-                X_active_union_feat = X[:, list(active_set_under_consideration)]
-                ols_active_union_feat = sm.OLS(y, X_active_union_feat).fit(cov_type=cov_type)
+                X_active_union_feat = X[:,list(active_set_under_consideration)]
+                ols_active_union_feat = sm.OLS(y,X_active_union_feat).fit(cov_type=cov_type)
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore")
                     bic_vals_non_active_set[feat_considered] = ols_active_union_feat.bic
-        smallest_bic_val_feat = min(bic_vals_non_active_set, key=bic_vals_non_active_set.get)  # np.argmin(p_vals) + 1
+
+        smallest_bic_val_feat = min(bic_vals_non_active_set, key=bic_vals_non_active_set.get)  #np.argmin(p_vals) + 1
         smallest_bic_val = bic_vals_non_active_set[smallest_bic_val_feat]
+
         if len(active_set) == 0:
             current_bic = smallest_bic_val
             active_set.add(smallest_bic_val_feat)
@@ -713,11 +713,33 @@ def nonsequential_bic(X, y, direction="forward", cov_type="HC0"):
             del bic_vals_non_active_set[smallest_bic_val_feat]
         else:
             if smallest_bic_val < current_bic:
+                current_bic = smallest_bic_val
                 active_set.add(smallest_bic_val_feat)
                 non_active_set.remove(smallest_bic_val_feat)
                 del bic_vals_non_active_set[smallest_bic_val_feat]
             else:
                 break
+
+            if direction == "both":
+                bic_vals_tmp = {i:0 for i in copy.deepcopy(active_set)}
+                for feat_considered in copy.deepcopy(active_set):
+                    active_set_under_consideration = copy.deepcopy(active_set)
+                    active_set_under_consideration.remove(feat_considered)
+                    X_active_union_feat = X[:,list(active_set_under_consideration)]
+                    ols_active_union_feat = sm.OLS(y,X_active_union_feat).fit(cov_type=cov_type)
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore")
+                        bic_vals_tmp[feat_considered] = ols_active_union_feat.bic
+
+                smallest_bic_val_feat = min(bic_vals_tmp, key=bic_vals_tmp.get)
+                smallest_bic_val = bic_vals_tmp[smallest_bic_val_feat]
+
+                if smallest_bic_val < current_bic:
+                    current_bic = smallest_bic_val
+                    active_set.remove(smallest_bic_val_feat)
+                    non_active_set.add(smallest_bic_val_feat)
+                    bic_vals_non_active_set[smallest_bic_val_feat] = smallest_bic_val
+
     return [active_feat for active_feat in active_set]
 
 
