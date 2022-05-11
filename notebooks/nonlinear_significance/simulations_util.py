@@ -339,7 +339,51 @@ def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, r
         return y_train
     
     
+def hierarchical_poly(X,sigma,m,r,beta,heritability=None, snr=None, return_support = False):
+    """
+    This method creates response from an Linear + LSS model
 
+    X: data matrix
+    m: number of interaction terms
+    r: max order of interaction
+    s: sparsity 
+    sigma: standard deviation of noise
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+
+    :return
+    y_train: numpy array of shape (n)
+    """
+    
+    n,p = X.shape
+    assert p >= m*r
+    
+    def reg_func(x, beta):
+        y = 0
+        for i in range(m):
+            hier_term = 1.0
+            for j in range(r):
+                hier_term += x[i*r+j]*hier_term
+            y += hier_term * beta[i]
+        return y
+
+    beta = generate_coef(beta, m)
+    y_train = np.array([reg_func(X[i, :], beta) for i in range(n)])
+    if heritability is not None:
+        sigma = (np.var(y_train)*((1.0-heritability)/(heritability)))**0.5
+    if snr is not None:
+        sigma = (np.var(y_train) / snr)**0.5
+    y_train = y_train + sigma * np.random.randn(n)
+
+    if return_support:
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+        return y_train, support, beta
+    else:
+        return y_train
+
+
+    
+    
+    
 def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, return_support=False):
     """
     This method creates response from an LSS model
