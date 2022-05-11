@@ -21,6 +21,7 @@ base = importr('base')
 FOCI = importr('FOCI')
 
 from nonlinear_significance.scripts.TreeTester import TreeTester, optimalTreeTester
+from nonlinear_significance.scripts.competing_methods import *
 
 
 def lin_reg_t_test(X, y, fit):
@@ -73,6 +74,36 @@ def tree_mdi(X, y, fit):
     results.reset_index(inplace=True)
 
     return results
+
+def tree_mdi_OOB(X,y,fit,type = 'oob',
+                 normalized = True, balanced = False, demean=False,normal_fX = False):
+    
+    reshaped_y = y.reshape((len(y),1))
+    results = MDI_OOB(fit, X, reshaped_y, type = type,normalized = normalized,balanced = balanced, 
+            demean=demean,normal_fX = normal_fX)[0]
+    results = pd.DataFrame(data=results, columns=['importance'])
+    if isinstance(X, pd.DataFrame):
+        results.index = X.columns
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+    
+    return results
+
+def tree_MDA(X,y,fit,type = 'oob', n_trials = 10, metric = 'mse'):
+    reshaped_y = y.reshape((len(y),1))
+    results = MDA(fit, X, reshaped_y,type = type, n_trials = 10, metric = 'mse')[0]
+    results = pd.DataFrame(data=results, columns=['importance'])
+    if isinstance(X, pd.DataFrame):
+        results.index = X.columns
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+    
+    return results
+    
+
+    
+    
+    
 
 
 def perm_importance(X, y, fit, n_repeats=10):
@@ -155,8 +186,10 @@ def tree_shap_mean(X, y, fit):
     return results
 
 
-def tree_feature_significance(X, y, fit, type="default", max_components_type='median', normalize=False,fraction_chosen = 1.0,
-                              num_splits=10, add_linear=True, joint=False, threshold=0.05, first_ns=True):
+def tree_feature_significance(X, y, fit, type="default", max_components_type='median',
+                              normalize=False, fraction_chosen=1.0, num_splits=10,
+                              add_linear=True, adjusted_r2=False, joint=False,
+                              threshold=0.05, first_ns=True, direction='forward'):
     """
     Compute feature signficance for trees
     :param X: full X data
@@ -177,37 +210,34 @@ def tree_feature_significance(X, y, fit, type="default", max_components_type='me
 
     tree_tester = TreeTester(fit, max_components_type=max_components_type, normalize=normalize,fraction_chosen = fraction_chosen)
     if type == "default":
-        median_p_vals,r2 = tree_tester.get_feature_significance_and_ranking(X, y, num_splits=num_splits, add_linear=add_linear, joint=joint)
-        results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2}, columns=['importance','r2'])
+        median_p_vals, r2, n_components, n_stumps = tree_tester.get_feature_significance_and_ranking(X, y, num_splits=num_splits, add_linear=add_linear, joint=joint, diagnostics=True, adjusted_r2=adjusted_r2)
     elif type == "sequential_stepwise":
-        r2, n_components = tree_tester.get_r_squared_sig_threshold(X, y, num_splits=num_splits, add_linear=add_linear, threshold=threshold, first_ns=first_ns,diagnostics=True)
+        r2, n_components, n_stumps = tree_tester.get_r_squared_sig_threshold(X, y, num_splits=num_splits, add_linear=add_linear, threshold=threshold, first_ns=first_ns,diagnostics=True)
         median_p_vals = r2
-        results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2,'n_components':n_components.mean(axis=0)}, columns=['importance','r2','n_components'])
     elif type == "ridge":
-        r2 =  tree_tester.get_r_squared_ridge(X, y, num_splits=num_splits, add_linear=add_linear)
+        r2, n_components, n_stumps = tree_tester.get_r_squared_ridge(X, y, num_splits=num_splits, add_linear=add_linear, diagnostics=True)
         median_p_vals = r2
-        results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2}, columns=['importance','r2'])
     elif type == "pca_cv":
-        r2, n_components = tree_tester.get_r_squared_pca_cv(X, y, num_splits=num_splits, add_linear=add_linear,diagnostics=True)
+        r2, n_components, n_stumps = tree_tester.get_r_squared_pca_cv(X, y, num_splits=num_splits, add_linear=add_linear,diagnostics=True)
         median_p_vals = r2
-        results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2,'n_components':n_components.mean(axis=0)}, columns=['importance','r2','n_components'])
     elif type == "bic_sequential":
-        r2, n_components = tree_tester.get_r_squared_sequential_bic(X, y, num_splits=num_splits, add_linear=add_linear, diagnostics=True)
+        r2, n_components, n_stumps = tree_tester.get_r_squared_sequential_bic(X, y, num_splits=num_splits, add_linear=add_linear, diagnostics=True, adjusted_r2=adjusted_r2)
         median_p_vals = r2
-        results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2,'n_components':n_components.mean(axis=0)}, columns=['importance','r2','n_components'])
     elif type == "bic_nonsequential":
-        r2, n_components = tree_tester.get_r_squared_nonsequential_bic(X, y, num_splits=num_splits, add_linear=add_linear, diagnostics=True)
+        r2, n_components, n_stumps = tree_tester.get_r_squared_nonsequential_bic(X, y, num_splits=num_splits, add_linear=add_linear, diagnostics=True, adjusted_r2=adjusted_r2, direction=direction)
         median_p_vals = r2
-        results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2,'n_components':n_components.mean(axis=0)}, columns=['importance','r2','n_components'])
     elif type == "pca_var":
-        r2, n_components = tree_tester.get_r_squared_pca_var_explained(X, y, num_splits=num_splits, add_linear=add_linear,diagnostics=True)
+        r2, n_components, n_stumps = tree_tester.get_r_squared_pca_var_explained(X, y, num_splits=num_splits, add_linear=add_linear,diagnostics=True)
         median_p_vals = r2
-        results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2,'n_components':n_components.mean(axis=0)}, columns=['importance','r2','n_components'])
     else:
-        r2 =  tree_tester.get_r_squared_stepwise_regression(X, y, num_splits=num_splits, add_linear=add_linear)
+        r2, n_components, n_stumps = tree_tester.get_r_squared_stepwise_regression(X, y, num_splits=num_splits, add_linear=add_linear, diagnostics=True)
         median_p_vals = r2
-        results = pd.DataFrame(data={'importance':median_p_vals,'r2':r2}, columns=['importance','r2'])
-   
+    results = pd.DataFrame(data={'importance': median_p_vals,
+                                 'r2': r2,
+                                 'n_components': n_components.mean(axis=0),
+                                 'n_stumps': n_stumps.mean(axis=0)},
+                           columns=['importance', 'r2', 'n_components', 'n_stumps'])
+
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
     results.index.name = 'var'

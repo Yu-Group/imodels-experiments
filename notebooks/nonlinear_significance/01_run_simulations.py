@@ -387,6 +387,15 @@ if __name__ == '__main__':
 
     print('completed all experiments successfully!')
 
+    # get model file names
+    model_comparison_files_all = []
+    for est in ests:
+        estimator_name = est[0].name.split(' - ')[0]
+        fi_estimators_all = [fi_estimator for fi_estimator in itertools.chain(*fi_ests) \
+                             if fi_estimator.model_type in est[0].model_type]
+        model_comparison_files = [f'{estimator_name}_{fi_estimator.name}_comparisons.pkl' for fi_estimator in fi_estimators_all]
+        model_comparison_files_all += model_comparison_files
+
     # aggregate results
     results_list = []
     if isinstance(vary_param_name, list):
@@ -395,7 +404,7 @@ if __name__ == '__main__':
 
             for i in range(args.nreps):
                 all_files = glob.glob(oj(path, val_name, 'rep' + str(i), '*'))
-                model_files = sorted([f for f in all_files if '_comparisons' in f])
+                model_files = sorted([f for f in all_files if os.path.basename(f) in model_comparison_files_all])
 
                 if len(model_files) == 0:
                     print('No files found at ', oj(path, val_name, 'rep' + str(i)))
@@ -422,7 +431,7 @@ if __name__ == '__main__':
         for val_name, val in vary_param_vals.items():
             for i in range(args.nreps):
                 all_files = glob.glob(oj(path, val_name, 'rep' + str(i), '*'))
-                model_files = sorted([f for f in all_files if '_comparisons' in f])
+                model_files = sorted([f for f in all_files if os.path.basename(f) in model_comparison_files_all])
 
                 if len(model_files) == 0:
                     print('No files found at ', oj(path, val_name, 'rep' + str(i)))

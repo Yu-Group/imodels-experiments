@@ -15,12 +15,12 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
     :param permute_col: boolean; whether or not to permute the columns
     :param signal_features: list of features to use as signal features
     :param n_signal_features: number of signal features; required if permute_nonsignal_col is not None
-    :param permute_nonsignal_col: how to permute the nonsignal features; must be one of [None, "block", "indep"], where
-        None performs no permutation, "block" performs the permutation row-wise, and "indep" permutes each nonsignal
-        feature column independently
+    :param permute_nonsignal_col: how to permute the nonsignal features; must be one of [None, "block", "indep", "augment"], where
+        None performs no permutation, "block" performs the permutation row-wise, "indep" permutes each nonsignal
+        feature column independently, "augment" augments the signal features with the row-permuted X matrix
     :return:
     """
-    assert permute_nonsignal_col in [None, "block", "indep"]
+    assert permute_nonsignal_col in [None, "block", "indep", "augment"]
     if X is None:
         X = pd.read_csv(fpath)
     if normalize:
@@ -30,13 +30,15 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
     if permute_col:
         X = X[np.random.permutation(X.columns)]
     if sample_row_n is not None:
-        X = X.sample(n=sample_row_n, replace=False)#, random_state=1)
+        keep_idx = np.random.choice(X.shape[0], sample_row_n, replace=False)
+        X = X.iloc[keep_idx, :]
+        # X = X.sample(n=sample_row_n, replace=False)#, random_state=1)
     if sample_col_n is not None:
         if signal_features is None:
             X = X.sample(n=sample_col_n, replace=False, axis=1)#, random_state=2)
         else:
             rand_features = np.random.choice([col for col in X.columns if col not in signal_features],
-                                             sample_col_n-len(signal_features))
+                                             sample_col_n-len(signal_features), replace=False)
             X = X[signal_features + list(rand_features)]
     if signal_features is not None:
         X = X[signal_features + [col for col in X.columns if col not in signal_features]]
@@ -49,6 +51,11 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
         elif permute_nonsignal_col == "indep":
             for j in range(n_signal_features, X.shape[1]):
                 X.iloc[:, j] = np.random.permutation(X.iloc[:, j])
+        elif permute_nonsignal_col == "augment":
+            X = np.hstack([X.iloc[:, :n_signal_features].to_numpy(),
+                           X.iloc[np.random.permutation(X.shape[0]), :].to_numpy()])
+            X = IndexedArray(pd.DataFrame(X).to_numpy(), index=keep_idx)
+            return X
 
     return X.to_numpy()
 
@@ -287,7 +294,8 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, return_sup
     else:
         return y_train
 
-def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, return_support = False):
+def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, return_support=False,
+                     diagnostics=False):
     """
     This method creates response from an Linear + LSS model
 
@@ -302,7 +310,7 @@ def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, r
     :return
     y_train: numpy array of shape (n)
     """
-    n,p = X.shape
+    n, p = X.shape
     if s is None:
         s = m*r
     
@@ -322,7 +330,17 @@ def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, r
         return y
     
     beta_linear = generate_coef(beta, s)
-    beta_lss = generate_coef(beta, m)
+    # Make beta vector for LSS
+    beta_lss = np.zeros(m)
+    for j in range(m):
+        X_block = X[:, j * r: j * r + r]
+        beta_lin_block = beta_linear[j * r: j * r + r]
+        X_block_bool = X_block > tau
+        block_lss_prob = np.all(X_block_bool, axis=1).mean()
+        block_lss_var = block_lss_prob * (1 - block_lss_prob)
+        block_lin_var = np.var(X_block @ beta_lin_block)
+        ratio = np.sqrt(block_lin_var / block_lss_var)
+        beta_lss[j] = beta * ratio
     
     y_train_linear = np.array([linear_func(X[i, :],s,beta_linear) for i in range(n)])
     y_train_lss = np.array([lss_func(X[i, :], beta_lss) for i in range(n)])
@@ -335,11 +353,55 @@ def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, r
     if return_support:
         support = np.concatenate((np.ones(max(m * r,s)), np.zeros(X.shape[1] - max((m * r),s))))
         return y_train, support, beta_lss
+    elif diagnostics:
+        return y_train, y_train_linear, y_train_lss
+    else:
+        return y_train
+
+  
+    
+def hierarchical_poly(X,sigma,m,r,beta,heritability=None, snr=None, return_support = False):
+    """
+    This method creates response from an Linear + LSS model
+
+    X: data matrix
+    m: number of interaction terms
+    r: max order of interaction
+    s: sparsity 
+    sigma: standard deviation of noise
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+
+    :return
+    y_train: numpy array of shape (n)
+    """
+    
+    n,p = X.shape
+    assert p >= m*r
+    
+    def reg_func(x, beta):
+        y = 0
+        for i in range(m):
+            hier_term = 1.0
+            for j in range(r):
+                hier_term *= x[i*r+j]
+            y += hier_term * beta[i]
+        return y
+
+    beta = generate_coef(beta, m)
+    y_train = np.array([reg_func(X[i, :], beta) for i in range(n)])
+    if heritability is not None:
+        sigma = (np.var(y_train)*((1.0-heritability)/(heritability)))**0.5
+    if snr is not None:
+        sigma = (np.var(y_train) / snr)**0.5
+    y_train = y_train + sigma * np.random.randn(n)
+
+    if return_support:
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+        return y_train, support, beta
     else:
         return y_train
     
     
-
 def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, return_support=False):
     """
     This method creates response from an LSS model
@@ -421,6 +483,28 @@ def model_based_y(X, y, model, sigma, s, heritability=None, snr=None, return_sup
         return y_train, support, beta
     else:
         return y_train
+
+
+def sample_real_y(X, y, s=None, return_support=False):
+    '''
+    This method is used to sample from a real y
+    Parameters:
+    X: X matrix
+    y: reseponse vector
+    s: sparsity
+    Returns:
+    numpy array of shape (n)
+    '''
+
+    if isinstance(X, IndexedArray):
+        y = y[X.index]
+
+    if return_support:
+        beta = None
+        support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
+        return y, support, beta
+    else:
+        return y
 
 
 class IndexedArray(np.ndarray):
