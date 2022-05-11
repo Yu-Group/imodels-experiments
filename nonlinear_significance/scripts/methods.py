@@ -51,6 +51,37 @@ def lin_reg_t_test(X, y, fit):
 
     return results
 
+def lin_reg_marginal_t_test(X, y, fit=None):
+    '''
+    Extracts basic t-test results from linear regression
+    Based on statsmodels regression fit
+    :param X: design matrix
+    :param y: response
+    :param fit: fitted model of interest, ideally lin reg from statsmodel
+    :return: dataframe - [Var, Importance]
+                         Var: variable name
+                         Importance: p-values from t-test
+    '''
+
+    # check if using statsmodels fit (better to extract p-values)
+    # refit if using sklearn
+    n_feats = X.shape[1]
+    results = np.zeros(n_feats)
+    if fit is None or isinstance(fit, LinearRegression):
+        model = sm.OLS
+    elif isinstance(fit, LogisticRegression):
+        model = sm.Logit
+    for i in range(n_feats):
+        lin_reg = model(y, X[:, i])
+        fit = lin_reg.fit()
+        results[i] = fit.pvalues[0]
+    results = pd.DataFrame(data=results, columns=['importance'])
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+
+    return results
+
+
 
 def tree_mdi(X, y, fit):
     '''
@@ -188,7 +219,8 @@ def tree_shap_mean(X, y, fit):
 
 def tree_feature_significance(X, y, fit, type="default", max_components_type='median',
                               normalize=False, fraction_chosen=1.0, num_splits=10,
-                              add_linear=True, joint=False, threshold=0.05, first_ns=True):
+                              add_linear=True, adjusted_r2=False, joint=False,
+                              threshold=0.05, first_ns=True, direction='forward'):
     """
     Compute feature signficance for trees
     :param X: full X data
@@ -209,7 +241,7 @@ def tree_feature_significance(X, y, fit, type="default", max_components_type='me
 
     tree_tester = TreeTester(fit, max_components_type=max_components_type, normalize=normalize,fraction_chosen = fraction_chosen)
     if type == "default":
-        median_p_vals, r2, n_components, n_stumps = tree_tester.get_feature_significance_and_ranking(X, y, num_splits=num_splits, add_linear=add_linear, joint=joint, diagnostics=True)
+        median_p_vals, r2, n_components, n_stumps = tree_tester.get_feature_significance_and_ranking(X, y, num_splits=num_splits, add_linear=add_linear, joint=joint, diagnostics=True, adjusted_r2=adjusted_r2)
     elif type == "sequential_stepwise":
         r2, n_components, n_stumps = tree_tester.get_r_squared_sig_threshold(X, y, num_splits=num_splits, add_linear=add_linear, threshold=threshold, first_ns=first_ns,diagnostics=True)
         median_p_vals = r2
@@ -220,10 +252,10 @@ def tree_feature_significance(X, y, fit, type="default", max_components_type='me
         r2, n_components, n_stumps = tree_tester.get_r_squared_pca_cv(X, y, num_splits=num_splits, add_linear=add_linear,diagnostics=True)
         median_p_vals = r2
     elif type == "bic_sequential":
-        r2, n_components, n_stumps = tree_tester.get_r_squared_sequential_bic(X, y, num_splits=num_splits, add_linear=add_linear, diagnostics=True)
+        r2, n_components, n_stumps = tree_tester.get_r_squared_sequential_bic(X, y, num_splits=num_splits, add_linear=add_linear, diagnostics=True, adjusted_r2=adjusted_r2)
         median_p_vals = r2
     elif type == "bic_nonsequential":
-        r2, n_components, n_stumps = tree_tester.get_r_squared_nonsequential_bic(X, y, num_splits=num_splits, add_linear=add_linear, diagnostics=True)
+        r2, n_components, n_stumps = tree_tester.get_r_squared_nonsequential_bic(X, y, num_splits=num_splits, add_linear=add_linear, diagnostics=True, adjusted_r2=adjusted_r2, direction=direction)
         median_p_vals = r2
     elif type == "pca_var":
         r2, n_components, n_stumps = tree_tester.get_r_squared_pca_var_explained(X, y, num_splits=num_splits, add_linear=add_linear,diagnostics=True)
