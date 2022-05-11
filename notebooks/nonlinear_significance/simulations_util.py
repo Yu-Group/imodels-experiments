@@ -15,12 +15,12 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
     :param permute_col: boolean; whether or not to permute the columns
     :param signal_features: list of features to use as signal features
     :param n_signal_features: number of signal features; required if permute_nonsignal_col is not None
-    :param permute_nonsignal_col: how to permute the nonsignal features; must be one of [None, "block", "indep"], where
-        None performs no permutation, "block" performs the permutation row-wise, and "indep" permutes each nonsignal
-        feature column independently
+    :param permute_nonsignal_col: how to permute the nonsignal features; must be one of [None, "block", "indep", "augment"], where
+        None performs no permutation, "block" performs the permutation row-wise, "indep" permutes each nonsignal
+        feature column independently, "augment" augments the signal features with the row-permuted X matrix
     :return:
     """
-    assert permute_nonsignal_col in [None, "block", "indep"]
+    assert permute_nonsignal_col in [None, "block", "indep", "augment"]
     if X is None:
         X = pd.read_csv(fpath)
     if normalize:
@@ -30,13 +30,15 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
     if permute_col:
         X = X[np.random.permutation(X.columns)]
     if sample_row_n is not None:
-        X = X.sample(n=sample_row_n, replace=False)#, random_state=1)
+        keep_idx = np.random.choice(X.shape[0], sample_row_n, replace=False)
+        X = X.iloc[keep_idx, :]
+        # X = X.sample(n=sample_row_n, replace=False)#, random_state=1)
     if sample_col_n is not None:
         if signal_features is None:
             X = X.sample(n=sample_col_n, replace=False, axis=1)#, random_state=2)
         else:
             rand_features = np.random.choice([col for col in X.columns if col not in signal_features],
-                                             sample_col_n-len(signal_features))
+                                             sample_col_n-len(signal_features), replace=False)
             X = X[signal_features + list(rand_features)]
     if signal_features is not None:
         X = X[signal_features + [col for col in X.columns if col not in signal_features]]
@@ -49,6 +51,11 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
         elif permute_nonsignal_col == "indep":
             for j in range(n_signal_features, X.shape[1]):
                 X.iloc[:, j] = np.random.permutation(X.iloc[:, j])
+        elif permute_nonsignal_col == "augment":
+            X = np.hstack([X.iloc[:, :n_signal_features].to_numpy(),
+                           X.iloc[np.random.permutation(X.shape[0]), :].to_numpy()])
+            X = IndexedArray(pd.DataFrame(X).to_numpy(), index=keep_idx)
+            return X
 
     return X.to_numpy()
 
@@ -463,6 +470,28 @@ def model_based_y(X, y, model, sigma, s, heritability=None, snr=None, return_sup
         return y_train, support, beta
     else:
         return y_train
+
+
+def sample_real_y(X, y, s=None, return_support=False):
+    '''
+    This method is used to sample from a real y
+    Parameters:
+    X: X matrix
+    y: reseponse vector
+    s: sparsity
+    Returns:
+    numpy array of shape (n)
+    '''
+
+    if isinstance(X, IndexedArray):
+        y = y[X.index]
+
+    if return_support:
+        beta = None
+        support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
+        return y, support, beta
+    else:
+        return y
 
 
 class IndexedArray(np.ndarray):
