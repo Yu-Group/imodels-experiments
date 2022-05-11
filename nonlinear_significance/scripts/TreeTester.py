@@ -686,59 +686,63 @@ def nonsequential_bic(X, y, direction="forward", cov_type="HC0"):
     active_set = set() #indices of features to be included in model
     non_active_set = set(range(0,d))
     bic_vals_non_active_set = {i:0 for i in range(0,d)}
+
+    # intercept only model for comparison
+    ols = sm.OLS(y,sm.add_constant(X[:,list(active_set)])).fit(cov_type=cov_type)
+    current_bic = ols.bic
+
     while (len(bic_vals_non_active_set) != 0):
-        # print(len(bic_vals_non_active_set))
+        # collect bic values when including each non_active feature
         if len(active_set) == 0:
             for feat_considered in copy.deepcopy(non_active_set):
                 X_feat = X[:,feat_considered]
-                ols = sm.OLS(y,X_feat).fit(cov_type=cov_type)
+                ols = sm.OLS(y,sm.add_constant(X_feat)).fit(cov_type=cov_type)
                 bic_vals_non_active_set[feat_considered] = ols.bic
         else:
             for feat_considered in copy.deepcopy(non_active_set):
                 active_set_under_consideration = copy.deepcopy(active_set)
                 active_set_under_consideration.add(feat_considered)
                 X_active_union_feat = X[:,list(active_set_under_consideration)]
-                ols_active_union_feat = sm.OLS(y,X_active_union_feat).fit(cov_type=cov_type)
+                ols_active_union_feat = sm.OLS(y,sm.add_constant(X_active_union_feat)).fit(cov_type=cov_type)
                 with warnings.catch_warnings():
                     warnings.filterwarnings("ignore")
                     bic_vals_non_active_set[feat_considered] = ols_active_union_feat.bic
 
-        smallest_bic_val_feat = min(bic_vals_non_active_set, key=bic_vals_non_active_set.get)  #np.argmin(p_vals) + 1
+        # choose feature with lowest bic
+        smallest_bic_val_feat = min(bic_vals_non_active_set, key=bic_vals_non_active_set.get)
         smallest_bic_val = bic_vals_non_active_set[smallest_bic_val_feat]
 
-        if len(active_set) == 0:
+        if smallest_bic_val < current_bic:
+            # update current model bic, add feature to active set, remove from non_active
             current_bic = smallest_bic_val
             active_set.add(smallest_bic_val_feat)
             non_active_set.remove(smallest_bic_val_feat)
             del bic_vals_non_active_set[smallest_bic_val_feat]
         else:
+            # stop, no improvements
+            break
+
+        if direction == "both" and len(active_set) != 0:
+            # collect bic when excluding each active feature
+            bic_vals_tmp = {i:0 for i in copy.deepcopy(active_set)}
+            for feat_considered in copy.deepcopy(active_set):
+                active_set_under_consideration = copy.deepcopy(active_set)
+                active_set_under_consideration.remove(feat_considered)
+                X_active_union_feat = X[:,list(active_set_under_consideration)]
+                ols_active_union_feat = sm.OLS(y,sm.add_constant(X_active_union_feat)).fit(cov_type=cov_type)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore")
+                    bic_vals_tmp[feat_considered] = ols_active_union_feat.bic
+
+            smallest_bic_val_feat = min(bic_vals_tmp, key=bic_vals_tmp.get)
+            smallest_bic_val = bic_vals_tmp[smallest_bic_val_feat]
+
             if smallest_bic_val < current_bic:
+                # update current model bic, remove feature from active, add to non active
                 current_bic = smallest_bic_val
-                active_set.add(smallest_bic_val_feat)
-                non_active_set.remove(smallest_bic_val_feat)
-                del bic_vals_non_active_set[smallest_bic_val_feat]
-            else:
-                break
-
-            if direction == "both":
-                bic_vals_tmp = {i:0 for i in copy.deepcopy(active_set)}
-                for feat_considered in copy.deepcopy(active_set):
-                    active_set_under_consideration = copy.deepcopy(active_set)
-                    active_set_under_consideration.remove(feat_considered)
-                    X_active_union_feat = X[:,list(active_set_under_consideration)]
-                    ols_active_union_feat = sm.OLS(y,X_active_union_feat).fit(cov_type=cov_type)
-                    with warnings.catch_warnings():
-                        warnings.filterwarnings("ignore")
-                        bic_vals_tmp[feat_considered] = ols_active_union_feat.bic
-
-                smallest_bic_val_feat = min(bic_vals_tmp, key=bic_vals_tmp.get)
-                smallest_bic_val = bic_vals_tmp[smallest_bic_val_feat]
-
-                if smallest_bic_val < current_bic:
-                    current_bic = smallest_bic_val
-                    active_set.remove(smallest_bic_val_feat)
-                    non_active_set.add(smallest_bic_val_feat)
-                    bic_vals_non_active_set[smallest_bic_val_feat] = smallest_bic_val
+                active_set.remove(smallest_bic_val_feat)
+                non_active_set.add(smallest_bic_val_feat)
+                bic_vals_non_active_set[smallest_bic_val_feat] = smallest_bic_val
 
     return [active_feat for active_feat in active_set]
 
@@ -747,15 +751,17 @@ def sequential_bic(X, y, cov_type="HC0"):
     d = X.shape[1]
     active_set = set()
     bic_values = np.zeros(d)
-    ols_full = sm.OLS(y, X[:, 0]).fit(cov_type=cov_type)
-    bic_values[0] = ols_full.bic
-    active_set.add(0)
-    for i in range(1, d):
-        ols_full = sm.OLS(y, X[:, np.arange(i + 1)]).fit(cov_type=cov_type)
+
+    # intercept only model for comparison
+    ols = sm.OLS(y,sm.add_constant(X[:,list(active_set)])).fit(cov_type=cov_type)
+    current_bic = ols.bic
+    for i in range(0, d):
+        ols = sm.OLS(y, sm.add_constant(X[:, np.arange(i+1)])).fit(cov_type=cov_type)
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore")
-            bic_values[i] = ols_full.bic
-        if bic_values[i] < bic_values[i - 1]:
+            bic_values[i] = ols.bic
+        if bic_values[i] < current_bic:
+            current_bic = bic_values[i]
             active_set.add(i)
         else:
             break
