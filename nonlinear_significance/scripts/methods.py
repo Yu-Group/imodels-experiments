@@ -219,7 +219,7 @@ def tree_shap_mean(X, y, fit):
 
 def tree_feature_significance(X, y, fit, type="default", max_components_type='median',
                               normalize=False, fraction_chosen=1.0, num_splits=10,
-                              add_linear=True, adjusted_r2=False, joint=False,
+                              add_linear=True, adjusted_r2=False, joint=False,criteria = "bic",
                               threshold=0.05, first_ns=True, direction='forward'):
     """
     Compute feature signficance for trees
@@ -261,7 +261,7 @@ def tree_feature_significance(X, y, fit, type="default", max_components_type='me
         r2, n_components, n_stumps = tree_tester.get_r_squared_pca_var_explained(X, y, num_splits=num_splits, add_linear=add_linear,diagnostics=True)
         median_p_vals = r2
     elif type == "lasso":
-        r2, n_components, n_stumps = tree_tester.get_r_squared_lasso(X, y, num_splits=num_splits, add_linear=add_linear,diagnostics=True)
+        r2, n_components, n_stumps = tree_tester.get_r_squared_lasso(X, y, num_splits=num_splits, add_linear=add_linear,diagnostics=True,criteria = criteria)
         median_p_vals = r2
     else:
         r2, n_components, n_stumps = tree_tester.get_r_squared_stepwise_regression(X, y, num_splits=num_splits, add_linear=add_linear, diagnostics=True)
