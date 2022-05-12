@@ -411,7 +411,7 @@ class TreeTester:
                                 r_squared[i, j] = 0.0
                             else:
                                 lr = LinearRegression().fit(transformed_feats_for_j[:,support],y_test - np.mean(y_test))
-                                r_squared[i, j] = lr.score(transformed_feats_for_j, y_test - np.mean(y_test))
+                                r_squared[i, j] = lr.score(transformed_feats_for_j[:,support], y_test - np.mean(y_test))
                         else:
                             r_squared[i, j] = clf.score(transformed_feats_for_j, y_test - np.mean(y_test))
                                  
