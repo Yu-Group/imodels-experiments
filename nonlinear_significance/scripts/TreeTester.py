@@ -31,7 +31,7 @@ import statistics, warnings
 import statsmodels.api as sm
 from sklearn.model_selection import train_test_split
 from nonlinear_significance.scripts.util import TreeTransformer
-from sklearn.linear_model import RidgeCV, LassoCV, LinearRegression
+    from sklearn.linear_model import RidgeCV, LassoCV, LinearRegression
 
 # from nonlinear_significance.scripts.util import *
 from nonlinear_significance.scripts.util import TreeTransformer
@@ -369,6 +369,41 @@ class TreeTester:
             return r_squared, num_components_chosen, n_stumps
         else:
             return r_squared
+    
+    def get_r_squared_lasso(self, X, y, num_splits=10, add_linear=True, diagnostics=False):
+        r_squared = np.zeros((num_splits, X.shape[1]))
+        num_components_chosen = np.zeros((num_splits, X.shape[1]))
+        n_stumps = np.zeros((num_splits, X.shape[1]))
+        for i in tqdm(range(num_splits)):
+            X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
+                                                                random_state=i)  # perform sample splitting
+            self.estimator.fit(X_train,y_train) 
+            tree_transformer = TreeTransformer(estimator=self.estimator, max_components_type=self.max_components_type,
+                                               fraction_chosen=self.fraction_chosen, normalize=self.normalize)
+            tree_transformer.fit(X_train)  # Apply PCA on X_train
+            for j in range(X.shape[1]):  # Iterate over original features
+                transformed_feats_for_j = tree_transformer.transform_one_feature(X_test, j)
+                n_stumps[i, j] = len(tree_transformer.original_feat_to_stump_mapping[j])
+                if transformed_feats_for_j is None:
+                    r_squared[i, j] = 0.0
+                    num_components_chosen[i, j] = 0
+                else:
+                    if add_linear:
+                        transformed_feats_for_j = np.hstack([X_test[:, [j]] - np.mean(X_test[:, j]),
+                                                             transformed_feats_for_j])
+                    #num_components_chosen[i, j] = transformed_feats_for_j.shape[1]
+                    with warnings.catch_warnings():
+                        warnings.filterwarnings("ignore")
+                        clf = LassoCV().fit(transformed_feats_for_j,y_test - np.mean(y_test))
+                        r_squared[i, j] = clf.score(transformed_feats_for_j, y_test - np.mean(y_test))
+                        num_components_chosen[i, j] = np.count_nonzero(clf.coef_)
+                    # r2_score(y_test,clf.predict(#clf.score(transformed_feats_for_j,y_test)
+        r_squared = np.mean(r_squared, axis=0)
+        if diagnostics:
+            return r_squared, num_components_chosen, n_stumps
+        else:
+            return r_squared
+
 
     def get_r_squared_pca_var_explained(self, X, y, num_splits=10, add_linear=True, threshold=0.5, diagnostics=False):
         r_squared = np.zeros((num_splits, X.shape[1]))
