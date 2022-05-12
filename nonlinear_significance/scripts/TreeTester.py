@@ -31,7 +31,8 @@ import statistics, warnings
 import statsmodels.api as sm
 from sklearn.model_selection import train_test_split
 from nonlinear_significance.scripts.util import TreeTransformer
-from sklearn.linear_model import RidgeCV, LassoCV, LinearRegression
+from scipy import sparse
+from sklearn.linear_model import RidgeCV, LassoCV, LinearRegression,LassoLarsIC
 
 # from nonlinear_significance.scripts.util import *
 from nonlinear_significance.scripts.util import TreeTransformer
@@ -370,7 +371,7 @@ class TreeTester:
         else:
             return r_squared
     
-    def get_r_squared_lasso(self, X, y, num_splits=10, add_linear=True, diagnostics=False):
+    def get_r_squared_lasso(self, X, y, num_splits=10, add_linear=True, criteria = "bic",diagnostics=False):
         r_squared = np.zeros((num_splits, X.shape[1]))
         num_components_chosen = np.zeros((num_splits, X.shape[1]))
         n_stumps = np.zeros((num_splits, X.shape[1]))
@@ -394,7 +395,15 @@ class TreeTester:
                     #num_components_chosen[i, j] = transformed_feats_for_j.shape[1]
                     with warnings.catch_warnings():
                         warnings.filterwarnings("ignore")
-                        clf = LassoCV().fit(transformed_feats_for_j,y_test - np.mean(y_test))
+                        if criteria == "cv":
+                            clf = LassoCV(fit_intercept = False)
+                            clf.fit(transformed_feats_for_j,y_test - np.mean(y_test))
+                        elif criteria == "aic":
+                            clf = LassoLarsIC(criterion="aic", normalize=False,fit_intercept = False)
+                            clf.fit(transformed_feats_for_j,y_test - np.mean(y_test))
+                        else:
+                            clf = LassoLarsIC(criterion="bic", normalize=False,fit_intercept = False)
+                            clf.fit(transformed_feats_for_j,y_test - np.mean(y_test))
                         r_squared[i, j] = clf.score(transformed_feats_for_j, y_test - np.mean(y_test))
                         num_components_chosen[i, j] = np.count_nonzero(clf.coef_)
                     # r2_score(y_test,clf.predict(#clf.score(transformed_feats_for_j,y_test)
