@@ -198,6 +198,8 @@ class TreeTransformer(TransformerMixin, BaseEstimator):
                 max_components = int(n_samples * self.fraction_chosen)
             elif self.max_components_type == "minnp":
                 max_components = int(min(n_samples, n_stumps) * self.fraction_chosen)
+            elif self.max_components_type == "minfracnp":
+                max_components = int(min(n_samples * self.fraction_chosen, n_stumps))
             elif self.max_components_type == "none":
                 max_components = np.inf
             elif isinstance(self.max_components_type, int):
