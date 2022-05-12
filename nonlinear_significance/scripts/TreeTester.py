@@ -406,7 +406,7 @@ class TreeTester:
                             clf.fit(transformed_feats_for_j,y_test - np.mean(y_test))
                         num_components_chosen[i, j] = np.count_nonzero(clf.coef_)
                         if refit == True:
-                            support = clf.coef_[0]
+                            support = np.nonzero(clf.coef_)[0]
                             lr = LinearRegression().fit(transformed_feats_for_j[:,support],y)
                             r_squared[i, j] = lr.score(transformed_feats_for_j, y_test - np.mean(y_test))
                         else:
