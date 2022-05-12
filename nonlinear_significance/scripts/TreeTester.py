@@ -371,7 +371,7 @@ class TreeTester:
         else:
             return r_squared
     
-    def get_r_squared_lasso(self, X, y, num_splits=10, add_linear=True, criteria = "bic",diagnostics=False):
+    def get_r_squared_lasso(self, X, y, num_splits=10, add_linear=True, criteria = "bic",diagnostics=False,refit = True):
         r_squared = np.zeros((num_splits, X.shape[1]))
         num_components_chosen = np.zeros((num_splits, X.shape[1]))
         n_stumps = np.zeros((num_splits, X.shape[1]))
@@ -404,8 +404,16 @@ class TreeTester:
                         else:
                             clf = LassoLarsIC(criterion="bic", normalize=False,fit_intercept = False)
                             clf.fit(transformed_feats_for_j,y_test - np.mean(y_test))
-                        r_squared[i, j] = clf.score(transformed_feats_for_j, y_test - np.mean(y_test))
                         num_components_chosen[i, j] = np.count_nonzero(clf.coef_)
+                        if refit == True:
+                            support = clf.coef_[0]
+                            lr = LinearRegression().fit(transformed_feats_for_j[:,support],y)
+                            r_squared[i, j] = lr.score(transformed_feats_for_j, y_test - np.mean(y_test))
+                        else:
+                            r_squared[i, j] = clf.score(transformed_feats_for_j, y_test - np.mean(y_test))
+                                 
+                        
+                        
                     # r2_score(y_test,clf.predict(#clf.score(transformed_feats_for_j,y_test)
         r_squared = np.mean(r_squared, axis=0)
         if diagnostics:
