@@ -383,7 +383,7 @@ def hierarchical_poly(X,sigma,m,r,beta,heritability=None, snr=None, return_suppo
         for i in range(m):
             hier_term = 1.0
             for j in range(r):
-                hier_term *= x[i*r+j]
+                hier_term += x[i*r+j]*hier_term
             y += hier_term * beta[i]
         return y
 
