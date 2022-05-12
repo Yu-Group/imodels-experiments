@@ -15,52 +15,85 @@ from imodels import (
 )
 from util import ModelConfig, FIModelConfig
 
-from nonlinear_significance.scripts.methods import lin_reg_t_test, tree_mdi, perm_importance,tree_shap_mean, tree_feature_significance, optimal_tree_feature_significance
+from nonlinear_significance.scripts.methods import lin_reg_t_test, tree_mdi, perm_importance,tree_shap_mean, tree_feature_significance, optimal_tree_feature_significance, tree_mdi_OOB
 #knockpy_swap_integral
 
-ENSEMBLE_ESTIMATOR_NUMS = [3, 10, 25, 50]
-TREE_DEPTHS = [1, 2, 3, 4, 5, 7, 8, 10, 15, 20, 25]
 ESTIMATORS = [
-    #[ModelConfig('CART_(MSE)', GreedyTreeRegressor, other_params={'min_samples_leaf': 5}, model_type='tree')],
-    [ModelConfig('RF_min_1',RandomForestRegressor,other_params = {'n_estimators':100, 'min_samples_leaf':1,'max_features':0.33},model_type = 'tree')],
-    [ModelConfig('RF_min_5',RandomForestRegressor,other_params = {'n_estimators':100, 'min_samples_leaf':5,'max_features':0.33},model_type = 'tree')],
-    [ModelConfig('RF_min_10',RandomForestRegressor,other_params = {'n_estimators':100, 'min_samples_leaf':10,'max_features':0.33},model_type = 'tree')],
-    [ModelConfig('RF_min_20',RandomForestRegressor,other_params = {'n_estimators':100, 'min_samples_leaf':20,'max_features':0.33},model_type = 'tree')],
-    #[ModelConfig('OLS', LinearRegression, model_type='linear')],
-    
-    
-    
-    # [ModelConfig('CART_(MSE)', GreedyTreeRegressor, 'max_depth', n, model_type='tree')
-    #  for n in TREE_DEPTHS],
-    # [Model('CART_(MAE)', GreedyTreeRegressor, 'max_depth', n, other_params={'criterion': 'absolute_error'})
-    #  for n in TREE_DEPTHS],
-    # [ModelConfig('HSCART', partial(HSTreeRegressorCV, estimator_=DecisionTreeRegressor(max_depth=n)))
-    #  for n in TREE_DEPTHS],
-    # [ModelConfig('Random_Forest', RandomForestRegressor, other_params={'n_estimators': n})
-    #  for n in ENSEMBLE_ESTIMATOR_NUMS],
-    # [ModelConfig('HSRandom_Forest',
-    #              partial(HSTreeRegressorCV, estimator_=RandomForestRegressor(n_estimators=n)))
-    #  for n in ENSEMBLE_ESTIMATOR_NUMS],
-    # [ModelConfig('Gradient_Boosting', GradientBoostingRegressor, 'n_estimators', n,
-    #              other_params=RANDOM_FOREST_DEFAULT_KWARGS)
-    #  for n in ENSEMBLE_ESTIMATOR_NUMS],
-    # [ModelConfig('HSGradient_Boosting',
-    #              partial(HSTreeRegressorCV, estimator_=GradientBoostingRegressor(n_estimators=n)))
-    #  for n in ENSEMBLE_ESTIMATOR_NUMS],
+    [ModelConfig('RF', RandomForestRegressor,other_params = {'n_estimators':100, 'min_samples_leaf':5, 'max_features':0.33}, model_type='tree')],
+    # [ModelConfig('OLS', LinearRegression, model_type='linear')],
 ]
 
 FI_ESTIMATORS = [
-    #[FIModelConfig('OptimalTreeSig', optimal_tree_feature_significance, None, True, model_type='tree')],
-    [FIModelConfig('R2F+_max', tree_feature_significance, None, True, model_type='tree',other_params = {'max_components':'max'})],
-    [FIModelConfig('swR2F+_max', tree_feature_significance, None, True, model_type='tree', other_params={'type': 'sequential_stepwise','max_components':'max'})],
-     #[FIModelConfig('R2F_sequence_r2', tree_feature_significance, None, True, model_type='tree', other_params={'type': 'stepwise_r2','max_components':0.5})], 
-    #[FIModelConfig('R2F+_median', tree_feature_significance, None, True, model_type='tree',other_params = {'max_components':'median'})],
-    #[FIModelConfig('swR2F+_median', tree_feature_significance, None, True, model_type='tree', other_params={'type': 'sequential_stepwise','max_components':'median'})],
-    [FIModelConfig('swR2F+_05_005', tree_feature_significance, None, True, model_type='tree', other_params={'type': 'sequential_stepwise','max_components':0.5})],
-    #[FIModelConfig('R2F+_ridge_pca', tree_feature_significance, None, True, model_type='tree', other_params={'type': 'ridge','max_components':0.5})],  
-    [FIModelConfig('R2F+_05', tree_feature_significance, None, True, model_type='tree', other_params={'type': 'default','max_components':0.5})],
-    #[FIModelConfig('stepwise_RF', tree_feature_significance, None, True, model_type='tree', other_params={'type': 'stepwise','max_components':0.5})],
-    [FIModelConfig('T-Test', lin_reg_t_test, None, True, model_type='linear')],
+    [FIModelConfig('R2F_minnp_1', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'minnp', 'fraction_chosen': 1.0})],
+    [FIModelConfig('R2F_bic_seq', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'bic_sequential', 'max_components_type': 'minnp', 'fraction_chosen': 1.0})],
+    [FIModelConfig('R2F_bic_nseq', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'bic_nonsequential', 'max_components_type': 'minnp', 'fraction_chosen': 1.0})],
+    [FIModelConfig('R2F_bic_nseq_bid', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'bic_nonsequential', 'max_components_type': 'minnp', 'fraction_chosen': 1.0, 'direction': 'both'})],
+
+    [FIModelConfig('R2F-_minnp_1', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'minnp', 'fraction_chosen': 1.0, 'add_linear': False})],
+    [FIModelConfig('R2F-_bic_seq', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'bic_sequential', 'max_components_type': 'minnp', 'fraction_chosen': 1.0, 'add_linear': False})],
+    [FIModelConfig('R2F-_bic_nseq', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'bic_nonsequential', 'max_components_type': 'minnp', 'fraction_chosen': 1.0, 'add_linear': False})],
+    [FIModelConfig('R2F-_bic_nseq_bid', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'bic_nonsequential', 'max_components_type': 'minnp', 'fraction_chosen': 1.0, 'direction': 'both', 'add_linear': False})],
+
+    [FIModelConfig('R2F_adj_minnp_08', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'minnp', 'fraction_chosen': 0.8, 'adjusted_r2': True})],
+    [FIModelConfig('R2F_adj_bic_nseq', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'bic_nonsequential', 'max_components_type': 'minnp', 'fraction_chosen': 1.0, 'adjusted_r2': True})],
+
+    [FIModelConfig('R2F-_adj_minnp_08', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'minnp', 'fraction_chosen': 0.8, 'add_linear': False, 'adjusted_r2': True})],
+    [FIModelConfig('R2F-_adj_bic_nseq', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'bic_nonsequential', 'max_components_type': 'minnp', 'fraction_chosen': 1.0, 'add_linear': False, 'adjusted_r2': True})],
+
+    # [FIModelConfig('T-Test', lin_reg_t_test, None, True, model_type='linear')],
     [FIModelConfig('MDI', tree_mdi, None, False, model_type='tree')],
+    [FIModelConfig('MDI-oob', tree_mdi_OOB, None, False, model_type='tree')],
     [FIModelConfig('Permutation', perm_importance, None, False, model_type='tree')],
+    [FIModelConfig('TreeSHAP', tree_shap_mean, None, False, model_type='tree')]
 ]
+
+# FI_ESTIMATORS = [
+#     [FIModelConfig('R2F_max_norm', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'max', "normalize": True})],
+#     [FIModelConfig('R2F_max', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'max'})],
+#
+#     [FIModelConfig('R2F_minnp_1_norm', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'minnp', 'fraction_chosen': 1.0, "normalize": True})],
+#     [FIModelConfig('R2F_minnp_1', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'minnp', 'fraction_chosen': 1.0})],
+#     [FIModelConfig('R2F_minnp_2', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'minnp', 'fraction_chosen': 0.5})],
+#     [FIModelConfig('R2F_minnp_3', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'minnp', 'fraction_chosen': 0.25})],
+#     [FIModelConfig('R2F_minnp_4', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'minnp', 'fraction_chosen': 0.125})],
+#     [FIModelConfig('R2F_minnp_5', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'minnp', 'fraction_chosen': 1/16})],
+#     [FIModelConfig('R2F_minnp_6', tree_feature_significance, None, True, model_type='tree',other_params={'max_components_type': 'minnp', 'fraction_chosen': 1/32})],
+#
+#     [FIModelConfig('R2F_pca_cv', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'pca_cv', 'max_components_type': 'minnp', 'fraction_chosen': 1.0})],
+#
+#     [FIModelConfig('R2F_step', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'stepwise', 'max_components_type': 'minnp', 'fraction_chosen': 1.0})],
+#
+#     [FIModelConfig('R2F_seqstep', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'sequential_stepwise', 'max_components_type': 'minnp', 'fraction_chosen': 1.0})],
+#
+#     [FIModelConfig('R2F_bic_seq', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'bic_sequential', 'max_components_type': 'minnp', 'fraction_chosen': 1.0})],
+#     [FIModelConfig('R2F_bic_nseq', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'bic_nonsequential', 'max_components_type': 'minnp', 'fraction_chosen': 1.0})],
+#
+#     [FIModelConfig('R2F_pca_var', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'pca_var', 'max_components_type': 'minnp', 'fraction_chosen': 1.0})],
+#
+#     [FIModelConfig('R2F_ridge', tree_feature_significance, None, True, model_type='tree',other_params={'type': 'ridge', 'max_components_type': "none"})],
+#
+#     # [FIModelConfig('T-Test', lin_reg_t_test, None, True, model_type='linear')],
+#     [FIModelConfig('MDI', tree_mdi, None, False, model_type='tree')],
+#     [FIModelConfig('Permutation', perm_importance, None, False, model_type='tree')],
+# ]
+
+# FI_ESTIMATORS = [
+#     # [FIModelConfig('OptimalTreeSig', optimal_tree_feature_significance, None, True, model_type='tree')],
+#     [FIModelConfig('TreeSig', tree_feature_significance, None, True, model_type='tree')],
+#     [FIModelConfig('T-Test', lin_reg_t_test, None, True, model_type='linear')],
+#     [FIModelConfig('MDI', tree_mdi, None, False, model_type='tree')],
+#     [FIModelConfig('Permutation', perm_importance, None, False, model_type='tree')],
+#     [FIModelConfig('TreeSHAP', tree_shap_mean, None, False, model_type='tree')],
+#     [FIModelConfig('Boruta', boruta_rank, None, False, model_type='rf')],
+#     [FIModelConfig('FOCI', foci_rank, None, False, model_type='linear')],  # model_type=None in reality
+#     [FIModelConfig('Knockoff', knockpy_swap_integral, None, True, model_type='tree', other_params={'knockoff_fdr':0.05})]
+# ]
+
+# MAX_COMPONENTS=[0.1, 0.2, 0.3, 0.4, 0.5]
+# FI_ESTIMATORS = [
+#     # [FIModelConfig('OptimalTreeSig', optimal_tree_feature_significance, None, True, model_type='tree', vary_param="max_components", vary_param_val=m) for m in MAX_COMPONENTS],
+#     [FIModelConfig('TreeSig', tree_feature_significance, None, True, model_type='tree', vary_param="max_components", vary_param_val=m) for m in MAX_COMPONENTS],
+#     # [FIModelConfig('T-Test', lin_reg_t_test, None, True, model_type='linear')],
+#     # [FIModelConfig('MDI', tree_mdi, None, False, model_type='tree')],
+#     # [FIModelConfig('Permutation', perm_importance, None, False, model_type='tree')],
+# ]

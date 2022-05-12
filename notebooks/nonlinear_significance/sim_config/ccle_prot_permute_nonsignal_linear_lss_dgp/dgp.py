@@ -13,7 +13,7 @@ X_PARAMS_DICT = {
     "sample_row_n": None,
     "sample_col_n": None,
     "permute_nonsignal_col": "block",
-    "n_signal_features": 11
+    "n_signal_features": 6
 }
 Y_DGP = linear_lss_model
 Y_PARAMS_DICT = {

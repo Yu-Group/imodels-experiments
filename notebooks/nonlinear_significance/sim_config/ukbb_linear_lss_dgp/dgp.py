@@ -20,7 +20,7 @@ Y_PARAMS_DICT = {
     "heritability": 0.4,
     "s": None,
     "tau": 0,
-    "m": 2,
+    "m": 3,
     "r": 2
 }
 
