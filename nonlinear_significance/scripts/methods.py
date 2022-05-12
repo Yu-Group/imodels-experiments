@@ -237,7 +237,7 @@ def tree_feature_significance(X, y, fit, type="default", max_components_type='me
     :return:
     """
 
-    assert type in ["default", "sequential_stepwise", "ridge", "stepwise", "pca_cv", "pca_var", "bic_sequential", "bic_nonsequential"]
+    assert type in ["default", "sequential_stepwise", "ridge", "stepwise", "pca_cv", "pca_var", "bic_sequential", "bic_nonsequential","lasso"]
 
     tree_tester = TreeTester(fit, max_components_type=max_components_type, normalize=normalize,fraction_chosen = fraction_chosen)
     if type == "default":
