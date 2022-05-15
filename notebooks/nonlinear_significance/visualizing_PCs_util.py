@@ -112,7 +112,7 @@ def make_2d_plot(tree_transformer, X_val, c_plotted=6, save=False, experiment=No
     nrow = 2
     ncol = c_plotted // nrow
     fig, axes = plt.subplots(nrow, ncol, sharex=True, sharey=True, figsize=(4*ncol, 4*nrow), constrained_layout=True)
-    cmap=cm.get_cmap('viridis')
+    cmap=cm.get_cmap('plasma')
     normalizer=Normalize(-10,10)
     im=cm.ScalarMappable(norm=normalizer)
     for k in range(c_plotted):
