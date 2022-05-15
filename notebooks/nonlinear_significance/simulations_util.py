@@ -294,6 +294,22 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, return_sup
     else:
         return y_train
 
+
+def xor(X, sigma, beta, heritability=None, snr=None):
+
+    n, p = X.shape
+    assert p >= 2
+
+    y_train = beta * ((X[:, 0] * X[:, 1]) > 0)
+    if heritability is not None:
+        sigma = (np.var(y_train)*((1.0-heritability)/(heritability)))**0.5
+    if snr is not None:
+        sigma = (np.var(y_train) / snr)**0.5
+    y_train = y_train + sigma * np.random.randn(n)
+
+    return y_train
+
+
 def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, return_support=False,
                      diagnostics=False):
     """
@@ -360,7 +376,7 @@ def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, r
 
   
     
-def hierarchical_poly(X,sigma,m,r,beta,heritability=None, snr=None, return_support = False):
+def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None, return_support = False):
     """
     This method creates response from an Linear + LSS model
 
