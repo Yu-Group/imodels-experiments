@@ -55,7 +55,7 @@ def get_pca_results(X, y, k=0, target_func=None, c=10, random_seed=405, normaliz
     rf_model = RandomForestRegressor(max_features=0.33, random_state=random_seed, min_samples_leaf=5)
     rf_model.fit(X_train, y_train)
     tree_transformer = TreeTransformer(rf_model, max_components_type=c, normalize=normalize)
-    tree_transformer.fit(X_val, y_val)
+    tree_transformer.fit(X_train)
     lin_fit = OLS(y_val, tree_transformer.transform_one_feature(X_val, k)).fit()
     pca_var_explained = tree_transformer.pca_transformers[k].explained_variance_ratio_[:c]
     original_feat = X_val[:, k]
