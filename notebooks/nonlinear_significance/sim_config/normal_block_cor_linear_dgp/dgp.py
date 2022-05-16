@@ -12,12 +12,14 @@ X_PARAMS_DICT = {
     "n": 250,
     "d": 50,
     "rho": 0.8,
-    "n_blocks": 5
+    "n_blocks": 2
+    "first_block_only": True
 }
 Y_DGP = linear_model
 Y_PARAMS_DICT = {
     "beta": 1,
-    "sigma": 0.1,
+    "sigma": None,
+    "heritability": 0.4,
     "s": 5
 }
 
@@ -27,8 +29,13 @@ Y_PARAMS_DICT = {
 # VARY_PARAM_NAME = "n_estimators"
 # VARY_PARAM_VALS = {"placeholder": 0}
 
-VARY_PARAM_NAME = "rho"
-VARY_PARAM_VALS = {"0": 0, "0.2": 0.2, "0.4": 0.4, "0.6": 0.6, "0.8": 0.8}
+VARY_PARAM_NAME = ["heritability", "rho"]
+VARY_PARAM_VALS = {"heritability": {"0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
+                   "rho": {"0.5": 0.5, "0.8": 0.8, "0.9": 0.9, "0.99": 0.99}}
+
+#VARY_PARAM_NAME = "rho"
+#VARY_PARAM_VALS = {"0": 0, "0.2": 0.2, "0.4": 0.4, "0.6": 0.6, "0.8": 0.8}
+
 #
 # VARY_PARAM_NAME = "n"
 # VARY_PARAM_VALS = {'250': 250, '500': 500, '1000': 1000, '5000': 5000, '10000': 10000}

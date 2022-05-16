@@ -159,13 +159,14 @@ def sample_ar1_X(n, d, rho, mean=0):
     return X
 
 
-def sample_block_cor_X(n, d, rho, n_blocks, mean=0):
+def sample_block_cor_X(n, d, rho, n_blocks, first_block_only = False,mean=0):
     """
     Sample X from N(mean, Sigma) where Sigma is a block diagnoal covariance matrix
     :param n:
     :param d:
     :param rho:
     :param n_blocks:
+    :param first_block_only: if true, only add rho correlation in first block
     :param mean:
     :return:
     """
@@ -173,7 +174,11 @@ def sample_block_cor_X(n, d, rho, n_blocks, mean=0):
     block_size = d // n_blocks
     if np.isscalar(rho):
         rho = np.repeat(rho, n_blocks)
-    for i in range(n_blocks):
+    if first_block_only:
+        n_block_rho = 1
+    else:
+        n_block_rho = n_blocks
+    for i in range(n_block_rho):
         start = i * block_size
         end = (i + 1) * block_size
         if i == (n_blocks - 1):
