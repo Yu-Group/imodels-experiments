@@ -227,6 +227,34 @@ def linear_model(X, sigma, s, beta, heritability = None, snr=None, return_suppor
         return y_train
 
 
+def logistic_model(X, s, beta, return_support=False):
+    '''
+    This method is used to create responses from a sum of squares model with hard sparsity
+    Parameters:
+    X: X matrix
+    s: sparsity
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+    sigma: s.d. of added noise
+    Returns:
+    numpy array of shape (n)
+    '''
+
+    def create_y(x, s, beta):
+        linear_term = 0
+        for j in range(s):
+            linear_term += x[j] * beta[j]
+        prob = 1 / (1 + np.exp(-linear_term))
+        return (np.random.uniform(size=1) < prob) * 1
+
+    beta = generate_coef(beta, s)
+    y_train = np.array([create_y(X[i, :], s, beta) for i in range(len(X))])
+    if return_support:
+        support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
+        return y_train, support, beta
+    else:
+        return y_train
+
+
 def sum_of_squares(X, sigma, s, beta, heritability=None, snr=None, return_support=False):
     '''
     This method is used to create responses from a sum of squares model with hard sparsity
