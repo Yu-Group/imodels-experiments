@@ -100,6 +100,10 @@ reformat_results <- function(results) {
     dplyr::mutate(
       method = ifelse(stringr::str_detect(method, "^R2F.*RF$"),
                       stringr::str_remove(method, "\\_RF$"), method)
+    ) %>%
+    dplyr::mutate(
+      method = ifelse(stringr::str_detect(method, "^r2f.*RF$"),
+                      stringr::str_remove(method, "\\_RF$"), method)
     )
   return(results_grouped)
 }
