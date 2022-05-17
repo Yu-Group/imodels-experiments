@@ -159,13 +159,14 @@ def sample_ar1_X(n, d, rho, mean=0):
     return X
 
 
-def sample_block_cor_X(n, d, rho, n_blocks, mean=0):
+def sample_block_cor_X(n, d, rho, n_blocks, first_block_only = False,mean=0):
     """
     Sample X from N(mean, Sigma) where Sigma is a block diagnoal covariance matrix
     :param n:
     :param d:
     :param rho:
     :param n_blocks:
+    :param first_block_only: if true, only add rho correlation in first block
     :param mean:
     :return:
     """
@@ -173,7 +174,11 @@ def sample_block_cor_X(n, d, rho, n_blocks, mean=0):
     block_size = d // n_blocks
     if np.isscalar(rho):
         rho = np.repeat(rho, n_blocks)
-    for i in range(n_blocks):
+    if first_block_only:
+        n_block_rho = 1
+    else:
+        n_block_rho = n_blocks
+    for i in range(n_block_rho):
         start = i * block_size
         end = (i + 1) * block_size
         if i == (n_blocks - 1):
@@ -215,6 +220,34 @@ def linear_model(X, sigma, s, beta, heritability = None, snr=None, return_suppor
     if snr is not None:
         sigma = (np.var(y_train) / snr)**0.5
     y_train = y_train + sigma * np.random.randn((len(X)))
+    if return_support:
+        support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
+        return y_train, support, beta
+    else:
+        return y_train
+
+
+def logistic_model(X, s, beta, return_support=False):
+    '''
+    This method is used to create responses from a sum of squares model with hard sparsity
+    Parameters:
+    X: X matrix
+    s: sparsity
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+    sigma: s.d. of added noise
+    Returns:
+    numpy array of shape (n)
+    '''
+
+    def create_y(x, s, beta):
+        linear_term = 0
+        for j in range(s):
+            linear_term += x[j] * beta[j]
+        prob = 1 / (1 + np.exp(-linear_term))
+        return (np.random.uniform(size=1) < prob) * 1
+
+    beta = generate_coef(beta, s)
+    y_train = np.array([create_y(X[i, :], s, beta) for i in range(len(X))])
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
         return y_train, support, beta
@@ -294,6 +327,22 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, return_sup
     else:
         return y_train
 
+
+def xor(X, sigma, beta, heritability=None, snr=None):
+
+    n, p = X.shape
+    assert p >= 2
+
+    y_train = beta * ((X[:, 0] * X[:, 1]) > 0)
+    if heritability is not None:
+        sigma = (np.var(y_train)*((1.0-heritability)/(heritability)))**0.5
+    if snr is not None:
+        sigma = (np.var(y_train) / snr)**0.5
+    y_train = y_train + sigma * np.random.randn(n)
+
+    return y_train
+
+
 def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, return_support=False,
                      diagnostics=False):
     """
@@ -360,7 +409,7 @@ def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, r
 
   
     
-def hierarchical_poly(X,sigma,m,r,beta,heritability=None, snr=None, return_support = False):
+def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None, return_support = False):
     """
     This method creates response from an Linear + LSS model
 
