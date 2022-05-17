@@ -119,8 +119,8 @@ plot_metrics <- function(results, vary_param_name, vary_param_name_vec,
                   tidyselect::all_of(c(paste0(vary_param_name, "_name"), 
                                        metrics))) %>%
     dplyr::mutate(
-      rocauc = ifelse(stringr::str_detect(method, "R2F"), r2_rocauc, rocauc),
-      prauc = ifelse(stringr::str_detect(method, "R2F"), r2_prauc, prauc)
+      rocauc = ifelse(stringr::str_detect(method, "r2f"), r2_rocauc, rocauc),
+      prauc = ifelse(stringr::str_detect(method, "r2f"), r2_prauc, prauc)
     ) %>%
     tidyr::pivot_longer(
       cols = tidyselect::all_of(metrics), names_to = "metric"
@@ -200,7 +200,7 @@ plot_tpr <- function(results, vary_param_name, vary_param_name_vec) {
     dplyr::mutate(
       fi_scores = mapply(name = fi, scores_df = fi_scores,
                          function(name, scores_df) {
-                           if (stringr::str_detect(name, "R2F")) {
+                           if (stringr::str_detect(name, "r2f")) {
                              scores_df <- scores_df %>% 
                                dplyr::mutate(ranking = rank(-r2, ties.method = "random"),
                                              importance = r2)
@@ -333,7 +333,7 @@ plot_feature_importance <- function(results, vary_param_name, vary_param_name_ve
   plt_df <- results %>%
     tidyr::unnest(fi_scores) %>%
     dplyr::mutate(
-      importance = ifelse(stringr::str_detect(method, "R2F"), 
+      importance = ifelse(stringr::str_detect(method, "r2f"), 
                           r2, importance)
     )
   if (plot_type == "bar") {
@@ -439,7 +439,7 @@ plot_ranking_heatmap <- function(results, vary_param_name, vary_param_name_vec,
     dplyr::mutate(
       fi_scores = mapply(name = fi, scores_df = fi_scores,
                          function(name, scores_df) {
-                           if (stringr::str_detect(name, "R2F")) {
+                           if (stringr::str_detect(name, "r2f")) {
                              scores_df <- scores_df %>% 
                                dplyr::mutate(ranking = rank(-r2),
                                              importance = r2)
