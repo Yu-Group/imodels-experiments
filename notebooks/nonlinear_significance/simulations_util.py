@@ -379,17 +379,18 @@ def linear_lss_model(X,sigma,m,r,tau,beta, s=None,heritability=None, snr=None, r
         return y
     
     beta_linear = generate_coef(beta, s)
+    beta_lss = generate_coef(beta, m)
     # Make beta vector for LSS
-    beta_lss = np.zeros(m)
-    for j in range(m):
-        X_block = X[:, j * r: j * r + r]
-        beta_lin_block = beta_linear[j * r: j * r + r]
-        X_block_bool = X_block > tau
-        block_lss_prob = np.all(X_block_bool, axis=1).mean()
-        block_lss_var = block_lss_prob * (1 - block_lss_prob)
-        block_lin_var = np.var(X_block @ beta_lin_block)
-        ratio = np.sqrt(block_lin_var / block_lss_var)
-        beta_lss[j] = beta * ratio
+    # beta_lss = np.zeros(m)
+    # for j in range(m):
+    #     X_block = X[:, j * r: j * r + r]
+    #     beta_lin_block = beta_linear[j * r: j * r + r]
+    #     X_block_bool = X_block > tau
+    #     block_lss_prob = np.all(X_block_bool, axis=1).mean()
+    #     block_lss_var = block_lss_prob * (1 - block_lss_prob)
+    #     block_lin_var = np.var(X_block @ beta_lin_block)
+    #     ratio = np.sqrt(block_lin_var / block_lss_var)
+    #     beta_lss[j] = beta * ratio
     
     y_train_linear = np.array([linear_func(X[i, :],s,beta_linear) for i in range(n)])
     y_train_lss = np.array([lss_func(X[i, :], beta_lss) for i in range(n)])
