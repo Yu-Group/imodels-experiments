@@ -400,23 +400,27 @@ for seed in tqdm(seeds):
     results_pmodel = defaultdict(lambda:[])
     for model, cls in [('PFIGS', imodels.FIGSClassifier), ('PCART', DecisionTreeClassifier)]:
         model_parent = model[1:]
-        for pmodel_name in prop_models:
-            best_young_model = cls(**get_best_args(young_results, f'^{pmodel_name}{model}')).fit(
-            X_train, y_train, sample_weight=(1 - prop_scores[pmodel_name]) * sw_train)
-            best_old_model = cls(**get_best_args(old_results, f'^{pmodel_name}{model}')).fit(
-            X_train, y_train, sample_weight=prop_scores[pmodel_name] * sw_train)
+        if RUN_VAL:
+            for pmodel_name in prop_models:
+                best_young_model = cls(**get_best_args(young_results, f'^{pmodel_name}{model}')).fit(
+                X_train, y_train, sample_weight=(1 - prop_scores[pmodel_name]) * sw_train)
+                best_old_model = cls(**get_best_args(old_results, f'^{pmodel_name}{model}')).fit(
+                X_train, y_train, sample_weight=prop_scores[pmodel_name] * sw_train)
 
-            combine = TransferTree(best_young_model, best_old_model, is_group_1_val)
-            best_parent_train_only = cls(**get_best_args(all_results, f'^{model_parent}')).fit(
-                X_train, y_train, sample_weight=sw_train)
-            pmix_young = TransferTree(best_young_model, best_parent_train_only, is_group_1_val)
-            pmix_old = TransferTree(best_parent_train_only, best_old_model, is_group_1_val)
+                combine = TransferTree(best_young_model, best_old_model, is_group_1_val)
+                best_parent_train_only = cls(**get_best_args(all_results, f'^{model_parent}')).fit(
+                    X_train, y_train, sample_weight=sw_train)
+                pmix_young = TransferTree(best_young_model, best_parent_train_only, is_group_1_val)
+                pmix_old = TransferTree(best_parent_train_only, best_old_model, is_group_1_val)
 
-            log_results(combine, f'{model}_{pmodel_name}_all', X_val, y_val, pmodel_name, results_pmodel)
-            log_results(pmix_young, f'MIX{model}_{pmodel_name}_young', X_val, y_val, 'young', results_pmodel)
-            log_results(pmix_old, f'MIX{model}_{pmodel_name}_old', X_val, y_val, 'old', results_pmodel)
-        
-        results_pmodel_df = pd.DataFrame.from_dict(results_pmodel, orient='index', columns=columns)
+                log_results(combine, f'{model}_{pmodel_name}_all', X_val, y_val, pmodel_name, results_pmodel)
+                log_results(pmix_young, f'MIX{model}_{pmodel_name}_young', X_val, y_val, 'young', results_pmodel)
+                log_results(pmix_old, f'MIX{model}_{pmodel_name}_old', X_val, y_val, 'old', results_pmodel)
+            
+            results_pmodel_df = pd.DataFrame.from_dict(results_pmodel, orient='index', columns=columns)
+        else:
+            results_pmodel_df = pd.read_csv(oj(RESULT_PATH, 'pmodel_val.csv')).set_index('Unnamed: 0')
+
         best_pmodel = get_best_args(results_pmodel_df, f'^{model}')
         best_pmix = get_best_args(results_pmodel_df, f'^MIX{model}_{best_pmodel}')
 
@@ -442,27 +446,31 @@ for seed in tqdm(seeds):
             best_models[f'{model}_mix'.lower()] = TransferTree(
                 best_models[f'{model_parent}_all'.lower()], best_models[f'{model}_old'.lower()], is_group_1_test)
 
-    results_pmodel_df.to_csv(oj(RESULT_PATH, 'pmodel_val.csv'))
+    if RUN_VAL:
+        results_pmodel_df.to_csv(oj(RESULT_PATH, 'pmodel_val.csv'))
 
     # use validation to select the best mix 
     results_pmix = defaultdict(lambda:[])
     for model, cls in [
         ('FIGS', imodels.FIGSClassifier), ('CART', DecisionTreeClassifier), ('TAO', imodels.TaoTreeClassifier)]:
 
-        best_young_model = cls(**get_best_args(young_results, f'^{model}')).fit(
-            X_train_young, y_train_young, sample_weight=sw_train_young)
-        best_old_model = cls(**get_best_args(old_results, f'^{model}')).fit(
-            X_train_old, y_train_old, sample_weight=sw_train_old)
+        if RUN_VAL:
 
-        best_parent_train_only = cls(**get_best_args(all_results, f'^{model}')).fit(
-            X_train, y_train, sample_weight=sw_train)
-        pmix_young = TransferTree(best_young_model, best_parent_train_only, is_group_1_val)
-        pmix_old = TransferTree(best_parent_train_only, best_old_model, is_group_1_val)
-    
-        log_results(pmix_young, f'MIX{model}_young', X_val, y_val, 'young', results_pmix)
-        log_results(pmix_old, f'MIX{model}_old', X_val, y_val, 'old', results_pmix)
+            best_young_model = cls(**get_best_args(young_results, f'^{model}')).fit(
+                X_train_young, y_train_young, sample_weight=sw_train_young)
+            best_old_model = cls(**get_best_args(old_results, f'^{model}')).fit(
+                X_train_old, y_train_old, sample_weight=sw_train_old)
+
+            best_parent_train_only = cls(**get_best_args(all_results, f'^{model}')).fit(
+                X_train, y_train, sample_weight=sw_train)
+            pmix_young = TransferTree(best_young_model, best_parent_train_only, is_group_1_val)
+            pmix_old = TransferTree(best_parent_train_only, best_old_model, is_group_1_val)
         
-        results_pmix_df = pd.DataFrame.from_dict(results_pmix, orient='index', columns=columns)
+            log_results(pmix_young, f'MIX{model}_young', X_val, y_val, 'young', results_pmix)
+            log_results(pmix_old, f'MIX{model}_old', X_val, y_val, 'old', results_pmix)
+            results_pmix_df = pd.DataFrame.from_dict(results_pmix, orient='index', columns=columns)
+        else:
+            results_pmix_df = pd.read_csv(oj(RESULT_PATH, 'pmix_val.csv')).set_index('Unnamed: 0')
         best_pmix = get_best_args(results_pmix_df, f'^MIX{model}')
 
         if best_pmix == 'young':
@@ -472,7 +480,8 @@ for seed in tqdm(seeds):
             best_models[f'{model}_mix'.lower()] = TransferTree(
                 best_models[f'{model}_all'.lower()], best_models[f'{model}_old'.lower()], is_group_1_test)
 
-    results_pmix_df.to_csv(oj(RESULT_PATH, 'pmix_val.csv'))
+    if RUN_VAL:
+        results_pmix_df.to_csv(oj(RESULT_PATH, 'pmix_val.csv'))
     
     for model_name in [
         'cart_all', 'cart_combine', 'cart_mix', 
