@@ -24,7 +24,7 @@ python 01_run_simulations.py --nreps 100 --config test --split_seed 331 --ignore
 
 ## Creating the config files
 
-For a starter template, see the `sim_config/test` folder. There are two necessary files:
+For a starter template, see the `fi_config/test` folder. There are two necessary files:
 
 - `dgp.py`: Script specifying the data-generating process under study. The following variables must be provided:
   - `X_DGP`: Function to generate X data.
