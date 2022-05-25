@@ -23,10 +23,10 @@ Y_PARAMS_DICT = {
     "r": 2
 }
 
-VARY_PARAM_NAME = ["heritability", "sample_row_n"]
-VARY_PARAM_VALS = {"heritability": {"0.05": 0.05, "0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
-                   "sample_row_n": {"100": 100, "250": 250, "500": 500, "1000": 1000}}
-
-# VARY_PARAM_NAME = ["heritability", "m"]
+# VARY_PARAM_NAME = ["heritability", "sample_row_n"]
 # VARY_PARAM_VALS = {"heritability": {"0.05": 0.05, "0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
-#                    "m": {"2": 2, "3": 3, "5": 5, "8": 8}}
+#                    "sample_row_n": {"100": 100, "250": 250, "500": 500, "1000": 1000}}
+
+VARY_PARAM_NAME = ["heritability", "m"]
+VARY_PARAM_VALS = {"heritability": {"0.05": 0.05, "0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
+                   "m": {"2": 2, "3": 3, "5": 5, "8": 8}}

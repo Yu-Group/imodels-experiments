@@ -21,8 +21,12 @@ Y_PARAMS_DICT = {
     "s": 5
 }
 
-VARY_PARAM_NAME = "sample_col_n"
-VARY_PARAM_VALS = {"20": 20, "40": 40, "60": 60, "100": 100, "150": 150, "200": 200}
+VARY_PARAM_NAME = ["heritability", "sample_row_n"]
+VARY_PARAM_VALS = {"heritability": {"0.05": 0.05, "0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
+                   "sample_row_n": {"500": 500}}
+
+# VARY_PARAM_NAME = "sample_col_n"
+# VARY_PARAM_VALS = {"20": 20, "40": 40, "60": 60, "100": 100, "150": 150, "200": 200}
 
 # VARY_PARAM_NAME = ["heritability", "sample_row_n"]
 # VARY_PARAM_VALS = {"heritability": {"0.05": 0.05, "0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
@@ -30,7 +34,7 @@ VARY_PARAM_VALS = {"20": 20, "40": 40, "60": 60, "100": 100, "150": 150, "200": 
 
 # VARY_PARAM_NAME = ["heritability", "s"]
 # VARY_PARAM_VALS = {"heritability": {"0.05": 0.05, "0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
-#                    "s": {"2": 2, "5": 5, "10": 10, "25": 25}}
+#                    "s": {"2": 2, "5": 5, "10": 10, "25": 25, "50": 50, "100": 100}}
 
 # VARY_PARAM_NAME = ["heritability", "sample_col_n"]
 # VARY_PARAM_VALS = {"heritability": {"0.05": 0.05, "0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
