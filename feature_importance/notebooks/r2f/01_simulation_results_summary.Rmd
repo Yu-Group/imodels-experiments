@@ -1,0 +1,261 @@
+---
+title: "$r^2f$ Simulation Results Summary"
+author: ""
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: vthemes::vmodern
+params:
+  results_dir: 
+    label: "Results directory"
+    value: "/global/scratch/users/tiffanytang/feature_importance/results/"
+  seed:
+    label: "Seed"
+    value: 12345
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+library(magrittr)
+chunk_idx <- 1
+
+# set parameters
+results_dir <- params$results_dir
+seed <- params$seed
+
+# plot options
+point_size <- 2
+line_size <- 1
+errbar_width <- 0
+manual_color_palette <- c("black", "orange", "#71beb7", "#218a1e", "#cc3399")
+show_methods <- c("r2f", "Permutation_RF", "MDI_RF", "MDI-oob_RF", "TreeSHAP_RF")
+method_labels <- c(bquote(~r^2*"f"), "Permutation", "MDI", "MDI-oob", "TreeSHAP")
+custom_theme <- vthemes::theme_vmodern(size_preset = "medium")
+# custom_theme <- vthemes::theme_vmodern(
+#   size_preset = "medium", bg_color = "white", grid_color = "white",
+#   axis.ticks = ggplot2::element_line(size = ggplot2::rel(2), colour = "black"),
+#   axis.text = ggplot2::element_text(size = 14),
+#   axis.title = ggplot2::element_text(size = 20, face = "plain"),
+#   legend.text = ggplot2::element_text(size = 14),
+#   plot.title = ggplot2::element_blank()
+#   # plot.title = ggplot2::element_text(size = 12, face = "plain", hjust = 0.5)
+# )
+
+source("../../scripts/viz.R", chdir = TRUE)
+```
+
+```{r helper-functions, echo = FALSE}
+# view results in Rmarkdown
+# notes: need to set 'results = "asis"' in the code chunk header
+view_results <- function(metrics_plt_ls, tpr_plt_ls = list()) {
+  sim_names <- names(metrics_plt_ls)
+  datasets <- c("german", "ukbb", "ccle_prot", "fmri")
+  dataset_names <- c("German Credit", "UK Biobank", "CCLE", "fMRI")
+  for (dataset in datasets) {
+    dataset_name <- dplyr::case_when(
+      dataset == "german" ~ "German Credit",
+      dataset == "ukbb" ~ "UK Biobank",
+      dataset == "ccle_prot" ~ "CCLE",
+      dataset == "fmri" ~ "fMRI"
+    )
+    sims <- sim_names[stringr::str_detect(sim_names, dataset)]
+    if (length(sims) == 0) {
+      next
+    }
+    cat(sprintf("\n\n## %s {.tabset .tabset-pills}\n\n", dataset_name))
+    for (sim in sims) {
+      sim_name <- stringr::str_remove(sim, paste0(dataset, "\\_")) %>%
+        stringr::str_remove("\\_dgp")
+      if (stringr::str_detect(sim_name, "logistic")) {
+        height <- 5
+      } else {
+        height <- 8
+      }
+      cat(sprintf("\n\n### %s {.tabset .tabset-pills .tabset-square}\n\n", 
+                  sim_name))
+      
+      vthemes::subchunkify(plotly::ggplotly(metrics_plt_ls[[sim]]), 
+                           i = chunk_idx, other_args = "out.width = '100%'",
+                           fig_height = height,
+                           add_class = "panel panel-default padded-panel")
+      chunk_idx <<- chunk_idx + 1
+      if (!is.null(tpr_plt_ls[[sim]])) {
+        vthemes::subchunkify(plotly::ggplotly(tpr_plt_ls[[sim]]), 
+                             i = chunk_idx, other_args = "out.width = '100%'",
+                             fig_height = height,
+                             add_class = "panel panel-default padded-panel")
+        chunk_idx <<- chunk_idx + 1
+      }
+    }
+  }
+}
+```
+
+
+# Main Simulations {.tabset .tabset-vmodern}
+
+```{r results="asis"}
+# read in results
+metrics_plt_ls <- list()
+tpr_plt_ls <- list()
+for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FALSE)) {
+  if (stringr::str_detect(basename(results_subdir), "omitted|algorithmic_choices|sparsity_sims")) {
+    next
+  }
+  for (vary_param_dir in list.dirs(results_subdir, full.names = FALSE, recursive = FALSE)) {
+    # print(file.path(results_subdir, vary_param_dir))
+    fname <- file.path(results_subdir, vary_param_dir, paste0("seed", seed), "results.csv")
+    sim_name <- stringr::str_extract(basename(results_subdir), "[^\\.]*$") %>%
+      stringr::str_remove("\\_dgp")
+    facet_str <- "heritability"
+    x_str <- "sample_row_n"
+    if (stringr::str_detect(sim_name, "logistic")) {
+      facet_str <- NULL
+    } else if (stringr::str_detect(sim_name, "cart")) {
+      x_str <- "n"
+    } else if (stringr::str_detect(sim_name, "augmented")) {
+      facet_str <- "sample_col_n"
+    }
+    
+    results <- reformat_results(data.table::fread(fname))
+    metrics_plt_ls[[sim_name]] <- plot_metrics(
+      results, x_str = x_str, facet_str = facet_str, 
+      point_size = point_size, line_size = line_size, errbar_width = errbar_width,
+      inside_legend = FALSE, manual_color_palette = manual_color_palette, 
+      show_methods = show_methods, method_labels = method_labels,
+      custom_theme = custom_theme
+    ) +
+      ggplot2::labs(x = "Sample Size", y = "Mean", 
+                    color = "Method", alpha = "Method")
+    
+    tpr_plt_ls[[sim_name]] <- plot_tpr(
+      results, facet_vars = c(x_str, facet_str), point_size = line_size,
+      manual_color_palette = manual_color_palette, show_methods = show_methods,
+      method_labels = method_labels, custom_theme = custom_theme
+    )
+  }
+}
+
+view_results(metrics_plt_ls, tpr_plt_ls)
+rm(tpr_plt_ls)
+
+```
+
+# Omitted Variable Simulations {.tabset .tabset-vmodern}
+
+```{r results="asis"}
+# read in results
+metrics_plt_ls <- list()
+for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FALSE)) {
+  if (!stringr::str_detect(basename(results_subdir), "omitted")) {
+    next
+  }
+  for (vary_param_dir in list.dirs(results_subdir, full.names = FALSE, recursive = FALSE)) {
+    # print(file.path(results_subdir, vary_param_dir))
+    fname <- file.path(results_subdir, vary_param_dir, paste0("seed", seed), "results.csv")
+    sim_name <- stringr::str_extract(basename(results_subdir), "[^\\.]*$") %>%
+      stringr::str_remove("\\_dgp\\_omitted\\_vars")
+    x_str <- "sample_row_n"
+    facet_str <- "heritability"
+    
+    results <- reformat_results(data.table::fread(fname))
+    metrics_plt_ls[[sim_name]] <- plot_metrics(
+      results, x_str = x_str, facet_str = facet_str, 
+      point_size = point_size, line_size = line_size, errbar_width = errbar_width,
+      inside_legend = FALSE, manual_color_palette = manual_color_palette, 
+      show_methods = show_methods, method_labels = method_labels,
+      custom_theme = custom_theme
+    ) +
+      ggplot2::labs(x = "Sample Size", y = "Mean", 
+                    color = "Method", alpha = "Method")
+  }
+}
+
+view_results(metrics_plt_ls)
+
+```
+
+# Sparsity Simulations {.tabset .tabset-vmodern}
+
+```{r results="asis"}
+# read in results
+metrics_plt_ls <- list()
+for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FALSE)) {
+  if (!stringr::str_detect(basename(results_subdir), "sparsity_sims")) {
+    next
+  }
+  for (vary_param_dir in list.dirs(results_subdir, full.names = FALSE, recursive = FALSE)) {
+    # print(file.path(results_subdir, vary_param_dir))
+    fname <- file.path(results_subdir, vary_param_dir, paste0("seed", seed), "results.csv")
+    sim_name <- stringr::str_extract(basename(results_subdir), "[^\\.]*$") %>%
+      stringr::str_remove("\\_dgp")
+    facet_str <- "heritability"
+    if (stringr::str_detect(sim_name, "linear")) {
+      x_str <- "s"
+      x_lab <- "Number of Signal Features (S)"
+    } else {
+      x_str <- "m"
+      x_lab <- "Number of Interactions (M)"
+    }
+    
+    results <- reformat_results(data.table::fread(fname))
+    metrics_plt_ls[[sim_name]] <- plot_metrics(
+      results, x_str = x_str, facet_str = facet_str, 
+      point_size = point_size, line_size = line_size, errbar_width = errbar_width,
+      inside_legend = FALSE, manual_color_palette = manual_color_palette, 
+      show_methods = show_methods, method_labels = method_labels,
+      custom_theme = custom_theme
+    ) +
+      ggplot2::labs(x = x_lab, y = "Mean", 
+                    color = "Method", alpha = "Method")
+  }
+}
+
+view_results(metrics_plt_ls)
+
+```
+
+# $r^2f$ Algorithmic Choices {.tabset .tabset-vmodern}
+
+```{r results="asis"}
+manual_color_palette <- c("black", "#ff9902", "#6caa52", "#4a86e8", "#a64d79")
+show_methods <- c("r2f", 
+                  "r2f (Without Refit)", 
+                  "r2f (Without Xk)", 
+                  "r2f (AIC)", 
+                  "r2f (CV)")
+method_labels <- c(bquote(~r^2*"f"), 
+                   bquote(~r^2*"f (No Refit)"), 
+                   bquote(~r^2*"f (No"~X[k]*")"), 
+                   bquote(~r^2*"f (AIC)"), 
+                   bquote(~r^2*"f (CV)"))
+
+metrics_plt_ls <- list()
+for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FALSE)) {
+  if (!stringr::str_detect(basename(results_subdir), "r2f_algorithmic_choices")) {
+    next
+  }
+  for (vary_param_dir in list.dirs(results_subdir, full.names = FALSE, recursive = FALSE)) {
+    # print(file.path(results_subdir, vary_param_dir))
+    fname <- file.path(results_subdir, vary_param_dir, paste0("seed", seed), "results.csv")
+    sim_name <- stringr::str_extract(basename(results_subdir), "[^\\.]*$") %>%
+      stringr::str_remove("\\_dgp")
+    x_str <- "sample_row_n"
+    facet_str <- "heritability"
+    
+    results <- reformat_results(data.table::fread(fname))
+    metrics_plt_ls[[sim_name]] <- plot_metrics(
+      results, x_str = x_str, facet_str = facet_str, 
+      point_size = point_size, line_size = line_size, errbar_width = errbar_width,
+      inside_legend = FALSE, manual_color_palette = manual_color_palette, 
+      show_methods = show_methods, method_labels = method_labels,
+      custom_theme = custom_theme
+    ) +
+      ggplot2::labs(x = "Sample Size", y = "Mean", 
+                    color = "Method", alpha = "Method")
+  }
+}
+
+view_results(metrics_plt_ls)
+
+```
+
