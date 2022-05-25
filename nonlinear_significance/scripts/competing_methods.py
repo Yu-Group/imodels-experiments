@@ -114,11 +114,13 @@ def MDI_OOB(rf, X, y, type = 'oob', normalized = True, balanced = False, demean=
                 contributions[:, :, k] = scale(contributions[:, :, k]) 
         tmp =  np.tensordot(np.array(y[indices,:]) * final_weights, contributions, axes=([0, 1], [0, 2])) 
         if normalized:
-            out +=  tmp / sum(tmp)
+            if sum(tmp) != 0:
+                out +=  tmp / sum(tmp)
         else:
             out += tmp / len(indices)
         if normalized:
-            SE += (tmp / sum(tmp)) ** 2
+            if sum(tmp) != 0:
+                SE += (tmp / sum(tmp)) ** 2
         else:
             SE += (tmp / len(indices)) ** 2
     out /= rf.n_estimators
