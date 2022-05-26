@@ -53,11 +53,233 @@ custom_theme <- vthemes::theme_vmodern(
   plot.title = ggplot2::element_blank()
   # plot.title = ggplot2::element_text(size = 12, face = "plain", hjust = 0.5)
 )
+custom_theme_with_legend <- vthemes::theme_vmodern(
+  size_preset = "medium", bg_color = "white", grid_color = "white",
+  axis.title = ggplot2::element_text(size = 12, face = "plain"),
+  legend.text = ggplot2::element_text(size = 9),
+  legend.text.align = 0,
+  plot.title = ggplot2::element_blank()
+)
+custom_theme_without_legend <- vthemes::theme_vmodern(
+  size_preset = "medium", bg_color = "white", grid_color = "white",
+  axis.title = ggplot2::element_text(size = 12, face = "plain"),
+  legend.title = ggplot2::element_blank(),
+  legend.text = ggplot2::element_text(size = 9),
+  legend.text.align = 0,
+  plot.title = ggplot2::element_blank()
+)
 
 source("../../scripts/viz.R", chdir = TRUE)
 ```
 
 # PCA Investigations: Figure 2, 7
+
+```{r}
+pca_dir <- ""
+green <- "#417064"
+red <- "#c76349"
+
+facet_header_true <- ggplot2::theme(
+  strip.background = ggplot2::element_rect(fill = "#2c3e50", color = "white", size = 1)
+)
+facet_header_selected <- ggplot2::theme(
+  strip.background = ggplot2::element_rect(fill = "#007ea7", color = "white", size = 1)
+)
+facet_header_nonselected <- ggplot2::theme(
+  strip.background = ggplot2::element_rect(fill = "slategray", color = "white", size = 1)
+)
+fill_scheme <- ggplot2::scale_fill_gradient2(low = red, mid = "white", high = green, midpoint = 0)
+point_color <- "#023047"
+
+#### xor ####
+X_xor <- data.table::fread(file.path(pca_dir, "X.csv"), drop = 1) %>%
+  as.data.frame()
+pca_results <- data.table::fread(file.path(pca_dir, "pca_results.csv"), drop = 1) %>%
+  as.data.frame()
+color_code <- data.table::fread(file.path(pca_dir, "color_code.csv"), drop = 1) %>%
+  as.data.frame()
+
+selected_pcs <- which(pca_results$lasso_coef != 0)
+nonselected_pc <- which(pca_results$lasso_coef == 0)[1]
+
+# true xor regression surface
+xor_plt <- list(x1 = seq(-2.1, 2, by = 0.2), 
+                x2 = seq(-2.1, 2, by = 0.2)) %>%
+  expand.grid() %>%
+  dplyr::mutate(
+    y = ifelse(x1 > 0, x2 > 0, x2 < 0) * 1,
+    group = "Regression Func."
+  ) %>%
+  ggplot2::ggplot() +
+  ggplot2::aes(x = x1, y = x2, fill = y, color = y) +
+  ggplot2::geom_tile(alpha = 1, size = 0) +
+  ggplot2::facet_grid(~ group) +
+  ggplot2::scale_fill_gradient2(low = red, mid = "white", high = green, midpoint = 0.5) +
+  ggplot2::scale_color_gradient2(low = red, mid = "white", high = green, midpoint = 0.5) +
+  ggplot2::coord_cartesian(expand = FALSE) +
+  ggplot2::labs(x = expression(X[1]), y = expression(X[2]),
+                fill = "PC\nScore", color = "PC\nScore") +
+  custom_theme_with_legend +
+  facet_header_true
+
+# round correlations
+pca_results <- pca_results %>%
+  dplyr::mutate(
+    corr_with_target = ifelse(round(corr_with_target, 2) == 0,
+                              round(corr_with_target, 3),
+                              round(corr_with_target, 2))
+  )
+
+# get plotting data frame
+pca_plt_df <- purrr::map_dfr(
+  c(selected_pcs, nonselected_pc),
+  ~data.frame(X1 = X_xor[, 1], X2 = X_xor[, 2], 
+              color = color_code[, .x], pc = .x)
+) %>%
+  dplyr::mutate(
+    group = sprintf("PC%s (%s)", pc, pca_results$corr_with_target[pc])
+  ) %>%
+  dplyr::mutate(
+    X1 = round(X1, 1),
+    X2 = round(X2, 1)
+  ) %>%
+  dplyr::distinct(X1, X2, group, .keep_all = TRUE) %>%
+  dplyr::group_by(X1, X2, group) %>%
+  dplyr::summarise(color = mean(color), .groups = "keep") %>%
+  dplyr::ungroup()
+
+# make selected pc plots
+selected_plt1 <- pca_plt_df %>%
+  dplyr::filter(stringr::str_detect(group, paste0("PC", selected_pcs[1]))) %>%
+  ggplot2::ggplot() +
+  ggplot2::aes(x = X1, y = X2, fill = color) +
+  ggplot2::geom_tile() +
+  ggplot2::facet_grid(~ group) +
+  ggplot2::coord_cartesian(expand = FALSE) +
+  ggplot2::labs(x = expression(X[1]), y = expression(X[2]),
+                fill = "PC\nScore", color = "PC\nScore") +
+  custom_theme_without_legend +
+  facet_header_selected +
+  fill_scheme +
+  ggplot2::guides(fill = "none")
+selected_plt2 <- pca_plt_df %>%
+  dplyr::filter(stringr::str_detect(group, paste0("PC", selected_pcs[2]))) %>%
+  ggplot2::ggplot() +
+  ggplot2::aes(x = X1, y = X2, fill = color) +
+  ggplot2::geom_tile() +
+  ggplot2::facet_grid(~ group) +
+  ggplot2::coord_cartesian(expand = FALSE) +
+  ggplot2::labs(x = expression(X[1]), y = expression(X[2]),
+                fill = "PC\nScore", color = "PC\nScore") +
+  custom_theme_without_legend +
+  facet_header_selected +
+  fill_scheme +
+  ggplot2::guides(fill = "none")
+
+# make nonselected pc plot
+nonselected_plt <- pca_plt_df %>%
+  dplyr::filter(stringr::str_detect(group, paste0("PC", nonselected_pc))) %>%
+  ggplot2::ggplot() +
+  ggplot2::aes(x = X1, y = X2, fill = color) +
+  ggplot2::geom_tile() +
+  ggplot2::facet_grid(~ group) +
+  ggplot2::coord_cartesian(expand = FALSE) +
+  ggplot2::labs(x = expression(X[1]), y = expression(X[2]),
+                fill = "PC\nScore", color = "PC\nScore") +
+  custom_theme_without_legend +
+  facet_header_nonselected +
+  fill_scheme +
+  ggplot2::guides(fill = "none")
+
+plt <- xor_plt + selected_plt1 + selected_plt2 + nonselected_plt + 
+  plot_layout(nrow = 1, guides = "collect")
+
+ggplot2::ggsave(filename = file.path(plots_dir, "xor_h04_n500.pdf"), 
+                plot = plt, units = 'in', width = 10, height = 2.5)
+
+#### sums of squares ####
+X_ss <- data.table::fread(file.path(pca_dir, "ss_0.4_n500_X.csv"), drop = 1) %>%
+  as.data.frame()
+pca_results <- data.table::fread(file.path(pca_dir, "ss_0.4_n500_pca_results.csv"), drop = 1) %>%
+  as.data.frame()
+color_code <- data.table::fread(file.path(pca_dir, "ss_0.4_n500_color_code.csv"), drop = 1) %>%
+  as.data.frame()
+
+selected_pcs <- which(pca_results$lasso_coef != 0)
+nonselected_pc <- which(pca_results$lasso_coef == 0)[1]
+
+# true xor regression surface
+ss_plt <- data.frame(x = seq(-4, 4, by = 0.1)) %>%
+  dplyr::mutate(y = x^2, 
+                group = "Regression Function") %>%
+  ggplot2::ggplot() +
+  ggplot2::aes(x = x, y = y) +
+  ggplot2::facet_grid(~ group) +
+  ggplot2::geom_line(color = point_color, size = 1) +
+  ggplot2::labs(x = expression(X[1]), y = expression({X[1]}^2)) +
+  custom_theme_without_legend +
+  facet_header_true +
+  ggplot2::theme(
+    axis.text.y = ggplot2::element_blank(),
+    axis.ticks.y = ggplot2::element_blank()
+  )
+
+# round correlations
+pca_results <- pca_results %>%
+  dplyr::mutate(
+    corr_with_target = ifelse(round(corr_with_target, 2) == 0,
+                              round(corr_with_target, 3),
+                              round(corr_with_target, 2))
+  )
+
+# get plotting data frame
+pca_plt_df <- purrr::map_dfr(
+  c(selected_pcs, nonselected_pc),
+  ~data.frame(X1 = X_ss[, 1], X2 = X_ss[, 2], 
+              color = color_code[, .x], pc = .x)
+) %>%
+  dplyr::mutate(
+    group = sprintf("PC%s (%s)", pc, pca_results$corr_with_target[pc])
+  ) %>%
+  dplyr::sample_frac(0.25)
+
+# make selected pc plots
+selected_plt1 <- pca_plt_df %>%
+  dplyr::filter(stringr::str_detect(group, paste0("PC", selected_pcs[1]))) %>%
+  ggplot2::ggplot() +
+  ggplot2::aes(x = X1, y = color) +
+  ggplot2::geom_point(size = 0.01, alpha = 0.7, color = point_color) +
+  ggplot2::facet_grid(~ group) +
+  ggplot2::labs(x = expression(X[1]), y = paste0("PC", selected_pcs[1])) +
+  custom_theme_without_legend +
+  facet_header_selected
+selected_plt2 <- pca_plt_df %>%
+  dplyr::filter(stringr::str_detect(group, paste0("PC", selected_pcs[2]))) %>%
+  ggplot2::ggplot() +
+  ggplot2::aes(x = X1, y = color) +
+  ggplot2::geom_point(size = 0.01, alpha = 0.7, color = point_color) +
+  ggplot2::facet_grid(~ group) +
+  ggplot2::labs(x = expression(X[1]), y = paste0("PC", selected_pcs[2])) +
+  custom_theme_without_legend +
+  facet_header_selected
+
+# make nonselected pc plot
+nonselected_plt <- pca_plt_df %>%
+  dplyr::filter(stringr::str_detect(group, paste0("PC", nonselected_pc))) %>%
+  ggplot2::ggplot() +
+  ggplot2::aes(x = X1, y = color) +
+  ggplot2::geom_point(size = 0.01, alpha = 0.7, color = point_color) +
+  ggplot2::facet_grid(~ group) +
+  ggplot2::labs(x = expression(X[1]), y = paste0("PC", nonselected_pc)) +
+  custom_theme_without_legend +
+  facet_header_nonselected
+
+plt <- ss_plt + selected_plt1 + selected_plt2 + nonselected_plt + 
+  plot_layout(nrow = 1, guides = "collect")
+
+ggplot2::ggsave(filename = file.path(plots_dir, "appendix", "ss_h04_n500.pdf"), 
+                plot = plt, units = 'in', width = 10, height = 2.5)
+```
 
 # Main Simulations: Figure 3
 
@@ -212,7 +434,7 @@ ggplot2::ggsave(
 
 # MDI Bias: Figure 6
 
-```{r eval=FALSE}
+```{r}
 fname <- file.path("results_entropy.csv")
 results <- data.table::fread(fname) %>%
   reformat_results()
@@ -359,7 +581,6 @@ for (x_model in x_models) {
 }
 
 ```
-
 
 # AUROC Appendix: Figures 9-12
 
