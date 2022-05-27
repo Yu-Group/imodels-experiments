@@ -431,6 +431,210 @@ ggplot2::ggsave(
 ```
 
 # Stability Simulations: Figure 5, 23-25
+```{r}
+# data resampling stability sims
+y_dgp <- c('linear','lss','poly_int')
+for(i in y_dgp){
+  results <- read.csv(file.path(results_dir,paste0("stability_resampling_",i,".csv")))
+
+  rankings <- results %>%
+    dplyr::group_by(heritability,rho,fi,rep) %>%
+    dplyr::summarise(rank = rank(-importance),
+                     var = var)
+  
+  rankings$group <- 'NSig'
+  if(i == 'linear'){
+    rankings$group[rankings$var %in% 0:4] <- 'Sig'
+    rankings$group[rankings$var %in% 5:24] <- 'C-NSig'
+  } else{
+    rankings$group[rankings$var %in% 0:5] <- 'Sig'
+    rankings$group[rankings$var %in% 6:24] <- 'C-NSig'
+  }
+
+  rankings <- rankings %>%
+    dplyr::group_by(group,rep,heritability,rho,fi) %>%
+    dplyr::summarise(avgrank = mean(rank))
+  
+  methods = c('r2f','Permutation','MDI','MDI-oob','TreeSHAP')
+  groups = c('Sig','C-NSig','NSig')
+  rankings$group <- factor(rankings$group,levels = groups)
+  rankings$fi <- factor(rankings$fi,levels = methods)
+
+  ranks.sub$rho = factor(ranks.sub$rho,levels = c(0.5,0.8,0.99))
+  levels(ranks.sub$rho) <- c('rho == 0.5','rho == 0.8','rho == 0.99')
+
+  summary(ranks.sub$avgrank)
+  a <- min(ranks.sub$avgrank)
+  b <- max(ranks.sub$avgrank)
+
+  p01_cor <- ggplot2::ggplot(ranks.sub[ranks.sub$heritability == 0.1,], 
+             ggplot2::aes(x=group, y=avgrank, color=fi)) +
+             ggplot2::geom_boxplot() +
+             ggplot2::ylim(c(a,b)) +
+             ggplot2::facet_grid(cols = ggplot2::vars(rho),
+                                 labeller = ggplot2::label_parsed) +
+             vthemes::theme_vmodern(
+                size_preset = "medium", bg_color = "white", grid_color = "white",
+                axis.title = ggplot2::element_text(size = 12, face = "plain"),
+                legend.title = ggplot2::element_blank(),
+                legend.text = ggplot2::element_text(size = 9),
+                legend.text.align = 0,
+                plot.title = ggplot2::element_blank()
+             ) +
+             ggplot2::scale_color_manual(values = manual_color_palette,
+                       labels = c(expression(paste(r^2*f)),
+                                  'Permutation',
+                                  'MDI',
+                                  'MDI-oob',
+                                  'TreeSHAP')) +
+             ggplot2::theme(panel.grid.major = ggplot2::element_line(colour = "#d9d9d9"),
+                            panel.grid.major.x = ggplot2::element_blank(),
+                            panel.grid.minor.x = ggplot2::element_blank(),
+                            axis.line.y = ggplot2::element_blank(),
+                            axis.ticks.y = ggplot2::element_blank()) +
+             ggplot2::xlab('Feature Groups') +
+             ggplot2::ylab('Avg Rank (PVE = 0.1)')
+  
+  p04_cor <- ggplot2::ggplot(ranks.sub[ranks.sub$heritability == 0.4,], 
+                             ggplot2::aes(x=group, y=avgrank, color=fi)) +
+    ggplot2::geom_boxplot() +
+    ggplot2::ylim(c(a,b)) +
+    ggplot2::facet_grid(cols = ggplot2::vars(rho),
+                        labeller = ggplot2::label_parsed) +
+    vthemes::theme_vmodern(
+      size_preset = "medium", bg_color = "white", grid_color = "white",
+      axis.title = ggplot2::element_text(size = 12, face = "plain"),
+      legend.title = ggplot2::element_blank(),
+      legend.text = ggplot2::element_text(size = 9),
+      legend.text.align = 0,
+      plot.title = ggplot2::element_blank()
+    ) +
+    ggplot2::scale_color_manual(values = manual_color_palette,
+                                labels = c(expression(paste(r^2*f)),
+                                           'Permutation',
+                                           'MDI',
+                                           'MDI-oob',
+                                           'TreeSHAP')) +
+    ggplot2::theme(panel.grid.major = ggplot2::element_line(colour = "#d9d9d9"),
+                   panel.grid.major.x = ggplot2::element_blank(),
+                   panel.grid.minor.x = ggplot2::element_blank(),
+                   axis.line.y = ggplot2::element_blank(),
+                   axis.ticks.y = ggplot2::element_blank(),
+                   strip.text = ggplot2::element_blank()) +
+    ggplot2::xlab('Feature Groups') +
+    ggplot2::ylab('Avg Rank (PVE = 0.4)') +
+    ggplot2::theme(legend.position="none")
+  
+  plt <- p01_cor + p04_cor + plot_layout(nrow = 2)
+  ggplot2::ggsave(plt,
+                  file.path(plots_dir,'appendix',
+                            paste0('stability_resampling_sims_',i,'.pdf')),
+                  width = 10, height = 6,units = 'in')
+}
+
+# data resampling stability sims
+y_dgp <- 'linear'
+for(i in y_dgp){
+  results <- read.csv(file.path(results_dir,paste0("stability_algorithmic_",i,".csv")))
+
+  rankings <- results %>%
+    dplyr::group_by(min_samples_leaf,heritability,fi,rep) %>%
+    dplyr::summarise(rank = rank(-importance),
+                     var = var)
+  
+  
+  rankings$group <- 'NSig'
+  if(i == 'linear'){
+    rankings$group[rankings$var %in% 0:4] <- 'Sig'
+    rankings$group[rankings$var %in% 5:24] <- 'C-NSig'
+  } else{
+    rankings$group[rankings$var %in% 0:5] <- 'Sig'
+    rankings$group[rankings$var %in% 6:24] <- 'C-NSig'
+  }
+
+  rankings <- rankings %>%
+    dplyr::group_by(group,rep,min_samples_leaf,fi,heritability) %>%
+    dplyr::summarise(avgrank = mean(rank))
+
+  methods = c('r2f','Permutation','MDI','MDI-oob','TreeSHAP')
+  groups = c('Sig','C-NSig','NSig')
+  min_samples = unique(rankings$min_samples_leaf)
+  
+  rankings$group <- factor(rankings$group,levels = groups)
+  rankings$fi <- factor(rankings$fi,levels = methods)
+  rankings$min_samples_leaf <- factor(rankings$min_samples_leaf,levels = min_samples)
+  rankings$rho <- 'rho == 0.8'
+  
+  summary(ranks.sub$avgrank)
+  a <- min(ranks.sub$avgrank)
+  b <- max(ranks.sub$avgrank)
+
+  p01_alg <- ggplot2::ggplot(ranks.sub[ranks.sub$heritability == 0.1,], 
+             ggplot2::aes(x=group, y=avgrank, color=fi)) +
+             ggplot2::geom_boxplot() +
+             ggplot2::ylim(c(a,b)) +
+             ggplot2::facet_grid(cols = ggplot2::vars(rho),
+                                 labeller = ggplot2::label_parsed) +
+             vthemes::theme_vmodern(
+                size_preset = "medium", bg_color = "white", grid_color = "white",
+                axis.title = ggplot2::element_text(size = 12, face = "plain"),
+                legend.title = ggplot2::element_blank(),
+                legend.text = ggplot2::element_text(size = 9),
+                legend.text.align = 0,
+                plot.title = ggplot2::element_blank()
+             ) +
+             ggplot2::scale_color_manual(values = manual_color_palette,
+                       labels = c(expression(paste(r^2*f)),
+                                  'Permutation',
+                                  'MDI',
+                                  'MDI-oob',
+                                  'TreeSHAP')) +
+             ggplot2::theme(panel.grid.major = ggplot2::element_line(colour = "#d9d9d9"),
+                            panel.grid.major.x = ggplot2::element_blank(),
+                            panel.grid.minor.x = ggplot2::element_blank(),
+                            axis.line.y = ggplot2::element_blank(),
+                            axis.ticks.y = ggplot2::element_blank()) +
+             ggplot2::xlab('Feature Groups') +
+             ggplot2::ylab('Avg Rank (PVE = 0.1)')
+  
+  p04_alg <- ggplot2::ggplot(ranks.sub[ranks.sub$heritability == 0.4,], 
+                             ggplot2::aes(x=group, y=avgrank, color=fi)) +
+    ggplot2::geom_boxplot() +
+    ggplot2::ylim(c(a,b)) +
+    ggplot2::facet_grid(cols = ggplot2::vars(rho),
+                        labeller = ggplot2::label_parsed) +
+    vthemes::theme_vmodern(
+      size_preset = "medium", bg_color = "white", grid_color = "white",
+      axis.title = ggplot2::element_text(size = 12, face = "plain"),
+      legend.title = ggplot2::element_blank(),
+      legend.text = ggplot2::element_text(size = 9),
+      legend.text.align = 0,
+      plot.title = ggplot2::element_blank()
+    ) +
+    ggplot2::scale_color_manual(values = manual_color_palette,
+                                labels = c(expression(paste(r^2*f)),
+                                           'Permutation',
+                                           'MDI',
+                                           'MDI-oob',
+                                           'TreeSHAP')) +
+    ggplot2::theme(panel.grid.major = ggplot2::element_line(colour = "#d9d9d9"),
+                   panel.grid.major.x = ggplot2::element_blank(),
+                   panel.grid.minor.x = ggplot2::element_blank(),
+                   axis.line.y = ggplot2::element_blank(),
+                   axis.ticks.y = ggplot2::element_blank(),
+                   strip.text = ggplot2::element_blank()) +
+    ggplot2::xlab('Feature Groups') +
+    ggplot2::ylab('Avg Rank (PVE = 0.4)') +
+    ggplot2::theme(legend.position="none")
+  
+  plt <- p01_alg + p04_alg + plot_layout(nrow = 2)
+  ggplot2::ggsave(plt,
+                  file.path(plots_dir,'appendix',
+                            paste0('stability_algorithmic_sims_',i,'.pdf')),
+                  width = 5, height = 6,units = 'in')
+}
+
+```
 
 # MDI Bias: Figure 6
 
