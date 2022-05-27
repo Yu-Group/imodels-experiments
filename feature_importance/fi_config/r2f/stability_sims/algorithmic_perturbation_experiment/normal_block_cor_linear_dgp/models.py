@@ -7,7 +7,7 @@ from feature_importance.util import ModelConfig, FIModelConfig
 from feature_importance.scripts.competing_methods import tree_mdi, tree_mdi_OOB, tree_perm_importance, tree_shap, tree_feature_significance
 
 ESTIMATORS = [
-    [ModelConfig('RF', RandomForestRegressor, model_type='tree',
+    [ModelConfig('random_state': 42,'RF', RandomForestRegressor, model_type='tree',
                  other_params={'n_estimators': 100, 'min_samples_leaf': 5, 'max_features': 0.33})]
 ]
 
