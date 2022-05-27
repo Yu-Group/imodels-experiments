@@ -25,7 +25,7 @@ from nonlinear_significance.scripts.TreeTester import TreeTester
 from nonlinear_significance.scripts.util import TreeTransformer
 
 from simulations_util import *
-
+from sklearn.linear_model import RidgeCV, LassoCV, LinearRegression,LassoLarsIC
 
 def run_sims(reg_func, n_grid, p, params, k=0, target_func=None, c=10, n_runs=10, normalize=False):
     results = defaultdict(list)
@@ -62,10 +62,16 @@ def get_pca_results(X, y, k=0, target_func=None, c=10, random_seed=405, normaliz
     target = target_func(X_val)
     engineered_feats = tree_transformer.transform_one_feature(X_val, k)
 
+    # lasso bic
+    clf = LassoLarsIC(criterion="bic", normalize=False,fit_intercept = False)
+    clf.fit(tree_transformer.transform_one_feature(X_val, k),y_val - np.mean(y_val))
+
     y_var_explained = np.zeros(c)
     y_var_explained_normalized = np.zeros(c)
     correlation = np.zeros(c)
     correlation_w_target = np.zeros(c)
+    lasso_coef = np.zeros(c)
+    ols_coef = np.zeros(c)
     for i in range(c):
         pc = engineered_feats[:, i]
         correlation[i] = np.corrcoef(original_feat, pc)[0,1]
@@ -73,12 +79,16 @@ def get_pca_results(X, y, k=0, target_func=None, c=10, random_seed=405, normaliz
         single_OLS = OLS(y_val, engineered_feats[:, i]).fit()
         y_var_explained[i] = single_OLS.rsquared
         y_var_explained_normalized[i] = frac_explainable_var(y_val, target, pc)
+        lasso_coef[i] = clf.coef_[i]
+        ols_coef[i] =single_OLS.params
     pca_results = pd.DataFrame({"pca_var_exp": pca_var_explained,
                                 "corr_with_base_feat": correlation,
                                 "corr_with_target": correlation_w_target,
                                 "y_var_explained": y_var_explained,
                                 "y_var_exp_norm": y_var_explained_normalized,
-                                "t-statistic" : lin_fit.tvalues[:c]})
+                                "t-statistic" : lin_fit.tvalues[:c],
+                                "lasso_coef": lasso_coef,
+                                "ols_coef": ols_coef})
 
     return pca_results, tree_transformer
 
