@@ -20,11 +20,11 @@ import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 
-sys.path.append('../..')
-from nonlinear_significance.scripts.TreeTester import TreeTester
-from nonlinear_significance.scripts.util import TreeTransformer
+from imodels.importance import R2F, TreeTransformer
 
-from simulations_util import *
+sys.path.append('../..')
+from scripts.simulations_util import *
+
 from sklearn.linear_model import RidgeCV, LassoCV, LinearRegression,LassoLarsIC
 
 def run_sims(reg_func, n_grid, p, params, k=0, target_func=None, c=10, n_runs=10, normalize=False):
