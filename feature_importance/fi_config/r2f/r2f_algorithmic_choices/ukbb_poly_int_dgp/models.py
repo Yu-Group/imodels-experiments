@@ -17,6 +17,6 @@ FI_ESTIMATORS = [
     [FIModelConfig('r2f (Without Refit)', r2f, model_type='tree', other_params={'refit': False})],
     [FIModelConfig('r2f (Without Xk)', r2f, model_type='tree', other_params={'add_raw': False})],
     
-    [FIModelConfig('r2f (AIC)', r2f, model_type='tree', other_params={'criteria': 'aic'})],
-    [FIModelConfig('r2f (CV)', r2f, model_type='tree', other_params={'criteria': 'cv', 'alpha': 1})],
+    [FIModelConfig('r2f (AIC)', r2f, model_type='tree', other_params={'criterion': 'aic'})],
+    [FIModelConfig('r2f (CV)', r2f, model_type='tree', other_params={'criterion': 'cv', 'alpha': 1})],
 ]
