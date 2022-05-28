@@ -102,7 +102,7 @@ def tree_shap(X, y, fit):
     return results
 
 
-def r2f(X, y, fit, max_components_type="default", alpha=0.5,
+def r2f(X, y, fit, max_components_type="auto", alpha=0.5,
         normalize=False, random_state=None, criterion="bic",
         refit=True, add_raw=True, n_splits=10, sample_weight=None):
     """
