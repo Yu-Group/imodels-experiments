@@ -4,7 +4,7 @@ from imodels import (
     GreedyTreeClassifier, GreedyTreeRegressor, HSTreeClassifierCV, HSTreeRegressorCV
 )
 from feature_importance.util import ModelConfig, FIModelConfig
-from feature_importance.scripts.competing_methods import tree_mdi, tree_mdi_OOB, tree_perm_importance, tree_shap, tree_feature_significance
+from feature_importance.scripts.competing_methods import tree_mdi, tree_mdi_OOB, tree_perm_importance, tree_shap, r2f
 
 ESTIMATORS = [
     [ModelConfig('RF', RandomForestRegressor, model_type='tree',
@@ -12,7 +12,7 @@ ESTIMATORS = [
 ]
 
 FI_ESTIMATORS = [
-    [FIModelConfig('r2f', tree_feature_significance, model_type='tree', other_params={'type': 'lasso', 'max_components_type': 'minfracnp', 'fraction_chosen': 0.5, 'criteria': 'bic', 'refit': True})],
+    [FIModelConfig('r2f', r2f, model_type='tree')],
     [FIModelConfig('MDI', tree_mdi, model_type='tree')],
     [FIModelConfig('MDI-oob', tree_mdi_OOB, model_type='tree')],
     [FIModelConfig('Permutation', tree_perm_importance, model_type='tree')],

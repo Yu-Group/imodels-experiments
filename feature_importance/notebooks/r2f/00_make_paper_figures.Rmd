@@ -6,7 +6,7 @@ output: vthemes::vmodern
 params:
   results_dir: 
     label: "Results directory"
-    value: "/global/scratch/users/tiffanytang/feature_importance/results/"
+    value: "results/"
   seed:
     label: "Seed"
     value: 12345
@@ -431,6 +431,7 @@ ggplot2::ggsave(
 ```
 
 # Stability Simulations: Figure 5, 23-25
+
 ```{r}
 # data resampling stability sims
 y_dgp <- c('linear','lss','poly_int')

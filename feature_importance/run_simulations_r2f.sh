@@ -31,7 +31,11 @@ sims=("r2f.ccle_prot_cart_dgp"
 	"r2f.sparsity_sims.german_poly_int_dgp"
 	"r2f.sparsity_sims.ukbb_linear_dgp"  
 	"r2f.sparsity_sims.ukbb_lss_dgp" 
-	"r2f.sparsity_sims.ukbb_poly_int_dgp")
+	"r2f.sparsity_sims.ukbb_poly_int_dgp"
+	"r2f.stability_sims.algorithmic_perturbation_experiment.normal_block_cor_linear_dgp"
+	"r2f.stability_sims.data_resampling_experiment.normal_block_cor_linear_dgp"
+	"r2f.stability_sims.data_resampling_experiment.normal_block_cor_lss_dgp"
+	"r2f.stability_sims.data_resampling_experiment.normal_block_cor_poly_int_dgp")
 
 omitted_var_sims=("r2f.german_linear_dgp"  
 	"r2f.german_lss_dgp"

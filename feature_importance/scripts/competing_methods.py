@@ -2,7 +2,7 @@ import pandas as pd
 from sklearn.inspection import permutation_importance
 import shap
 
-from feature_importance.scripts.TreeTester import TreeTester
+from imodels.importance import R2F
 from feature_importance.scripts.mdi_oob import MDI_OOB
 
 
@@ -32,6 +32,15 @@ def tree_mdi(X, y, fit):
 
 def tree_mdi_OOB(X, y, fit, type='oob',
                  normalized=True, balanced=False, demean=False, normal_fX=False):
+    """
+    Compute MDI-oob feature importance for a given random forest
+    :param X: design matrix
+    :param y: response
+    :param fit: fitted model of interest
+    :return: dataframe - [Var, Importance]
+                         Var: variable name
+                         Importance: MDI-oob
+    """
     reshaped_y = y.reshape((len(y), 1))
     results = MDI_OOB(fit, X, reshaped_y, type=type, normalized=normalized, balanced=balanced,
                       demean=demean, normal_fX=normal_fX)[0]
@@ -93,79 +102,27 @@ def tree_shap(X, y, fit):
     return results
 
 
-def tree_feature_significance(X, y, fit, type="default", max_components_type='median',
-                              normalize=False, fraction_chosen=1.0, num_splits=10,
-                              add_linear=True, adjusted_r2=False, joint=False, criteria="bic", refit=True,
-                              threshold=0.05, first_ns=True, direction='forward'):
+def r2f(X, y, fit, max_components_type="default", alpha=0.5,
+        normalize=False, random_state=None, criterion="bic",
+        refit=True, add_raw=True, n_splits=10, sample_weight=None):
     """
     Compute feature signficance for trees
     :param X: full X data
     :param y: full response vector
     :param fit: estimator
-    :param type: one of "default" or "stepwise"
-    :param max_components_type: "median" or proportion so that proportion*n pc components are used
-    :param normalize: whether or not to normalize
-    :param num_splits: number of sample splits/repetitions
-    :param add_linear: boolean; whether or not to add raw x when testing
-    :param joint: boolean; only used if type = "default"
-    :param threshold: alpha threshold; only used if type = "stepwise"
-    :param first_ns: boolean; only used if type = "stepwise"
     :return:
     """
 
-    assert type in ["default", "sequential_stepwise", "ridge", "stepwise", "pca_cv", "pca_var", "bic_sequential",
-                    "bic_nonsequential", "lasso"]
+    r2f_obj = R2F(fit, max_components_type=max_components_type, alpha=alpha,
+                  normalize=normalize, random_state=random_state,
+                  criterion=criterion, refit=refit, add_raw=add_raw, n_splits=n_splits)
 
-    tree_tester = TreeTester(fit, max_components_type=max_components_type, normalize=normalize,
-                             fraction_chosen=fraction_chosen)
-    if type == "default":
-        median_p_vals, r2, n_components, n_stumps = tree_tester.get_feature_significance_and_ranking(X, y,
-                                                                                                     num_splits=num_splits,
-                                                                                                     add_linear=add_linear,
-                                                                                                     joint=joint,
-                                                                                                     diagnostics=True,
-                                                                                                     adjusted_r2=adjusted_r2)
-    elif type == "sequential_stepwise":
-        r2, n_components, n_stumps = tree_tester.get_r_squared_sig_threshold(X, y, num_splits=num_splits,
-                                                                             add_linear=add_linear, threshold=threshold,
-                                                                             first_ns=first_ns, diagnostics=True)
-        median_p_vals = r2
-    elif type == "ridge":
-        r2, n_components, n_stumps = tree_tester.get_r_squared_ridge(X, y, num_splits=num_splits, add_linear=add_linear,
-                                                                     diagnostics=True)
-        median_p_vals = r2
-    elif type == "pca_cv":
-        r2, n_components, n_stumps = tree_tester.get_r_squared_pca_cv(X, y, num_splits=num_splits,
-                                                                      add_linear=add_linear, diagnostics=True)
-        median_p_vals = r2
-    elif type == "bic_sequential":
-        r2, n_components, n_stumps = tree_tester.get_r_squared_sequential_bic(X, y, num_splits=num_splits,
-                                                                              add_linear=add_linear, diagnostics=True,
-                                                                              adjusted_r2=adjusted_r2)
-        median_p_vals = r2
-    elif type == "bic_nonsequential":
-        r2, n_components, n_stumps = tree_tester.get_r_squared_nonsequential_bic(X, y, num_splits=num_splits,
-                                                                                 add_linear=add_linear,
-                                                                                 diagnostics=True,
-                                                                                 adjusted_r2=adjusted_r2,
-                                                                                 direction=direction)
-        median_p_vals = r2
-    elif type == "pca_var":
-        r2, n_components, n_stumps = tree_tester.get_r_squared_pca_var_explained(X, y, num_splits=num_splits,
-                                                                                 add_linear=add_linear,
-                                                                                 diagnostics=True)
-        median_p_vals = r2
-    elif type == "lasso":
-        r2, n_components, n_stumps = tree_tester.get_r_squared_lasso(X, y, num_splits=num_splits, add_linear=add_linear,
-                                                                     diagnostics=True, criteria=criteria, refit=refit)
-        median_p_vals = r2
-    else:
-        r2, n_components, n_stumps = tree_tester.get_r_squared_stepwise_regression(X, y, num_splits=num_splits,
-                                                                                   add_linear=add_linear,
-                                                                                   diagnostics=True)
-        median_p_vals = r2
-    results = pd.DataFrame(data={'importance': r2,
-                                 'n_components': n_components.mean(axis=0),
+    r_squared_mean, _, n_stumps, n_components_chosen = r2f_obj.get_importance_scores(
+        X, y, sample_weight=sample_weight, diagnostics=True
+    )
+
+    results = pd.DataFrame(data={'importance': r_squared_mean,
+                                 'n_components': n_components_chosen.mean(axis=0),
                                  'n_stumps': n_stumps.mean(axis=0)},
                            columns=['importance', 'n_components', 'n_stumps'])
 

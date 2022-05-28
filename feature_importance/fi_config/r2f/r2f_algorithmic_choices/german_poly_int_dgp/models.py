@@ -4,7 +4,7 @@ from imodels import (
     GreedyTreeClassifier, GreedyTreeRegressor, HSTreeClassifierCV, HSTreeRegressorCV
 )
 from feature_importance.util import ModelConfig, FIModelConfig
-from feature_importance.scripts.competing_methods import tree_mdi, tree_mdi_OOB, tree_perm_importance, tree_shap, tree_feature_significance
+from feature_importance.scripts.competing_methods import tree_mdi, tree_mdi_OOB, tree_perm_importance, tree_shap, r2f
 
 
 ESTIMATORS = [
@@ -12,11 +12,11 @@ ESTIMATORS = [
 ]
 
 FI_ESTIMATORS = [
-    [FIModelConfig('r2f', tree_feature_significance, None, True, model_type='tree', other_params={'type': 'lasso', 'max_components_type': 'minfracnp', 'fraction_chosen': 0.5, 'criteria': 'bic', 'refit': True})],
+    [FIModelConfig('r2f', r2f, model_type='tree')],
     
-    [FIModelConfig('r2f (Without Refit)', tree_feature_significance, None, True, model_type='tree', other_params={'type': 'lasso', 'max_components_type': 'minfracnp', 'fraction_chosen': 0.5, 'criteria': 'bic', 'refit': False})],
-    [FIModelConfig('r2f (Without Xk)', tree_feature_significance, None, True, model_type='tree', other_params={'type': 'lasso', 'max_components_type': 'minfracnp', 'fraction_chosen': 0.5, 'criteria': 'bic', 'refit': True, 'add_linear': False})],
+    [FIModelConfig('r2f (Without Refit)', r2f, model_type='tree', other_params={'refit': False})],
+    [FIModelConfig('r2f (Without Xk)', r2f, model_type='tree', other_params={'add_raw': False})],
     
-    [FIModelConfig('r2f (AIC)', tree_feature_significance, None, True, model_type='tree', other_params={'type': 'lasso', 'max_components_type': 'minfracnp', 'fraction_chosen': 0.5, 'criteria': 'aic', 'refit': True})],
-    [FIModelConfig('r2f (CV)', tree_feature_significance, None, True, model_type='tree', other_params={'type': 'lasso', 'max_components_type': 'minnp', 'fraction_chosen': 1.0, 'criteria': 'cv', 'refit': True})],
+    [FIModelConfig('r2f (AIC)', r2f, model_type='tree', other_params={'criteria': 'aic'})],
+    [FIModelConfig('r2f (CV)', r2f, model_type='tree', other_params={'criteria': 'cv', 'alpha': 1})],
 ]
