@@ -88,7 +88,7 @@ def compare_estimators(estimators: List[ModelConfig],
                     'fi': fi_est.name,
                     'splitting_strategy': splitting_strategy
                 }
-                fi_score = fi_est.cls(X_test, y_test, est, **fi_est.kwargs)
+                fi_score = fi_est.cls(X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
                 support_df = pd.DataFrame({"var": np.arange(len(support)), "true_support": support})
                 metric_results['fi_scores'] = pd.merge(copy.deepcopy(fi_score), support_df, on="var", how="left")
                 if np.max(support) != np.min(support):
