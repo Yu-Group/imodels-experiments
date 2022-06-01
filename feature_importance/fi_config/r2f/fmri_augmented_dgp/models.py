@@ -8,11 +8,18 @@ from feature_importance.scripts.competing_methods import tree_mdi, tree_mdi_OOB,
 
 ESTIMATORS = [
     [ModelConfig('RF', RandomForestRegressor, model_type='tree',
-                 other_params={'n_estimators': 100, 'min_samples_leaf': 5, 'max_features': 0.33})]
+                 other_params={'n_estimators': 100, 'min_samples_leaf': 5, 'max_features': 0.33,'random_state':42})]
 ]
 
 FI_ESTIMATORS = [
-    [FIModelConfig('r2f', r2f, model_type='tree')],
+    [FIModelConfig('r2f_aicc_0.33', r2f, model_type='tree',other_params = {'criterion':'aic_c','alpha':0.33})],
+    [FIModelConfig('r2f_aicc_0.5', r2f, model_type='tree',other_params = {'criterion':'aic_c','alpha':0.5})],
+    [FIModelConfig('r2f_aicc_0.67', r2f, model_type='tree',other_params = {'criterion':'aic_c','alpha':0.67})],
+    [FIModelConfig('r2f_aicc_no', r2f, model_type='tree',other_params = {'criterion':'aic_c','alpha':0.5,'split_data':False})],
+    [FIModelConfig('r2f_bic_0.33', r2f, model_type='tree',other_params = {'criterion':'bic','alpha':0.33})],
+    [FIModelConfig('r2f_bic_0.5', r2f, model_type='tree',other_params = {'criterion':'bic','alpha':0.5})],
+    [FIModelConfig('r2f_bic_0.67', r2f, model_type='tree',other_params = {'criterion':'bic','alpha':0.67})],
+    [FIModelConfig('r2f_bic_no', r2f, model_type='tree',other_params = {'criterion':'bic','alpha':0.5,'split_data':False})],
     [FIModelConfig('MDI', tree_mdi, model_type='tree')],
     [FIModelConfig('MDI-oob', tree_mdi_OOB, model_type='tree')],
     [FIModelConfig('Permutation', tree_perm_importance, model_type='tree')],
