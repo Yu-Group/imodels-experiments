@@ -103,7 +103,7 @@ def tree_shap(X, y, fit):
 
 def r2f(X, y, fit, max_components_type="auto", alpha=0.5,
         normalize=False, random_state=None, criterion="bic",split_data = True,
-        refit=True, add_raw=True, n_splits=10, sample_weight=None):
+        refit=True, add_raw=True, n_splits=10, sample_weight=None,use_noise_variance = True):
     """
     Compute feature signficance for trees
     :param X: full X data
@@ -114,7 +114,7 @@ def r2f(X, y, fit, max_components_type="auto", alpha=0.5,
 
     r2f_obj = R2FExp(fit, max_components_type=max_components_type, alpha=alpha,
                   normalize=normalize, random_state=random_state,split_data = split_data,
-                  criterion=criterion, refit=refit, add_raw=add_raw, n_splits=n_splits) #R2FExp
+                  criterion=criterion, refit=refit, add_raw=add_raw, n_splits=n_splits,use_noise_variance = use_noise_variance) #R2FExp
 
     r_squared_mean, _, n_stumps, n_components_chosen = r2f_obj.get_importance_scores(
         X, y, sample_weight=sample_weight, diagnostics=True
