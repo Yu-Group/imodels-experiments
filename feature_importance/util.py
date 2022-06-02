@@ -9,7 +9,7 @@ from typing import Any, Dict, Tuple
 import numpy as np
 import pandas as pd
 from sklearn import model_selection
-from sklearn.metrics import confusion_matrix, precision_recall_curve, auc
+from sklearn.metrics import confusion_matrix, precision_recall_curve, auc, roc_auc_score
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
@@ -108,6 +108,35 @@ def specificity_score(y_true, y_pred):
 def pr_auc_score(y_true, y_score):
     precision, recall, _ = precision_recall_curve(y_true, y_score)
     return auc(recall, precision)
+
+
+def restricted_roc_auc_score(y_true, y_score, ignored_indices=[]):
+    """
+    Compute AUROC score for only a subset of the samples
+
+    :param y_true:
+    :param y_score:
+    :param ignored_indices:
+    :return:
+    """
+    n_examples = len(y_true)
+    mask = [i for i in range(n_examples) if i not in ignored_indices]
+    restricted_auc = roc_auc_score(np.array(y_true)[mask], np.array(y_score)[mask])
+    return restricted_auc
+
+
+def compute_nsg_feat_corr_w_sig_subspace(signal_features, nonsignal_features, normalize=True):
+
+    if normalize:
+        normalized_nsg_features = nonsignal_features / np.linalg.norm(nonsignal_features, axis=0)
+    else:
+        normalized_nsg_features = nonsignal_features
+
+    q, r = np.linalg.qr(signal_features)
+    projections = np.linalg.norm(q.T @ normalized_nsg_features, axis=0)
+    # nsg_feat_ranked_by_projection = np.argsort(projections)
+
+    return projections
 
 
 def apply_splitting_strategy(X: np.ndarray,

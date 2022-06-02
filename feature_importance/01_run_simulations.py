@@ -27,7 +27,7 @@ sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../..")
 import fi_config
-from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, pr_auc_score
+from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, pr_auc_score, compute_nsg_feat_corr_w_sig_subspace
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
@@ -81,6 +81,11 @@ def compare_estimators(estimators: List[ModelConfig],
             est.fit(X_train, y_train)
             # end = time.time()
 
+            # compute correlation between signal and nonsignal features
+            x_cor = np.empty(len(support))
+            x_cor[:] = np.NaN
+            x_cor[support == 0] = compute_nsg_feat_corr_w_sig_subspace(X_train[:, support == 1], X_train[:, support == 0])
+
             # loop over fi estimators
             for fi_est in fi_ests:
                 metric_results = {
@@ -89,7 +94,9 @@ def compare_estimators(estimators: List[ModelConfig],
                     'splitting_strategy': splitting_strategy
                 }
                 fi_score = fi_est.cls(X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
-                support_df = pd.DataFrame({"var": np.arange(len(support)), "true_support": support})
+                support_df = pd.DataFrame({"var": np.arange(len(support)),
+                                           "true_support": support,
+                                           "cor_with_signal": x_cor})
                 metric_results['fi_scores'] = pd.merge(copy.deepcopy(fi_score), support_df, on="var", how="left")
                 if np.max(support) != np.min(support):
                     for i, (met_name, met) in enumerate(metrics):

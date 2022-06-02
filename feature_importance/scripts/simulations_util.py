@@ -170,7 +170,7 @@ def logistic_model(X, s, beta, return_support=False):
         return (np.random.uniform(size=1) < prob) * 1
 
     beta = generate_coef(beta, s)
-    y_train = np.array([create_y(X[i, :], s, beta) for i in range(len(X))])
+    y_train = np.array([create_y(X[i, :], s, beta) for i in range(len(X))]).ravel()
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
         return y_train, support, beta
