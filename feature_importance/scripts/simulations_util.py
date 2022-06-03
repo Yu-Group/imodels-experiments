@@ -139,6 +139,22 @@ def sample_ar1_X(n, d, rho, mean=0):
     return X
 
 
+def sample_X(support, X_fun, **kwargs):
+    """
+    Wrapper around dgp function for X that reorders columns so support features are in front
+    :param support:
+    :param X_fun:
+    :param kwargs:
+    :return:
+    """
+    X = X_fun(**kwargs)
+    for i in range(X.shape[1]):
+        if i not in support:
+            support.append(i)
+    X[:] = X[:, support]
+    return X
+
+
 def generate_coef(beta, s):
     if isinstance(beta, int) or isinstance(beta, float):
         beta = np.repeat(beta, repeats=s)
