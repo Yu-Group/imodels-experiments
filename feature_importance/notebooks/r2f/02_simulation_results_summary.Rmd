@@ -26,9 +26,14 @@ seed <- params$seed
 point_size <- 2
 line_size <- 1
 errbar_width <- 0
-manual_color_palette <- c("black", "orange", "#71beb7", "#218a1e", "#cc3399")
-show_methods <- c("r2f", "Permutation_RF", "MDI_RF", "MDI-oob_RF", "TreeSHAP_RF")
-method_labels <- c(bquote(~r^2*"f"), "Permutation", "MDI", "MDI-oob", "TreeSHAP")
+alpha <- 1
+manual_color_palette <- NULL
+show_methods <- NULL
+method_labels <- ggplot2::waiver()
+# for final paper
+# manual_color_palette <- c("black", "orange", "#71beb7", "#218a1e", "#cc3399")
+# show_methods <- c("r2f", "Permutation_RF", "MDI_RF", "MDI-oob_RF", "TreeSHAP_RF")
+# method_labels <- c(bquote(~r^2*"f"), "Permutation", "MDI", "MDI-oob", "TreeSHAP")
 custom_theme <- vthemes::theme_vmodern(size_preset = "medium")
 # custom_theme <- vthemes::theme_vmodern(
 #   size_preset = "medium", bg_color = "white", grid_color = "white",
@@ -46,7 +51,9 @@ source("../../scripts/viz.R", chdir = TRUE)
 ```{r helper-functions, echo = FALSE}
 # view results in Rmarkdown
 # notes: need to set 'results = "asis"' in the code chunk header
-view_results <- function(metrics_plt_ls, tpr_plt_ls = list()) {
+view_results <- function(metrics_plt_ls, 
+                         rmetrics_plt_ls = list(), 
+                         tpr_plt_ls = list()) {
   sim_names <- names(metrics_plt_ls)
   datasets <- c("german", "ukbb", "ccle_prot", "fmri")
   dataset_names <- c("German Credit", "UK Biobank", "CCLE", "fMRI")
@@ -78,6 +85,13 @@ view_results <- function(metrics_plt_ls, tpr_plt_ls = list()) {
                            fig_height = height,
                            add_class = "panel panel-default padded-panel")
       chunk_idx <<- chunk_idx + 1
+      if (!is.null(rmetrics_plt_ls[[sim]])) {
+        vthemes::subchunkify(plotly::ggplotly(rmetrics_plt_ls[[sim]]), 
+                             i = chunk_idx, other_args = "out.width = '100%'",
+                             fig_height = height * 2,
+                             add_class = "panel panel-default padded-panel")
+        chunk_idx <<- chunk_idx + 1
+      }
       if (!is.null(tpr_plt_ls[[sim]])) {
         vthemes::subchunkify(plotly::ggplotly(tpr_plt_ls[[sim]]), 
                              i = chunk_idx, other_args = "out.width = '100%'",
@@ -96,9 +110,10 @@ view_results <- function(metrics_plt_ls, tpr_plt_ls = list()) {
 ```{r results="asis"}
 # read in results
 metrics_plt_ls <- list()
+rmetrics_plt_ls <- list()
 tpr_plt_ls <- list()
 for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FALSE)) {
-  if (stringr::str_detect(basename(results_subdir), "omitted|algorithmic_choices|sparsity_sims")) {
+  if (stringr::str_detect(basename(results_subdir), "omitted|algorithmic_choices|sparsity_sims|stability_sims")) {
     next
   }
   for (vary_param_dir in list.dirs(results_subdir, full.names = FALSE, recursive = FALSE)) {
@@ -118,7 +133,17 @@ for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FAL
     
     results <- reformat_results(data.table::fread(fname))
     metrics_plt_ls[[sim_name]] <- plot_metrics(
-      results, x_str = x_str, facet_str = facet_str, 
+      results, x_str = x_str, facet_str = facet_str, alpha = alpha,
+      point_size = point_size, line_size = line_size, errbar_width = errbar_width,
+      inside_legend = FALSE, manual_color_palette = manual_color_palette, 
+      show_methods = show_methods, method_labels = method_labels,
+      custom_theme = custom_theme
+    ) +
+      ggplot2::labs(x = "Sample Size", y = "Mean", 
+                    color = "Method", alpha = "Method")
+    
+    rmetrics_plt_ls[[sim_name]] <- plot_restricted_metrics(
+      results, x_str = x_str, facet_str = facet_str, alpha = alpha,
       point_size = point_size, line_size = line_size, errbar_width = errbar_width,
       inside_legend = FALSE, manual_color_palette = manual_color_palette, 
       show_methods = show_methods, method_labels = method_labels,
@@ -135,7 +160,7 @@ for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FAL
   }
 }
 
-view_results(metrics_plt_ls, tpr_plt_ls)
+view_results(metrics_plt_ls, rmetrics_plt_ls, tpr_plt_ls)
 rm(tpr_plt_ls)
 
 ```
@@ -145,6 +170,7 @@ rm(tpr_plt_ls)
 ```{r results="asis"}
 # read in results
 metrics_plt_ls <- list()
+rmetrics_plt_ls <- list()
 for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FALSE)) {
   if (!stringr::str_detect(basename(results_subdir), "omitted")) {
     next
@@ -159,7 +185,17 @@ for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FAL
     
     results <- reformat_results(data.table::fread(fname))
     metrics_plt_ls[[sim_name]] <- plot_metrics(
-      results, x_str = x_str, facet_str = facet_str, 
+      results, x_str = x_str, facet_str = facet_str, alpha = alpha,
+      point_size = point_size, line_size = line_size, errbar_width = errbar_width,
+      inside_legend = FALSE, manual_color_palette = manual_color_palette, 
+      show_methods = show_methods, method_labels = method_labels,
+      custom_theme = custom_theme
+    ) +
+      ggplot2::labs(x = "Sample Size", y = "Mean", 
+                    color = "Method", alpha = "Method")
+    
+    rmetrics_plt_ls[[sim_name]] <- plot_restricted_metrics(
+      results, x_str = x_str, facet_str = facet_str, alpha = alpha,
       point_size = point_size, line_size = line_size, errbar_width = errbar_width,
       inside_legend = FALSE, manual_color_palette = manual_color_palette, 
       show_methods = show_methods, method_labels = method_labels,
@@ -170,7 +206,7 @@ for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FAL
   }
 }
 
-view_results(metrics_plt_ls)
+view_results(metrics_plt_ls, rmetrics_plt_ls)
 
 ```
 
@@ -179,6 +215,7 @@ view_results(metrics_plt_ls)
 ```{r results="asis"}
 # read in results
 metrics_plt_ls <- list()
+rmetrics_plt_ls <- list()
 for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FALSE)) {
   if (!stringr::str_detect(basename(results_subdir), "sparsity_sims")) {
     next
@@ -199,7 +236,17 @@ for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FAL
     
     results <- reformat_results(data.table::fread(fname))
     metrics_plt_ls[[sim_name]] <- plot_metrics(
-      results, x_str = x_str, facet_str = facet_str, 
+      results, x_str = x_str, facet_str = facet_str, alpha = alpha,
+      point_size = point_size, line_size = line_size, errbar_width = errbar_width,
+      inside_legend = FALSE, manual_color_palette = manual_color_palette, 
+      show_methods = show_methods, method_labels = method_labels,
+      custom_theme = custom_theme
+    ) +
+      ggplot2::labs(x = x_lab, y = "Mean", 
+                    color = "Method", alpha = "Method")
+    
+    rmetrics_plt_ls[[sim_name]] <- plot_restricted_metrics(
+      results, x_str = x_str, facet_str = facet_str, alpha = alpha,
       point_size = point_size, line_size = line_size, errbar_width = errbar_width,
       inside_legend = FALSE, manual_color_palette = manual_color_palette, 
       show_methods = show_methods, method_labels = method_labels,
@@ -210,7 +257,7 @@ for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FAL
   }
 }
 
-view_results(metrics_plt_ls)
+view_results(metrics_plt_ls, rmetrics_plt_ls)
 
 ```
 
