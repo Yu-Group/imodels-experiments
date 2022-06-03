@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scipy.linalg import toeplitz
 
 
 def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
@@ -110,6 +111,48 @@ def sample_block_cor_X(n, d, rho, n_blocks, mean=0):
     np.fill_diagonal(Sigma, 1)
     X = sample_normal_X(n=n, d=d, mean=mean, Sigma=Sigma)
     return X
+    
+    
+def sample_boolean_X(n, d):
+    """
+    Sample X with iid boolean entries
+    :param n:
+    :param d:
+    :return:
+    """
+    X = np.random.randint(0, 2.0, (n, d))
+    return X
+    
+    
+def sample_ar1_X(n, d, rho, mean=0):
+    """
+    Sample X from N(mean, Sigma) where Sigma is an AR1(rho) covariance matrix
+    :param n:
+    :param d:
+    :param rho:
+    :param mean:
+    :return:
+    """
+    col1 = [rho**i for i in range(d)]
+    Sigma = toeplitz(c=col1)
+    X = sample_normal_X(n=n, d=d, mean=mean, Sigma=Sigma)
+    return X
+
+
+def sample_X(support, X_fun, **kwargs):
+    """
+    Wrapper around dgp function for X that reorders columns so support features are in front
+    :param support:
+    :param X_fun:
+    :param kwargs:
+    :return:
+    """
+    X = X_fun(**kwargs)
+    for i in range(X.shape[1]):
+        if i not in support:
+            support.append(i)
+    X[:] = X[:, support]
+    return X
 
 
 def generate_coef(beta, s):
@@ -173,6 +216,45 @@ def logistic_model(X, s, beta, return_support=False):
     y_train = np.array([create_y(X[i, :], s, beta) for i in range(len(X))]).ravel()
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
+        return y_train, support, beta
+    else:
+        return y_train
+
+
+def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, return_support=False):
+    """
+    This method creates response from an LSS model
+
+    X: data matrix
+    m: number of interaction terms
+    r: max order of interaction
+    sigma: standard deviation of noise
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+
+    :return
+    y_train: numpy array of shape (n)
+    """
+    n, p = X.shape
+    assert p >= m * r  # Cannot have more interactions * size than the dimension
+
+    def poly_func(x, beta):
+        y = 0
+        for j in range(m):
+            poly_term_components = x[j * r:j * r + r]
+            poly_term = np.prod(poly_term_components)
+            y += poly_term * beta[j]
+        return y
+
+    beta = generate_coef(beta, m)
+    y_train = np.array([poly_func(X[i, :], beta) for i in range(n)])
+    if heritability is not None:
+        sigma = (np.var(y_train)*((1.0-heritability)/(heritability)))**0.5
+    if snr is not None:
+        sigma = (np.var(y_train) / snr)**0.5
+    y_train = y_train + sigma * np.random.randn(n)
+
+    if return_support:
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
         return y_train, support, beta
     else:
         return y_train
