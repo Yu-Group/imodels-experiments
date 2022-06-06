@@ -148,7 +148,7 @@ def gMDI(X,y,fit,scorer = LassoScorer(),normalize = False,add_raw = True,refit =
     else:
         scorer = ElasticNetScorer()
     
-    gMDI_obj = GeneralizedMDI(estimator,scorer = scorer, normalize = normalize, add_raw = add_raw, refit = refit, criterion = criterion, random_state = random_state)
+    gMDI_obj = GeneralizedMDI(fit,scorer = scorer, normalize = normalize, add_raw = add_raw, refit = refit, criterion = criterion, random_state = random_state)
     r_squared_mean, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, sample_weight=sample_weight, diagnostics=True)
 
     results = pd.DataFrame(data={'importance': r_squared_mean,
