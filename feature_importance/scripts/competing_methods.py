@@ -139,7 +139,8 @@ def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scoring_type = "lasso",
 
     return results
 
-def gMDI(X,y,fit,scorer = LassoScorer(),normalize = False,add_raw = True,refit = True,scoring_type = "lasso",criterion = "aic_c",random_state = None):
+def gMDI(X,y,fit,scorer = LassoScorer(),normalize = False,add_raw = True,refit = True,
+         scoring_type = "lasso",criterion = "aic_c",random_state = None,sample_weight = None):
     
     if scoring_type == "lasso":
         scorer = LassoScorer()
