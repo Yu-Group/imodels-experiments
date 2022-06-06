@@ -116,20 +116,29 @@ plot_restricted_metrics <- function(results, metric = c("rocauc", "prauc"),
   if (is.null(show_methods)) {
     show_methods <- sort(unique(results$method))
   }
+  results <- results %>%
+    dplyr::select(rep, method, fi_scores,
+                  tidyselect::all_of(c(x_str, facet_str))) %>%
+    dplyr::mutate(
+      vars_ordered = purrr::map(
+        fi_scores, 
+        function(fi_df) {
+          fi_df %>% 
+            dplyr::filter(!is.na(cor_with_signal)) %>%
+            dplyr::arrange(-cor_with_signal) %>%
+            dplyr::pull(var)
+        }
+      )
+    )
+  
   plt_df_ls <- list()
   for (q in quantiles) {
     plt_df_ls[[as.character(q)]] <- results %>%
-      dplyr::select(rep, method, fi_scores,
-                    tidyselect::all_of(c(x_str, facet_str))) %>%
       dplyr::mutate(
-        restricted_metrics = purrr::map_dfr(
-          fi_scores, 
-          function(fi_df) {
-            ignore_vars <- fi_df %>% 
-              dplyr::filter(!is.na(cor_with_signal)) %>%
-              dplyr::arrange(-cor_with_signal) %>%
-              dplyr::slice_head(prop = !!q) %>%
-              dplyr::pull(var)
+        restricted_metrics = purrr::map2_dfr(
+          fi_scores, vars_ordered,
+          function(fi_df, ignore_vars) {
+            ignore_vars <- ignore_vars[1:round(q * length(ignore_vars))]
             auroc_r <- fi_df %>%
               dplyr::filter(!(var %in% ignore_vars)) %>%
               yardstick::roc_auc(

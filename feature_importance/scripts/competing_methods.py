@@ -2,7 +2,8 @@ import pandas as pd
 from sklearn.inspection import permutation_importance
 import shap,os,sys
 
-from imodels.importance import R2FExp
+from imodels.importance import R2FExp, GeneralizedMDI
+from imodels.importance import LassoScorer, RidgeScorer,ElasticNetScorer
 from feature_importance.scripts.mdi_oob import MDI_OOB
 
 def tree_mdi(X, y, fit):
@@ -101,9 +102,9 @@ def tree_shap(X, y, fit):
     return results
 
 
-def r2f(X, y, fit, max_components_type="auto", alpha=0.5,
-        normalize=False, random_state=None, criterion="bic",split_data = True,rank_by_p_val = False,
-        refit=True, add_raw=True, n_splits=10, sample_weight=None,use_noise_variance = True):
+def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scorer = LassoScorer(),
+        normalize=False, random_state=None, criterion="bic",split_data = True,rank_by_p_val = False, 
+        refit=True, add_raw=True, n_splits=10, sample_weight=None,use_noise_variance = True,):
     """
     Compute feature signficance for trees
     :param X: full X data
@@ -112,13 +113,30 @@ def r2f(X, y, fit, max_components_type="auto", alpha=0.5,
     :return:
     """
 
-    r2f_obj = R2FExp(fit, max_components_type=max_components_type, alpha=alpha,
+    r2f_obj = R2FExp(fit, max_components_type=max_components_type, alpha=alpha,scorer = scorer,
                   normalize=normalize, random_state=random_state,split_data = split_data,rank_by_p_val = rank_by_p_val,
                   criterion=criterion, refit=refit, add_raw=add_raw, n_splits=n_splits,use_noise_variance = use_noise_variance) #R2FExp
 
     r_squared_mean, _, n_stumps, n_components_chosen = r2f_obj.get_importance_scores(
         X, y, sample_weight=sample_weight, diagnostics=True
     )
+
+    results = pd.DataFrame(data={'importance': r_squared_mean,
+                                 'n_components': n_components_chosen.mean(axis=0),
+                                 'n_stumps': n_stumps.mean(axis=0)},
+                           columns=['importance', 'n_components', 'n_stumps'])
+
+    if isinstance(X, pd.DataFrame):
+        results.index = X.columns
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+
+    return results
+
+def gMDI(X,y,fit,scorer = LassoScorer(),normalize = False,add_raw = True,refit = True,criterion = "aic_c",random_state = None):
+    
+    gMDI_obj = GeneralizedMDI(estimator,scorer = scorer, normalize = normalize, add_raw = add_raw, refit = refit, criterion = criterion, random_state = random_state)
+    r_squared_mean, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, sample_weight=sample_weight, diagnostics=True)
 
     results = pd.DataFrame(data={'importance': r_squared_mean,
                                  'n_components': n_components_chosen.mean(axis=0),
