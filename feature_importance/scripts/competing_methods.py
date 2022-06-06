@@ -102,7 +102,7 @@ def tree_shap(X, y, fit):
     return results
 
 
-def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scorer = LassoScorer(),
+def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scoring_type = "lasso",
         normalize=False, random_state=None, criterion="bic",split_data = True,rank_by_p_val = False, 
         refit=True, add_raw=True, n_splits=10, sample_weight=None,use_noise_variance = True,):
     """
@@ -112,6 +112,12 @@ def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scorer = LassoScorer(),
     :param fit: estimator
     :return:
     """
+    if scoring_type == "lasso":
+        scorer = LassoScorer()
+    elif scoring_type == "ridge":
+        scorer = RidgeScorer()
+    else:
+        scorer = ElasticNetScorer()
 
     r2f_obj = R2FExp(fit, max_components_type=max_components_type, alpha=alpha,scorer = scorer,
                   normalize=normalize, random_state=random_state,split_data = split_data,rank_by_p_val = rank_by_p_val,
@@ -133,7 +139,14 @@ def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scorer = LassoScorer(),
 
     return results
 
-def gMDI(X,y,fit,scorer = LassoScorer(),normalize = False,add_raw = True,refit = True,criterion = "aic_c",random_state = None):
+def gMDI(X,y,fit,scorer = LassoScorer(),normalize = False,add_raw = True,refit = True,scoring_type = "lasso",criterion = "aic_c",random_state = None):
+    
+    if scoring_type = "lasso":
+        scorer = LassoScorer()
+    elif scoring_type == "ridge":
+        scorer = RidgeScorer()
+    else:
+        scorer = ElasticNetScorer()
     
     gMDI_obj = GeneralizedMDI(estimator,scorer = scorer, normalize = normalize, add_raw = add_raw, refit = refit, criterion = criterion, random_state = random_state)
     r_squared_mean, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, sample_weight=sample_weight, diagnostics=True)
