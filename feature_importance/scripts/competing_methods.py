@@ -115,7 +115,7 @@ def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scoring_type = "lasso",
     if scoring_type == "lasso":
         scorer = LassoScorer(criterion = criterion,refit = refit)
     elif scoring_type == "ridge":
-        scorer = RidgeScorer()
+        scorer = RidgeScorer(criterion=criterion)
     else:
         scorer = ElasticNetScorer(refit=refit)
 
