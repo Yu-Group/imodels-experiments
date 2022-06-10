@@ -181,6 +181,8 @@ def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normaliz
         scorer = LassoScorer(criterion = criterion)
     elif scoring_type == "ridge":
         scorer = JointRidgeScorer(criterion = criterion)
+    elif scoring_type == "logistic":
+         scorer = JointLogisticScorer()
     else:
         scorer = ElasticNetScorer()
     
