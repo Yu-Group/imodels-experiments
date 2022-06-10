@@ -143,14 +143,15 @@ def gMDI(X,y,fit,scorer = LassoScorer(),normalize = False,add_raw = True,normali
          scoring_type = "lasso",criterion = "aic_c",random_state = None,sample_weight = None):
     
     if scoring_type == "lasso":
-        scorer = LassoScorer()
+        scorer = LassoScorer(criterion = criterion)
     elif scoring_type == "ridge":
-        scorer = RidgeScorer()
+        scorer = RidgeScorer(criterion = criterion)
+    elif scoring_type == "logistic":
+        scorer = LogisticScorer()
     else:
         scorer = ElasticNetScorer()
     
-    gMDI_obj = GeneralizedMDI(fit,scorer = scorer, normalize = normalize, add_raw = add_raw,normalize_raw = normalize_raw, 
-refit = refit, criterion = criterion, random_state = random_state)
+    gMDI_obj = GeneralizedMDI(fit,scorer = scorer, normalize = normalize, add_raw = add_raw,normalize_raw = normalize_raw,refit = refit, criterion = criterion, random_state = random_state)
     r_squared_mean, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, sample_weight=sample_weight, diagnostics=True)
 
     results = pd.DataFrame(data={'importance': r_squared_mean,
@@ -171,12 +172,12 @@ def gjMDI(X,y,fit,scorer = RidgeScorer(),normalize = False,add_raw = True,normal
     if scoring_type == "lasso":
         scorer = LassoScorer()
     elif scoring_type == "ridge":
-        scorer = RidgeScorer()
+        scorer = JointRidgeScorer()
     else:
         scorer = ElasticNetScorer()
     
     gMDI_obj = GeneralizedMDIJoint(fit,scorer = scorer, normalize = normalize, add_raw = add_raw,normalize_raw = normalize_raw,random_state = random_state)
-    r_squared_mean, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, sample_weight=sample_weight, diagnostics=True)
+    r_squared_mean, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, diagnostics=True)
 
     results = pd.DataFrame(data={'importance': r_squared_mean,
                                  'n_components': n_components_chosen.mean(axis=0),
