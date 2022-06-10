@@ -103,7 +103,7 @@ def tree_shap(X, y, fit):
 
 
 def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scoring_type = "lasso",pca = True,
-        normalize=False, random_state=None, criterion="bic",split_data = True,rank_by_p_val = False,treelet = False, 
+        normalize=False, random_state=None, criterion="auto",split_data = True,rank_by_p_val = False,treelet = False,
         refit=True, add_raw=True, normalize_raw = False,n_splits=10,sample_weight=None,use_noise_variance = True,):
     """
     Compute feature signficance for trees
@@ -112,10 +112,16 @@ def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scoring_type = "lasso",
     :param fit: estimator
     :return:
     """
+    if criterion == "auto":
+        if scoring_type == "ridge":
+            criterion == "gcv"
+        else:
+            criterion == "bic"
+
     if scoring_type == "lasso":
         scorer = LassoScorer(criterion = criterion,refit = refit)
     elif scoring_type == "ridge":
-        scorer = RidgeScorer()
+        scorer = RidgeScorer(criterion=criterion)
     else:
         scorer = ElasticNetScorer(refit=refit)
 

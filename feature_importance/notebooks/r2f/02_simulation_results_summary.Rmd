@@ -72,17 +72,18 @@ view_results <- function(metrics_plt_ls,
     for (sim in sims) {
       sim_name <- stringr::str_remove(sim, paste0(dataset, "\\_")) %>%
         stringr::str_remove("\\_dgp")
-      if (stringr::str_detect(sim_name, "logistic")) {
-        height <- 5
-      } else {
-        height <- 8
-      }
+      height <- 8
+      # if (stringr::str_detect(sim_name, "logistic")) {
+      #   height <- 5
+      # } else {
+      #   height <- 8
+      # }
       cat(sprintf("\n\n### %s {.tabset .tabset-pills .tabset-square}\n\n", 
                   sim_name))
       
       vthemes::subchunkify(plotly::ggplotly(metrics_plt_ls[[sim]]), 
                            i = chunk_idx, other_args = "out.width = '100%'",
-                           fig_height = height,
+                           fig_height = height * 2.5,
                            add_class = "panel panel-default padded-panel")
       chunk_idx <<- chunk_idx + 1
       if (!is.null(rmetrics_plt_ls[[sim]])) {
