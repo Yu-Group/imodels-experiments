@@ -103,7 +103,7 @@ def tree_shap(X, y, fit):
 
 
 def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scoring_type = "lasso",pca = True,
-        normalize=False, random_state=None, criterion="bic",split_data = True,rank_by_p_val = False,treelet = False, 
+        normalize=False, random_state=None, criterion="auto",split_data = True,rank_by_p_val = False,treelet = False,
         refit=True, add_raw=True, normalize_raw = False,n_splits=10,sample_weight=None,use_noise_variance = True,):
     """
     Compute feature signficance for trees
@@ -112,10 +112,18 @@ def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scoring_type = "lasso",
     :param fit: estimator
     :return:
     """
+    if criterion == "auto":
+        if scoring_type == "ridge":
+            criterion == "gcv"
+        else:
+            criterion == "bic"
+
     if scoring_type == "lasso":
         scorer = LassoScorer(criterion = criterion,refit = refit)
     elif scoring_type == "ridge":
-        scorer = RidgeScorer()
+        scorer = RidgeScorer(criterion=criterion)
+    elif scoring_type == "logistic":
+        scorer = LogisticScorer()
     else:
         scorer = ElasticNetScorer(refit=refit)
 
@@ -139,18 +147,19 @@ def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scoring_type = "lasso",
 
     return results
 
-def gMDI(X,y,fit,scorer = LassoScorer(),normalize = False,add_raw = True,normalize_raw = False,refit = True,
+def gMDI(X,y,fit,normalize = False,add_raw = True,normalize_raw = False,refit = True,
          scoring_type = "lasso",criterion = "aic_c",random_state = None,sample_weight = None):
     
     if scoring_type == "lasso":
-        scorer = LassoScorer()
+        scorer = LassoScorer(criterion = criterion)
     elif scoring_type == "ridge":
-        scorer = RidgeScorer()
+        scorer = RidgeScorer(criterion = criterion)
+    elif scoring_type == "logistic":
+        scorer = LogisticScorer()
     else:
         scorer = ElasticNetScorer()
     
-    gMDI_obj = GeneralizedMDI(fit,scorer = scorer, normalize = normalize, add_raw = add_raw,normalize_raw = normalize_raw, 
-refit = refit, criterion = criterion, random_state = random_state)
+    gMDI_obj = GeneralizedMDI(fit,scorer = scorer, normalize = normalize, add_raw = add_raw,normalize_raw = normalize_raw,refit = refit, criterion = criterion, random_state = random_state)
     r_squared_mean, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, sample_weight=sample_weight, diagnostics=True)
 
     results = pd.DataFrame(data={'importance': r_squared_mean,
@@ -166,17 +175,17 @@ refit = refit, criterion = criterion, random_state = random_state)
     return results
 
 
-def gjMDI(X,y,fit,scorer = RidgeScorer(),normalize = False,add_raw = True,normalize_raw = False,scoring_type = "ridge",random_state = None):
+def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normalize_raw = False,scoring_type = "ridge",random_state = None):
     
     if scoring_type == "lasso":
-        scorer = LassoScorer()
+        scorer = LassoScorer(criterion = criterion)
     elif scoring_type == "ridge":
-        scorer = RidgeScorer()
+        scorer = JointRidgeScorer(criterion = criterion)
     else:
         scorer = ElasticNetScorer()
     
     gMDI_obj = GeneralizedMDIJoint(fit,scorer = scorer, normalize = normalize, add_raw = add_raw,normalize_raw = normalize_raw,random_state = random_state)
-    r_squared_mean, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, sample_weight=sample_weight, diagnostics=True)
+    r_squared_mean, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, diagnostics=True)
 
     results = pd.DataFrame(data={'importance': r_squared_mean,
                                  'n_components': n_components_chosen.mean(axis=0),
