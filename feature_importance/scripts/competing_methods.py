@@ -122,6 +122,8 @@ def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scoring_type = "lasso",
         scorer = LassoScorer(criterion = criterion,refit = refit)
     elif scoring_type == "ridge":
         scorer = RidgeScorer(criterion=criterion)
+    elif scoring_type == "logistic":
+        scorer = LogisticScorer()
     else:
         scorer = ElasticNetScorer(refit=refit)
 
@@ -145,7 +147,7 @@ def r2f(X, y, fit, max_components_type="auto", alpha=0.5,scoring_type = "lasso",
 
     return results
 
-def gMDI(X,y,fit,scorer = LassoScorer(),normalize = False,add_raw = True,normalize_raw = False,refit = True,
+def gMDI(X,y,fit,normalize = False,add_raw = True,normalize_raw = False,refit = True,
          scoring_type = "lasso",criterion = "aic_c",random_state = None,sample_weight = None):
     
     if scoring_type == "lasso":
@@ -173,7 +175,7 @@ def gMDI(X,y,fit,scorer = LassoScorer(),normalize = False,add_raw = True,normali
     return results
 
 
-def gjMDI(X,y,fit,scorer = RidgeScorer(),criterion = "aic_c", normalize = False,add_raw = True,normalize_raw = False,scoring_type = "ridge",random_state = None):
+def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normalize_raw = False,scoring_type = "ridge",random_state = None):
     
     if scoring_type == "lasso":
         scorer = LassoScorer(criterion = criterion)
