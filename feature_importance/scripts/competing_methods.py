@@ -173,12 +173,12 @@ def gMDI(X,y,fit,scorer = LassoScorer(),normalize = False,add_raw = True,normali
     return results
 
 
-def gjMDI(X,y,fit,scorer = RidgeScorer(),normalize = False,add_raw = True,normalize_raw = False,scoring_type = "ridge",random_state = None):
+def gjMDI(X,y,fit,scorer = RidgeScorer(),criterion = "aic_c", normalize = False,add_raw = True,normalize_raw = False,scoring_type = "ridge",random_state = None):
     
     if scoring_type == "lasso":
-        scorer = LassoScorer()
+        scorer = LassoScorer(criterion = criterion)
     elif scoring_type == "ridge":
-        scorer = JointRidgeScorer()
+        scorer = JointRidgeScorer(criterion = criterion)
     else:
         scorer = ElasticNetScorer()
     
