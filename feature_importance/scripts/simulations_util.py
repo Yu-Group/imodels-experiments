@@ -161,7 +161,7 @@ def generate_coef(beta, s):
     return beta
 
 
-def linear_model(X, sigma, s, beta, heritability=None, snr=None, return_support=False):
+def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None, return_support=False):
     """
     This method is used to crete responses from a linear model with hard sparsity
     Parameters:
@@ -185,7 +185,10 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, return_support=
         sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
     if snr is not None:
         sigma = (np.var(y_train) / snr) ** 0.5
-    y_train = y_train + sigma * np.random.randn((len(X)))
+    if error_fun is None:
+        error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun((len(X)))
+
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
         return y_train, support, beta
@@ -221,7 +224,7 @@ def logistic_model(X, s, beta, return_support=False):
         return y_train
 
 
-def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, return_support=False):
+def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, error_fun=None, return_support=False):
     """
     This method creates response from an LSS model
 
@@ -251,7 +254,9 @@ def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, return_suppo
         sigma = (np.var(y_train)*((1.0-heritability)/(heritability)))**0.5
     if snr is not None:
         sigma = (np.var(y_train) / snr)**0.5
-    y_train = y_train + sigma * np.random.randn(n)
+    if error_fun is None:
+        error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun(n)
 
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
@@ -260,7 +265,7 @@ def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, return_suppo
         return y_train
 
 
-def sum_of_squares(X, sigma, s, beta, heritability=None, snr=None, return_support=False):
+def sum_of_squares(X, sigma, s, beta, heritability=None, snr=None, error_fun=None, return_support=False):
     """
     This method is used to create responses from a sum of squares model with hard sparsity
     Parameters:
@@ -284,7 +289,9 @@ def sum_of_squares(X, sigma, s, beta, heritability=None, snr=None, return_suppor
         sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
     if snr is not None:
         sigma = (np.var(y_train) / snr) ** 0.5
-    y_train = y_train + sigma * np.random.randn((len(X)))
+    if error_fun is None:
+        error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun((len(X)))
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
         return y_train, support, beta
@@ -292,7 +299,7 @@ def sum_of_squares(X, sigma, s, beta, heritability=None, snr=None, return_suppor
         return y_train
 
 
-def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, return_support=False):
+def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None, return_support=False):
     """
     This method creates response from an LSS model
 
@@ -324,7 +331,9 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, return_sup
         sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
     if snr is not None:
         sigma = (np.var(y_train) / snr) ** 0.5
-    y_train = y_train + sigma * np.random.randn(n)
+    if error_fun is None:
+        error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun(n)
 
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
@@ -333,7 +342,7 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, return_sup
         return y_train
 
 
-def xor(X, sigma, beta, heritability=None, snr=None):
+def xor(X, sigma, beta, heritability=None, snr=None, error_fun=None):
     n, p = X.shape
     assert p >= 2
 
@@ -342,13 +351,15 @@ def xor(X, sigma, beta, heritability=None, snr=None):
         sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
     if snr is not None:
         sigma = (np.var(y_train) / snr) ** 0.5
-    y_train = y_train + sigma * np.random.randn(n)
+    if error_fun is None:
+        error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun(n)
 
     return y_train
 
 
-def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=None, return_support=False,
-                     diagnostics=False):
+def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=None, error_fun=None,
+                     return_support=False, diagnostics=False):
     """
     This method creates response from an Linear + LSS model
 
@@ -403,7 +414,9 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
         sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
     if snr is not None:
         sigma = (np.var(y_train) / snr) ** 0.5
-    y_train = y_train + sigma * np.random.randn(n)
+    if error_fun is None:
+        error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun(n)
     if return_support:
         support = np.concatenate((np.ones(max(m * r, s)), np.zeros(X.shape[1] - max((m * r), s))))
         return y_train, support, beta_lss
@@ -413,7 +426,8 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
         return y_train
 
 
-def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None, return_support=False):
+def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None,
+                      error_fun=None, return_support=False):
     """
     This method creates response from an Linear + LSS model
 
@@ -446,7 +460,9 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
         sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
     if snr is not None:
         sigma = (np.var(y_train) / snr) ** 0.5
-    y_train = y_train + sigma * np.random.randn(n)
+    if error_fun is None:
+        error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun(n)
 
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
@@ -468,7 +484,7 @@ def model_based_X(X_fun, X_params_dict, y, model, n=None):
     return X
 
 
-def model_based_y(X, y, model, sigma, s, heritability=None, snr=None, return_support=False):
+def model_based_y(X, y, model, sigma, s, heritability=None, snr=None, error_fun=None, return_support=False):
     """
     This method is used to crete responses from a linear model with hard sparsity
     Parameters:
@@ -490,7 +506,9 @@ def model_based_y(X, y, model, sigma, s, heritability=None, snr=None, return_sup
         sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
     if snr is not None:
         sigma = (np.var(y_train) / snr) ** 0.5
-    y_train = y_train + sigma * np.random.randn((len(X)))
+    if error_fun is None:
+        error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun((len(X)))
     if return_support:
         beta = None
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
