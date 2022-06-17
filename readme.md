@@ -1,6 +1,6 @@
 <p align="center">
 	<img align="center" width=75% src="https://yu-group.github.io/imodels-experiments/logo_experiments.svg?sanitize=True"> </img> 	 <br/>
-	Scripts for easily comparing different aspects of the <a href="https://github.com/csinva/imodels">imodels package.</a> Contains code to reproduce <a href="https://arxiv.org/abs/2201.11931">FIGS</a> + <a href="https://arxiv.org/abs/2202.00858">Hierarchical shrinkage</a>
+	Scripts for easily comparing different aspects of the <a href="https://github.com/csinva/imodels">imodels package.</a> Contains code to reproduce <a href="https://arxiv.org/abs/2201.11931">FIGS</a> + <a href="https://arxiv.org/abs/2202.00858">Hierarchical shrinkage</a> + <a href="https://arxiv.org/abs/2205.15135">G-FIGS</a>.
 </p>
 
 # Documentation
@@ -33,7 +33,6 @@ Tests are run via `pytest`
 
 # Experimental methods
 
-- **P-FIGS** - pooling data across heterogenous groups for FIGS
 - **Stable rules** - finding a stable set of rules across different models
 
 
@@ -57,3 +56,10 @@ Fast Interpretable Greedy-Tree Sums (FIGS) is an algorithm for fitting concise r
 [📄 Paper](https://arxiv.org/abs/2202.00858), [🔗 Post](https://demos.csinva.io/shrinkage/), [📌 Citation](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C5&q=hierarchical+shrinkage+singh&btnG=&oq=hierar#d=gs_cit&u=%2Fscholar%3Fq%3Dinfo%3Azc6gtLx-aL4J%3Ascholar.google.com%2F%26output%3Dcite%26scirp%3D0%26hl%3Den)
 
 Hierarchical shrinkage is an extremely fast post-hoc regularization method which works on any decision tree (or tree-based ensemble, such as Random Forest). It does not modify the tree structure, and instead regularizes the tree by shrinking the prediction over each node towards the sample means of its ancestors (using a single regularization parameter). Experiments over a wide variety of datasets show that hierarchical shrinkage substantially increases the predictive performance of individual decision trees and decision-tree ensembles.
+
+### G-FIGS: Group Probability-Weighted Tree Sums for Interpretable Modeling of Heterogeneous Data
+
+
+[📄 Paper](https://arxiv.org/abs/2202.00858)
+
+Machine learning in high-stakes domains, such as healthcare, faces two critical challenges: (1) generalizing to diverse data distributions given limited training data while (2) maintaining interpretability. To address these challenges, G-FIGS effectively pools data across diverse groups to output a concise, rule-based model. Given distinct groups of instances in a dataset (e.g., medical patients grouped by age or treatment site), G-FIGS first estimates group membership probabilities for each instance. Then, it uses these estimates as instance weights in FIGS (Tan et al. 2022), to grow a set of decision trees whose values sum to the final prediction. G-FIGS achieves state-of-the-art prediction performance on important clinical datasets; e.g., holding the level of sensitivity fixed at 92%, G-FIGS increases specificity for identifying cervical spine injury by up to 10% over CART and up to 3% over FIGS alone, with larger gains at higher sensitivity levels. By keeping the total number of rules below 16 in FIGS, the final models remain interpretable, and we find that their rules match medical domain expertise. All code, data, and models are released on Github.

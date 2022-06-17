@@ -9,8 +9,6 @@ import warnings
 warnings.filterwarnings(action="ignore", category=UserWarning)
 
 import imodels
-import matplotlib as mpl
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -21,16 +19,15 @@ from sklearn.tree import DecisionTreeClassifier, plot_tree
 from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
 from sklearn.linear_model import LogisticRegressionCV, LogisticRegression
 from sklearn import metrics, model_selection
-from sklearn.neighbors import KernelDensity
-from sklearn.neural_network import MLPClassifier
-from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 
 np.random.seed(0)
 
 # add project root to path
 sys.path.append(oj(os.path.realpath(__file__).split('notebooks')[0]))
+sys.path.append(os.path.realpath(__file__).split('run_exps')[0])
 
 import validate
+import common
 
 DATASET = 'iai'
 RUN_VAL = False
@@ -54,43 +51,8 @@ for seed in tqdm(seeds):
     if not os.path.exists(RESULT_PATH):
         os.makedirs(RESULT_PATH)
 
-    def all_stats_curve(y_test, preds_proba, plot=False, thresholds=None, model_name=None):
-        '''preds_proba should be 1d
-        '''
-        if thresholds is None:
-            thresholds = sorted(np.unique(preds_proba))
-        all_stats = {
-            s: [] for s in ['sens', 'spec', 'ppv', 'npv', 'lr+', 'lr-', 'f1']
-        }
-        for threshold in tqdm(thresholds):
-            preds = preds_proba > threshold
-            tn, fp, fn, tp = metrics.confusion_matrix(y_test, preds).ravel()
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                sens = tp / (tp + fn)
-                spec = tn / (tn + fp)
-                all_stats['sens'].append(sens)
-                all_stats['spec'].append(spec)
-                all_stats['ppv'].append(tp / (tp + fp))
-                all_stats['npv'].append(tn / (tn + fn))
-                all_stats['lr+'].append(sens / (1 - spec))
-                all_stats['lr-'].append((1 - sens) / spec)
-                all_stats['f1'].append(tp / (tp + 0.5 * (fp + fn)))
-
-        if plot:
-            if 'pecarn' in model_name.lower():
-                plt.plot(all_stats['sens'][0], all_stats['spec'][0], '.-', label=model_name)
-            else:
-                plt.plot(all_stats['sens'], all_stats['spec'], '.-', label=model_name)
-            plt.xlabel('sensitivity')
-            plt.ylabel('specificity')
-            plt.grid()
-        return all_stats, thresholds
-
-
     results = defaultdict(lambda:[])
     columns = [f'spec9{i}' for i in range(0, 9, 2)] + ['aps', 'auc', 'acc', 'f1', 'args']
-
 
     def log_results(model, model_name, X_test, y_test, model_args=None, dct=None):
         pred_proba_args = (X_test,)
@@ -106,61 +68,6 @@ for seed in tqdm(seeds):
         else:
             results[model_name] = spec_scores + [apc, auc, acc, f1, model_args]
 
-
-    class TransferTree:
-        def __init__(self, model_0, model_1, model_1_log_arr):
-            self.model_0 = model_0
-            self.model_1 = model_1
-            self.model_1_log_arr = model_1_log_arr
-
-        def predict(self, X):
-            return np.argmax(self.predict_proba(X), axis=1)
-
-        def predict_proba(self, X):
-            preds_proba = np.zeros((X.shape[0], 2))
-            preds_proba[~self.model_1_log_arr] = self.model_0.predict_proba(
-                X[~self.model_1_log_arr])
-            preds_proba[self.model_1_log_arr] = self.model_1.predict_proba(
-                X[self.model_1_log_arr])
-            return preds_proba
-
-
-    class PECARNModel:
-        def __init__(self, young):
-            self.young = young
-
-        def predict(self, X: pd.DataFrame):
-            if DATASET == 'tbi' and self.young:
-                factors_sum = (
-                    X['AMS'] + X['HemaLoc_Occipital'] + X['HemaLoc_Parietal/Temporal'] + X['LocLen_1-5 min'] + 
-                    X['LocLen_5 sec - 1 min'] + X['LocLen_>5 min'] + X['High_impact_InjSev_High'] + 
-                    X['SFxPalp_Unclear'] + X['SFxPalp_Yes'] + (1 - X['ActNorm']))
-            elif DATASET == 'tbi':
-                factors_sum = (
-                    X['AMS'] + X['Vomit'] + X['LOCSeparate_Suspected'] + X['LOCSeparate_Yes'] + 
-                    X['High_impact_InjSev_High'] + X['SFxBas'] +  X['HASeverity_Severe'])
-            elif DATASET == 'csi':
-                factors_sum = (
-                    X['AlteredMentalStatus2'] + X['PainNeck2'] + X['FocalNeuroFindings2'] + 
-                    X['Torticollis2'] + X['subinj_TorsoTrunk2'] + X['Predisposed'] + 
-                    X['HighriskDiving'] + X['HighriskMVC']
-                )
-            elif DATASET == 'iai':
-                factors_sum = (
-                    X['AbdTrauma_or_SeatBeltSign_yes'] + (X['GCSScore'] <= 13).astype(int) + 
-                    X['AbdTenderDegree_Mild'] + X['AbdTenderDegree_Moderate'] + 
-                    X['AbdTenderDegree_Severe'] + X['ThoracicTrauma_yes'] + X['AbdomenPain_yes'] +
-                    X['DecrBreathSound_yes'] + X['VomitWretch_yes']
-                )
-            preds = (factors_sum >= 1).astype(int)
-
-            return preds.values
-        
-        def predict_proba(self, X: pd.DataFrame):
-            preds = np.expand_dims(self.predict(X), axis=1)
-            return np.hstack((1 - preds, preds))
-
-
     X, y, feature_names = data_util.get_clean_dataset(f'{DATASET}_pecarn_pred.csv', data_source='imodels')
     X_df = pd.DataFrame(X, columns=feature_names)
     # X_df['Age<2_no'].value_counts()
@@ -173,13 +80,14 @@ for seed in tqdm(seeds):
         for x, y, suffix in zip([X_test],
                                 [y_test],
                                 ['_tune']):
-            stats, threshes = all_stats_curve(y, model.predict_proba(x)[:, 1], plot=False, model_name=model_name)
+            stats, threshes = common.all_stats_curve(
+                y, model.predict_proba(x)[:, 1], plot=False, model_name=model_name)
             for stat in stats.keys():
                 results[stat + suffix] = stats[stat]
             results['threshes' + suffix] = threshes
             results['acc'] = metrics.accuracy_score(y, model.predict(x))
             results['f1'] = metrics.f1_score(y, model.predict(x))
-            if type(model) not in {TransferTree, PECARNModel}:
+            if type(model) not in {common.TransferTree, common.PECARNModel}:
                 results['params'] = model.get_params()
         if not os.path.exists(oj(RESULT_PATH, group)):
             os.mkdir(oj(RESULT_PATH, group))
@@ -379,7 +287,7 @@ for seed in tqdm(seeds):
         X_train_full_old, y_train_full_old, sample_weight=sw_train_full_old)
     best_models['tao_old'] = imodels.TaoTreeClassifier(**get_best_args(old_results, '^TAO')).fit(
         X_train_full_old, y_train_full_old, sample_weight = sw_train_full_old)
-    best_models['pecarn_old'] = PECARNModel(young=False)
+    best_models['pecarn_old'] = common.PECARNModel(young=False, dataset=DATASET)
     
     # results for <2 group
     young_results = val_df[val_df.index.str.contains('<2')]
@@ -389,34 +297,38 @@ for seed in tqdm(seeds):
         X_train_full_young, y_train_full_young, sample_weight=sw_train_full_young)
     best_models['tao_young'] = imodels.TaoTreeClassifier(**get_best_args(young_results, '^TAO')).fit(
         X_train_full_young, y_train_full_young, sample_weight = sw_train_full_young)
-    best_models['pecarn_young'] = PECARNModel(young=True)
+    best_models['pecarn_young'] = common.PECARNModel(young=True, dataset=DATASET)
 
     # all ages results
     for model_name in ['pecarn', 'figs', 'tao', 'cart']:
-        best_models[f'{model_name}_combine'] = TransferTree(
+        best_models[f'{model_name}_combine'] = common.TransferTree(
             best_models[f'{model_name}_young'], best_models[f'{model_name}_old'], is_group_1_test)
 
     # use validation to select best propensity model and most 
     results_pmodel = defaultdict(lambda:[])
     for model, cls in [('PFIGS', imodels.FIGSClassifier), ('PCART', DecisionTreeClassifier)]:
         model_parent = model[1:]
-        for pmodel_name in prop_models:
-            best_young_model = cls(**get_best_args(young_results, f'^{pmodel_name}{model}')).fit(
-            X_train, y_train, sample_weight=(1 - prop_scores[pmodel_name]) * sw_train)
-            best_old_model = cls(**get_best_args(old_results, f'^{pmodel_name}{model}')).fit(
-            X_train, y_train, sample_weight=prop_scores[pmodel_name] * sw_train)
+        if RUN_VAL:
+            for pmodel_name in prop_models:
+                best_young_model = cls(**get_best_args(young_results, f'^{pmodel_name}{model}')).fit(
+                X_train, y_train, sample_weight=(1 - prop_scores[pmodel_name]) * sw_train)
+                best_old_model = cls(**get_best_args(old_results, f'^{pmodel_name}{model}')).fit(
+                X_train, y_train, sample_weight=prop_scores[pmodel_name] * sw_train)
 
-            combine = TransferTree(best_young_model, best_old_model, is_group_1_val)
-            best_parent_train_only = cls(**get_best_args(all_results, f'^{model_parent}')).fit(
-                X_train, y_train, sample_weight=sw_train)
-            pmix_young = TransferTree(best_young_model, best_parent_train_only, is_group_1_val)
-            pmix_old = TransferTree(best_parent_train_only, best_old_model, is_group_1_val)
+                combine = common.TransferTree(best_young_model, best_old_model, is_group_1_val)
+                best_parent_train_only = cls(**get_best_args(all_results, f'^{model_parent}')).fit(
+                    X_train, y_train, sample_weight=sw_train)
+                pmix_young = common.TransferTree(best_young_model, best_parent_train_only, is_group_1_val)
+                pmix_old = common.TransferTree(best_parent_train_only, best_old_model, is_group_1_val)
 
-            log_results(combine, f'{model}_{pmodel_name}_all', X_val, y_val, pmodel_name, results_pmodel)
-            log_results(pmix_young, f'MIX{model}_{pmodel_name}_young', X_val, y_val, 'young', results_pmodel)
-            log_results(pmix_old, f'MIX{model}_{pmodel_name}_old', X_val, y_val, 'old', results_pmodel)
-        
-        results_pmodel_df = pd.DataFrame.from_dict(results_pmodel, orient='index', columns=columns)
+                log_results(combine, f'{model}_{pmodel_name}_all', X_val, y_val, pmodel_name, results_pmodel)
+                log_results(pmix_young, f'MIX{model}_{pmodel_name}_young', X_val, y_val, 'young', results_pmodel)
+                log_results(pmix_old, f'MIX{model}_{pmodel_name}_old', X_val, y_val, 'old', results_pmodel)
+            
+            results_pmodel_df = pd.DataFrame.from_dict(results_pmodel, orient='index', columns=columns)
+        else:
+            results_pmodel_df = pd.read_csv(oj(RESULT_PATH, 'pmodel_val.csv')).set_index('Unnamed: 0')
+
         best_pmodel = get_best_args(results_pmodel_df, f'^{model}')
         best_pmix = get_best_args(results_pmodel_df, f'^MIX{model}_{best_pmodel}')
 
@@ -432,47 +344,52 @@ for seed in tqdm(seeds):
 
         best_models[f'{model}_young'.lower()] = best_young_model_final
         best_models[f'{model}_old'.lower()] = best_old_model_final
-        best_models[f'{model}_combine'.lower()] = TransferTree(
+        best_models[f'{model}_combine'.lower()] = common.TransferTree(
                 best_young_model_final, best_old_model_final, is_group_1_test)
             
         if best_pmix == 'young':
-            best_models[f'{model}_mix'.lower()] = TransferTree(
+            best_models[f'{model}_mix'.lower()] = common.TransferTree(
                 best_models[f'{model}_young'.lower()], best_models[f'{model_parent}_all'.lower()], is_group_1_test)
         else:
-            best_models[f'{model}_mix'.lower()] = TransferTree(
+            best_models[f'{model}_mix'.lower()] = common.TransferTree(
                 best_models[f'{model_parent}_all'.lower()], best_models[f'{model}_old'.lower()], is_group_1_test)
 
-    results_pmodel_df.to_csv(oj(RESULT_PATH, 'pmodel_val.csv'))
+    if RUN_VAL:
+        results_pmodel_df.to_csv(oj(RESULT_PATH, 'pmodel_val.csv'))
 
     # use validation to select the best mix 
     results_pmix = defaultdict(lambda:[])
     for model, cls in [
         ('FIGS', imodels.FIGSClassifier), ('CART', DecisionTreeClassifier), ('TAO', imodels.TaoTreeClassifier)]:
 
-        best_young_model = cls(**get_best_args(young_results, f'^{model}')).fit(
-            X_train_young, y_train_young, sample_weight=sw_train_young)
-        best_old_model = cls(**get_best_args(old_results, f'^{model}')).fit(
-            X_train_old, y_train_old, sample_weight=sw_train_old)
+        if RUN_VAL:
 
-        best_parent_train_only = cls(**get_best_args(all_results, f'^{model}')).fit(
-            X_train, y_train, sample_weight=sw_train)
-        pmix_young = TransferTree(best_young_model, best_parent_train_only, is_group_1_val)
-        pmix_old = TransferTree(best_parent_train_only, best_old_model, is_group_1_val)
-    
-        log_results(pmix_young, f'MIX{model}_young', X_val, y_val, 'young', results_pmix)
-        log_results(pmix_old, f'MIX{model}_old', X_val, y_val, 'old', results_pmix)
+            best_young_model = cls(**get_best_args(young_results, f'^{model}')).fit(
+                X_train_young, y_train_young, sample_weight=sw_train_young)
+            best_old_model = cls(**get_best_args(old_results, f'^{model}')).fit(
+                X_train_old, y_train_old, sample_weight=sw_train_old)
+
+            best_parent_train_only = cls(**get_best_args(all_results, f'^{model}')).fit(
+                X_train, y_train, sample_weight=sw_train)
+            pmix_young = common.TransferTree(best_young_model, best_parent_train_only, is_group_1_val)
+            pmix_old = common.TransferTree(best_parent_train_only, best_old_model, is_group_1_val)
         
-        results_pmix_df = pd.DataFrame.from_dict(results_pmix, orient='index', columns=columns)
+            log_results(pmix_young, f'MIX{model}_young', X_val, y_val, 'young', results_pmix)
+            log_results(pmix_old, f'MIX{model}_old', X_val, y_val, 'old', results_pmix)
+            results_pmix_df = pd.DataFrame.from_dict(results_pmix, orient='index', columns=columns)
+        else:
+            results_pmix_df = pd.read_csv(oj(RESULT_PATH, 'pmix_val.csv')).set_index('Unnamed: 0')
         best_pmix = get_best_args(results_pmix_df, f'^MIX{model}')
 
         if best_pmix == 'young':
-            best_models[f'{model}_mix'.lower()] = TransferTree(
+            best_models[f'{model}_mix'.lower()] = common.TransferTree(
                 best_models[f'{model}_young'.lower()], best_models[f'{model}_all'.lower()], is_group_1_test)
         else:
-            best_models[f'{model}_mix'.lower()] = TransferTree(
+            best_models[f'{model}_mix'.lower()] = common.TransferTree(
                 best_models[f'{model}_all'.lower()], best_models[f'{model}_old'.lower()], is_group_1_test)
 
-    results_pmix_df.to_csv(oj(RESULT_PATH, 'pmix_val.csv'))
+    if RUN_VAL:
+        results_pmix_df.to_csv(oj(RESULT_PATH, 'pmix_val.csv'))
     
     for model_name in [
         'cart_all', 'cart_combine', 'cart_mix', 
