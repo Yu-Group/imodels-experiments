@@ -7,6 +7,7 @@ from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
 from sklearn.linear_model import LogisticRegressionCV, RidgeCV
 from imodels.experimental.figs_ensembles import FIGSExtClassifier, FIGSExtRegressor
 from util import ModelConfig
+from xgboost import XGBClassifier
 
 ESTIMATORS_CLASSIFICATION = [
 #     [ModelConfig('CART', partial(GridSearchCV,
@@ -14,15 +15,16 @@ ESTIMATORS_CLASSIFICATION = [
 #                                  scoring='roc_auc',
 #                                  param_grid={'max_depth': [1, 2, 3, 4, 5, 7]}))],
 #     [ModelConfig('Linear', LogisticRegressionCV)],
-#     [ModelConfig('RandomForest', RandomForestClassifier,
-#                  other_params={'n_estimators': 100})],    
-#     [ModelConfig('FIGS', partial(GridSearchCV,
-#                                  estimator=FIGSExtClassifier(),
-#                                  scoring='roc_auc',
-#                                  param_grid={'max_rules': [1, 2**2, 2**3, 2**4, 2**5, 2**7]}))],
-#     [ModelConfig('RFFIGS-10', partial(BaggingClassifier,
-#                                    base_estimator=FIGSExtClassifier(max_features='auto', max_rules=10)),
-#                  other_params={'n_estimators': 100})],            
+    [ModelConfig('RandomForest', RandomForestClassifier,
+                 other_params={'n_estimators': 100})],    
+    [ModelConfig('FIGS', partial(GridSearchCV,
+                                 estimator=FIGSExtClassifier(),
+                                 scoring='roc_auc',
+                                 param_grid={'max_rules': [1, 2**2, 2**3, 2**4, 2**5, 2**7]}))],
+    [ModelConfig('XGBoost', XGBClassifier)],
+    [ModelConfig('Bagging-FIGS', partial(BaggingClassifier,
+                                   base_estimator=FIGSExtClassifier(max_features='auto', max_rules=10)),
+                 other_params={'n_estimators': 100})],            
 ] 
 
 ESTIMATORS_REGRESSION = [
