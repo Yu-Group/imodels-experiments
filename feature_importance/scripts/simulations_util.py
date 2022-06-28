@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import random
 from scipy.linalg import toeplitz
 
 
@@ -58,7 +59,6 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
                            X.iloc[np.random.permutation(X.shape[0]), :].to_numpy()])
             X = IndexedArray(pd.DataFrame(X).to_numpy(), index=keep_idx)
             return X
-
     return X.to_numpy()
 
 
@@ -161,7 +161,7 @@ def generate_coef(beta, s):
     return beta
 
 
-def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None, return_support=False):
+def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,frac_corrupt = 0.0,return_support=False):
     """
     This method is used to crete responses from a linear model with hard sparsity
     Parameters:
@@ -187,7 +187,12 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         sigma = (np.var(y_train) / snr) ** 0.5
     if error_fun is None:
         error_fun = np.random.randn
-    y_train = y_train + sigma * error_fun((len(X)))
+    num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
+    corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
+    non_corrupt_indices = list(set([*range(len(y_train))]) - set(corrupt_indices))
+    y_train[corrupt_indices] = y_train[corrupt_indices] + sigma*np.random.standard_cauchy(size=len(corrupt_indices))
+    y_train[non_corrupt_indices] = y_train[non_corrupt_indices] + sigma*error_fun((len(non_corrupt_indices)))
+    #y_train = y_train + sigma * error_fun((len(X)))
 
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
@@ -224,7 +229,7 @@ def logistic_model(X, s, beta, return_support=False):
         return y_train
 
 
-def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, error_fun=None, return_support=False):
+def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, error_fun=None,frac_corrupt = 0.0,return_support=False):
     """
     This method creates response from an LSS model
 
@@ -256,7 +261,12 @@ def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, error_fun=No
         sigma = (np.var(y_train) / snr)**0.5
     if error_fun is None:
         error_fun = np.random.randn
-    y_train = y_train + sigma * error_fun(n)
+    num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
+    corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
+    non_corrupt_indices = list(set([*range(len(y_train))]) - set(corrupt_indices))
+    y_train[corrupt_indices] = y_train[corrupt_indices] + sigma*np.random.standard_cauchy(size=len(corrupt_indices))
+    y_train[non_corrupt_indices] = y_train[non_corrupt_indices] + sigma*error_fun((len(non_corrupt_indices)))
+    #y_train = y_train + sigma * error_fun(n)
 
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
@@ -299,7 +309,7 @@ def sum_of_squares(X, sigma, s, beta, heritability=None, snr=None, error_fun=Non
         return y_train
 
 
-def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None, return_support=False):
+def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None,frac_corrupt = 0.0,return_support=False):
     """
     This method creates response from an LSS model
 
@@ -333,7 +343,13 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
         sigma = (np.var(y_train) / snr) ** 0.5
     if error_fun is None:
         error_fun = np.random.randn
-    y_train = y_train + sigma * error_fun(n)
+    
+    num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
+    corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
+    non_corrupt_indices = list(set([*range(len(y_train))]) - set(corrupt_indices))
+    y_train[corrupt_indices] = y_train[corrupt_indices] + sigma*np.random.standard_cauchy(size=len(corrupt_indices))
+    y_train[non_corrupt_indices] = y_train[non_corrupt_indices] + sigma*error_fun((len(non_corrupt_indices)))
+    #y_train = y_train + sigma * error_fun(n)
 
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
@@ -426,7 +442,7 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
         return y_train
 
 
-def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None,
+def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None,frac_corrupt = 0.0,
                       error_fun=None, return_support=False):
     """
     This method creates response from an Linear + LSS model
@@ -462,7 +478,12 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
         sigma = (np.var(y_train) / snr) ** 0.5
     if error_fun is None:
         error_fun = np.random.randn
-    y_train = y_train + sigma * error_fun(n)
+    num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
+    corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
+    non_corrupt_indices = list(set([*range(len(y_train))]) - set(corrupt_indices))
+    y_train[corrupt_indices] = y_train[corrupt_indices] + sigma*np.random.standard_cauchy(size=len(corrupt_indices))
+    y_train[non_corrupt_indices] = y_train[non_corrupt_indices] + sigma*error_fun((len(non_corrupt_indices)))
+    #y_train = y_train + sigma * error_fun(n)
 
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
