@@ -175,12 +175,12 @@ def gMDI(X,y,fit,normalize = False,add_raw = True,normalize_raw = False,refit = 
     return results
 
 
-def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normalize_raw = False,scoring_type = "ridge",random_state = None,lasso_sample_split = False,sample_weight = None):
+def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normalize_raw = False,scoring_type = "ridge",random_state = None,lasso_sample_split = False,sample_weight = None,error_metric = "loocv"):
     
     if scoring_type == "lasso":
         scorer = JointLassoScorer(sample_split = lasso_sample_split)
     elif scoring_type == "ridge":
-        scorer = JointRidgeScorer(criterion = criterion)
+        scorer = JointRidgeScorer(criterion = criterion,metric = error_metric)
     elif scoring_type == "logistic":
          scorer = JointLogisticScorer()
     else:
