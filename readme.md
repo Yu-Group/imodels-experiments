@@ -58,7 +58,7 @@ Fast Interpretable Greedy-Tree Sums (FIGS) is an algorithm for fitting concise r
 Hierarchical shrinkage is an extremely fast post-hoc regularization method which works on any decision tree (or tree-based ensemble, such as Random Forest). It does not modify the tree structure, and instead regularizes the tree by shrinking the prediction over each node towards the sample means of its ancestors (using a single regularization parameter). Experiments over a wide variety of datasets show that hierarchical shrinkage substantially increases the predictive performance of individual decision trees and decision-tree ensembles.
 
 <p align="center">
-	<img src="https://demos.csinva.io/shrinkage/shrinkage_intro.svg?sanitize=True" width="50%">
+	<img src="https://demos.csinva.io/shrinkage/shrinkage_intro.svg?sanitize=True" width="75%">
 </p>  
 <p align="center">	
 	<i>HS Example. HS appplies post-hoc regularization to any decision tree by shrinking each node towards its parent.</i>
@@ -72,7 +72,7 @@ Hierarchical shrinkage is an extremely fast post-hoc regularization method which
 Machine learning in high-stakes domains, such as healthcare, faces two critical challenges: (1) generalizing to diverse data distributions given limited training data while (2) maintaining interpretability. To address these challenges, G-FIGS effectively pools data across diverse groups to output a concise, rule-based model. Given distinct groups of instances in a dataset (e.g., medical patients grouped by age or treatment site), G-FIGS first estimates group membership probabilities for each instance. Then, it uses these estimates as instance weights in FIGS (Tan et al. 2022), to grow a set of decision trees whose values sum to the final prediction. G-FIGS achieves state-of-the-art prediction performance on important clinical datasets; e.g., holding the level of sensitivity fixed at 92%, G-FIGS increases specificity for identifying cervical spine injury by up to 10% over CART and up to 3% over FIGS alone, with larger gains at higher sensitivity levels. By keeping the total number of rules below 16 in FIGS, the final models remain interpretable, and we find that their rules match medical domain expertise. All code, data, and models are released on Github.
 
 <p align="center">
-	<img src="https://demos.csinva.io/figs/gfigs_intro.svg?sanitize=True" width="50%">
+	<img src="https://demos.csinva.io/figs/gfigs_intro.svg?sanitize=True" width="90%">
 </p>  
 <p align="center">	
 	<i>G-FIGS 2-step process explained.</i>
