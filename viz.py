@@ -7,6 +7,7 @@ from os.path import dirname
 from os.path import join as oj
 from typing import List, Dict, Any, Union, Tuple
 import warnings
+from copy import deepcopy
 
 # import adjustText
 import dvu
@@ -236,6 +237,7 @@ def plot_bests(metric='rocauc', datasets=[],
         'RF': '#ff6600',
     }
 
+    results_all = []
     # iterate over datasets
     for i, dset in enumerate(tqdm(datasets)):
         if isinstance(dset, str):
@@ -256,6 +258,9 @@ def plot_bests(metric='rocauc', datasets=[],
         vals = []
         names = []
         errs = []
+        results = {
+            'dset': dset_name,
+        }
         for name in models_to_include:
             try:
                 g = df.groupby('estimator').get_group(name)
@@ -267,9 +272,18 @@ def plot_bests(metric='rocauc', datasets=[],
             x = g['complexity' + suffix].values
             y = g[f'{metric}_test' + suffix].values[0]
             yerr = g[f'{metric}_test' + '_std'].values[0]
+            name = name.replace('RandomForest', 'RF')
+            
             vals.append(y)
             errs.append(yerr)
-            names.append(name.replace('RandomForest', 'RF'))
+            names.append(name)
+            results.update({
+                'complexity': x,
+                f'{metric}_test': y,
+                f'{metric}_test_std': yerr,
+                'name': name,
+            })
+            results_all.append(deepcopy(results))
         plt.bar(names, vals,
                 yerr=yerr,
                 color=[COLORS.get(name, 'grey') for name in names])
@@ -288,9 +302,10 @@ def plot_bests(metric='rocauc', datasets=[],
                        )
         if metric.upper() == 'ROCAUC':
             plt.ylim(bottom=0.5)
-
+        
     #         plt.legend()
     savefig(save_name)
+    return results_all
 
 
 def savefig(fname):

@@ -1,4 +1,4 @@
-DATASETS_CLASSIFICATION = [
+DATASETS_CLASSIFICATION = [    
     # classification datasets from original random forests paper
     # page 9: https://www.stat.berkeley.edu/~breiman/randomforest2001.pdf
     ("sonar", "sonar", "pmlb"),
@@ -11,15 +11,16 @@ DATASETS_CLASSIFICATION = [
     # ("credit-g", "credit_g", 'imodels'), # like german-credit, but more feats
     ("german-credit", "german", "pmlb"),
 
-    # clinical-decision rules
-    # ("iai-pecarn", "iai_pecarn.csv", "imodels"),
-
     # popular classification datasets used in rule-based modeling / fairness
     # page 7: http://proceedings.mlr.press/v97/wang19a/wang19a.pdf
+    # clinical-decision rules    
+    ("csi-pecarn", "csi_pecarn_pred.csv", "imodels"),    
     ("juvenile", "juvenile_clean", 'imodels'),
     ("recidivism", "compas_two_year_clean", 'imodels'),
+    ("iai-pecarn", "iai_pecarn_pred.csv", "imodels"),        
     ("credit", "credit_card_clean", 'imodels'),
-    ("readmission", 'readmission_clean', 'imodels'),  # v big
+    ("tbi-pecarn", "tbi_pecarn_pred.csv", "imodels"),      
+    ("readmission", 'readmission_clean', 'imodels'),  # v big      
 ]
 
 DATASETS_REGRESSION = [
