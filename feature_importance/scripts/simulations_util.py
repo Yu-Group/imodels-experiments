@@ -161,7 +161,7 @@ def generate_coef(beta, s):
     return beta
 
 
-def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,frac_corrupt = 0.0,return_support=False):
+def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,frac_corrupt = None,corrupt_how = 'permute', return_support=False):
     """
     This method is used to crete responses from a linear model with hard sparsity
     Parameters:
@@ -172,7 +172,7 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
     Returns:
     numpy array of shape (n)
     """
-
+    n, p = X.shape
     def create_y(x, s, beta):
         linear_term = 0
         for j in range(s):
@@ -187,13 +187,23 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         sigma = (np.var(y_train) / snr) ** 0.5
     if error_fun is None:
         error_fun = np.random.randn
-    num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
-    corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
-    non_corrupt_indices = list(set([*range(len(y_train))]) - set(corrupt_indices))
-    y_train[corrupt_indices] = y_train[corrupt_indices] + sigma*np.random.standard_cauchy(size=len(corrupt_indices))
-    y_train[non_corrupt_indices] = y_train[non_corrupt_indices] + sigma*error_fun((len(non_corrupt_indices)))
-    #y_train = y_train + sigma * error_fun((len(X)))
-
+    if frac_corrupt is None:
+        y_train = y_train + sigma * error_fun(n)
+    else:
+        num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
+        corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
+        if corrupt_how == 'permute':
+            corrupt_array = y_train[corrupt_indices]
+            corrupt_array = random.sample(list(corrupt_array), len(corrupt_array))
+            for i,index in enumerate(corrupt_indices):
+                y_train[index] = corrupt_array[i]
+            y_train = y_train + sigma * error_fun(n)           
+        elif corrupt_how == 'cauchy':
+            for i in range(len(y_train)):
+                if i in corrupt_indices:
+                    y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
+                else:
+                     y_train[i] = y_train[i] + sigma*error_fun()
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
         return y_train, support, beta
@@ -201,7 +211,7 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         return y_train
 
 
-def logistic_model(X, s, beta, return_support=False):
+def logistic_model(X, s, beta,return_support=False):
     """
     This method is used to create responses from a sum of squares model with hard sparsity
     Parameters:
@@ -309,7 +319,8 @@ def sum_of_squares(X, sigma, s, beta, heritability=None, snr=None, error_fun=Non
         return y_train
 
 
-def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None,frac_corrupt = 0.0,return_support=False):
+def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None,frac_corrupt = None,corrupt_how = 'permute',
+              return_support=False):
     """
     This method creates response from an LSS model
 
@@ -343,13 +354,25 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
         sigma = (np.var(y_train) / snr) ** 0.5
     if error_fun is None:
         error_fun = np.random.randn
-    
-    num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
-    corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
-    non_corrupt_indices = list(set([*range(len(y_train))]) - set(corrupt_indices))
-    y_train[corrupt_indices] = y_train[corrupt_indices] + sigma*np.random.standard_cauchy(size=len(corrupt_indices))
-    y_train[non_corrupt_indices] = y_train[non_corrupt_indices] + sigma*error_fun((len(non_corrupt_indices)))
-    #y_train = y_train + sigma * error_fun(n)
+
+    if frac_corrupt is None:
+        y_train = y_train + sigma * error_fun(n)
+    else:
+        num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
+        corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
+        if corrupt_how == 'permute':
+            corrupt_array = y_train[corrupt_indices]
+            corrupt_array = random.sample(list(corrupt_array), len(corrupt_array))
+            for i,index in enumerate(corrupt_indices):
+                y_train[index] = corrupt_array[i]
+            y_train = y_train + sigma * error_fun(n)           
+        elif corrupt_how == 'cauchy':
+            for i in range(len(y_train)):
+                if i in corrupt_indices:
+                    y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
+                else:
+                     y_train[i] = y_train[i] + sigma*error_fun()
+  
 
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
@@ -374,8 +397,8 @@ def xor(X, sigma, beta, heritability=None, snr=None, error_fun=None):
     return y_train
 
 
-def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=None, error_fun=None,
-                     return_support=False, diagnostics=False):
+def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=None, error_fun=None,frac_corrupt = None,
+                     corrupt_how = 'permute',return_support=False, diagnostics=False):
     """
     This method creates response from an Linear + LSS model
 
@@ -432,7 +455,25 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
         sigma = (np.var(y_train) / snr) ** 0.5
     if error_fun is None:
         error_fun = np.random.randn
-    y_train = y_train + sigma * error_fun(n)
+    
+    if frac_corrupt is None:
+        y_train = y_train + sigma * error_fun(n)
+    else:
+        num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
+        corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
+        if corrupt_how == 'permute':
+            corrupt_array = y_train[corrupt_indices]
+            corrupt_array = random.sample(list(corrupt_array), len(corrupt_array))
+            for i,index in enumerate(corrupt_indices):
+                y_train[index] = corrupt_array[i]
+            y_train = y_train + sigma * error_fun(n)           
+        elif corrupt_how == 'cauchy':
+            for i in range(len(y_train)):
+                if i in corrupt_indices:
+                    y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
+                else:
+                     y_train[i] = y_train[i] + sigma*error_fun()
+    #y_train = y_train + sigma * error_fun(n)
     if return_support:
         support = np.concatenate((np.ones(max(m * r, s)), np.zeros(X.shape[1] - max((m * r), s))))
         return y_train, support, beta_lss
@@ -442,7 +483,7 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
         return y_train
 
 
-def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None,frac_corrupt = 0.0,
+def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None,frac_corrupt = None,corrupt_how = 'permute',
                       error_fun=None, return_support=False):
     """
     This method creates response from an Linear + LSS model
@@ -478,13 +519,24 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
         sigma = (np.var(y_train) / snr) ** 0.5
     if error_fun is None:
         error_fun = np.random.randn
-    num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
-    corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
-    non_corrupt_indices = list(set([*range(len(y_train))]) - set(corrupt_indices))
-    y_train[corrupt_indices] = y_train[corrupt_indices] + sigma*np.random.standard_cauchy(size=len(corrupt_indices))
-    y_train[non_corrupt_indices] = y_train[non_corrupt_indices] + sigma*error_fun((len(non_corrupt_indices)))
-    #y_train = y_train + sigma * error_fun(n)
 
+    if frac_corrupt is None:
+        y_train = y_train + sigma * error_fun(n)
+    else:
+        num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
+        corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
+        if corrupt_how == 'permute':
+            corrupt_array = y_train[corrupt_indices]
+            corrupt_array = random.sample(list(corrupt_array), len(corrupt_array))
+            for i,index in enumerate(corrupt_indices):
+                y_train[index] = corrupt_array[i]
+            y_train = y_train + sigma * error_fun(n)           
+        elif corrupt_how == 'cauchy':
+            for i in range(len(y_train)):
+                if i in corrupt_indices:
+                    y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
+                else:
+                     y_train[i] = y_train[i] + sigma*error_fun()
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
         return y_train, support, beta
