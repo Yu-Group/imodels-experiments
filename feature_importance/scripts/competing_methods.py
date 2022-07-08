@@ -1,10 +1,13 @@
 import pandas as pd
+import numpy as np
 from sklearn.inspection import permutation_importance
 import shap,os,sys
 
 from imodels.importance import R2FExp, GeneralizedMDI, GeneralizedMDIJoint
 from imodels.importance import LassoScorer, RidgeScorer,ElasticNetScorer,RobustScorer,LogisticScorer,JointRidgeScorer,JointLogisticScorer,JointRobustScorer,JointLassoScorer
 from feature_importance.scripts.mdi_oob import MDI_OOB
+from feature_importance.scripts.mda import MDA
+
 
 def tree_mdi(X, y, fit):
     """
@@ -203,6 +206,26 @@ def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normaliz
                                  'n_stumps': n_stumps.mean(axis=0)},
                            columns=['importance', 'n_components', 'n_stumps'])
 
+    if isinstance(X, pd.DataFrame):
+        results.index = X.columns
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+
+    return results
+
+
+def tree_mda(X, y, fit, type="oob", n_repeats=10, metric="auto"):
+    if metric == "auto":
+        if isinstance(y[0], str):
+            metric = "accuracy"
+            raise ValueError('MDA has not yet been configured for classification.')
+        else:
+            metric = "mse"
+
+    results, _ = MDA(fit, X, y[:, np.newaxis], type=type, n_trials=n_repeats, metric=metric)
+    results = pd.DataFrame(data=results, columns=['importance'])
+
+    # Use column names from dataframe if possible
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
     results.index.name = 'var'
