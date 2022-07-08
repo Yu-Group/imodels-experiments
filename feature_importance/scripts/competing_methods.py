@@ -175,19 +175,28 @@ def gMDI(X,y,fit,normalize = False,add_raw = True,normalize_raw = False,refit = 
     return results
 
 
-def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normalize_raw = False,scoring_type = "ridge",random_state = None,lasso_sample_split = False,sample_weight = None,error_metric = "loocv"):
-    
+def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normalize_raw = False,scoring_type = "ridge",random_state = None,lasso_sample_split = False,sample_weight = None,error_metric = "auto"):
+
+    if error_metric == "auto":
+        if scoring_type == "ridge":
+            error_metric = "loocv"
+        else:
+            error_metric = None
+
     if scoring_type == "lasso":
-        scorer = JointLassoScorer(sample_split = lasso_sample_split)
+        scorer = JointLassoScorer(sample_split = lasso_sample_split, metric=error_metric)
     elif scoring_type == "ridge":
         scorer = JointRidgeScorer(criterion = criterion,metric = error_metric)
     elif scoring_type == "logistic":
-         scorer = JointLogisticScorer()
+         scorer = JointLogisticScorer(metric=error_metric)
     else:
         scorer = ElasticNetScorer()
     
     gMDI_obj = GeneralizedMDIJoint(fit,scorer = scorer, normalize = normalize, add_raw = add_raw,normalize_raw = normalize_raw,random_state = random_state)
-    r_squared_mean, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, sample_weight= sample_weight,diagnostics=True)
+    if isinstance(y[0], str):
+        r_squared_mean, _, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, sample_weight= sample_weight,diagnostics=True)
+    else:
+        r_squared_mean, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, sample_weight= sample_weight,diagnostics=True)
 
     results = pd.DataFrame(data={'importance': r_squared_mean,
                                  'n_components': n_components_chosen.mean(axis=0),
