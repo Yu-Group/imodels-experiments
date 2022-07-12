@@ -347,6 +347,8 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
         return y
 
     beta = generate_coef(beta, m)
+    if tau == 'median':
+        tau = np.median(X,axis = 0)
     y_train = np.array([lss_func(X[i, :], beta) for i in range(n)])
     if heritability is not None:
         sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
