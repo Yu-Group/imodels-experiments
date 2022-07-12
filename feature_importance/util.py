@@ -145,6 +145,8 @@ def apply_splitting_strategy(X: np.ndarray,
                              split_seed: str) -> Tuple[Any, Any, Any, Any, Any, Any]:
     if splitting_strategy in {'train-test-lowdata', 'train-tune-test-lowdata'}:
         test_size = 0.90  # X.shape[0] - X.shape[0] * 0.1
+    elif splitting_strategy == "train-test":
+        test_size = 0.33
     else:
         test_size = 0.2
 

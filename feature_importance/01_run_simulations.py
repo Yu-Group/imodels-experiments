@@ -27,7 +27,7 @@ sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../..")
 import fi_config
-from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, pr_auc_score, compute_nsg_feat_corr_w_sig_subspace
+from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, pr_auc_score, compute_nsg_feat_corr_w_sig_subspace, apply_splitting_strategy
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
@@ -66,8 +66,7 @@ def compare_estimators(estimators: List[ModelConfig],
         for splitting_strategy, fi_ests in fi_ests_dict.items():
             # implement provided splitting strategy
             if splitting_strategy is not None:
-                X_train, X_tune, X_test, y_train, y_tune, y_test = (
-                    util.apply_splitting_strategy(X, y, splitting_strategy, args.split_seed))
+                X_train, X_tune, X_test, y_train, y_tune, y_test = apply_splitting_strategy(X, y, splitting_strategy, args.split_seed)
             else:
                 X_train = X
                 X_tune = X
@@ -101,10 +100,12 @@ def compare_estimators(estimators: List[ModelConfig],
                 if np.max(support) != np.min(support):
                     for i, (met_name, met) in enumerate(metrics):
                         if met is not None:
+                            imp_vals = copy.deepcopy(fi_score["importance"])
+                            imp_vals[imp_vals == float("-inf")] = np.nanmin(imp_vals) - 1
                             if fi_est.ascending:
-                                metric_results[met_name] = met(support, fi_score['importance'])
+                                metric_results[met_name] = met(support, imp_vals)
                             else:
-                                metric_results[met_name] = met(support, -fi_score['importance'])
+                                metric_results[met_name] = met(support, -imp_vals)
                 # metric_results['time'] = end - start
 
                 # initialize results with metadata and metric results
