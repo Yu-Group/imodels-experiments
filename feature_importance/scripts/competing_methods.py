@@ -7,7 +7,7 @@ from imodels.importance import R2FExp, GeneralizedMDI, GeneralizedMDIJoint
 from imodels.importance import LassoScorer, RidgeScorer,ElasticNetScorer,RobustScorer,LogisticScorer,JointRidgeScorer,JointLogisticScorer,JointRobustScorer,JointLassoScorer
 from feature_importance.scripts.mdi_oob import MDI_OOB
 from feature_importance.scripts.mda import MDA
-
+from sklearn.linear_model import RidgeCV
 
 def tree_mdi(X, y, fit):
     """
@@ -226,6 +226,19 @@ def tree_mda(X, y, fit, type="oob", n_repeats=10, metric="auto"):
     results = pd.DataFrame(data=results, columns=['importance'])
 
     # Use column names from dataframe if possible
+    if isinstance(X, pd.DataFrame):
+        results.index = X.columns
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+
+    return results
+
+def ridge_cv(X,y,alphas=np.logspace(-4, 3, 100)):
+    
+    ridge_model = RidgeCV(alphas=alphas).fit(X, y)
+    results = np.abs(ridge_model.coef_)
+    results = pd.DataFrame(data=results, columns=['importance'])
+    
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
     results.index.name = 'var'
