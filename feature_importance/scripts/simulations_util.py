@@ -161,7 +161,21 @@ def generate_coef(beta, s):
     return beta
 
 
-def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,frac_corrupt = None,corrupt_how = 'permute', return_support=False):
+def corrupt_leverage(X_support, y_train, frac_corrupt, corrupt_quantile):
+    ranked_rows = np.apply_along_axis(np.linalg.norm, axis=1, arr=X_support).argsort().argsort()
+    low_idx = np.where(ranked_rows < round(corrupt_quantile * len(y_train)))[0]
+    hi_idx = np.where(ranked_rows >= (len(y_train) - round(corrupt_quantile * len(y_train))))[0]
+    low_switch = np.random.choice(low_idx, size=round(frac_corrupt * len(low_idx)), replace=False)
+    hi_switch = np.random.choice(hi_idx, size=round(frac_corrupt * len(hi_idx)), replace=False)
+    y_low = y_train[low_switch]
+    y_hi = y_train[hi_switch]
+    y_train[hi_switch] = y_low
+    y_train[low_switch] = y_hi
+    return y_train
+
+
+def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
+                 frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, return_support=False):
     """
     This method is used to crete responses from a linear model with hard sparsity
     Parameters:
@@ -204,6 +218,10 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
+        elif corrupt_how == "leverage":
+            y_train = corrupt_leverage(X[:, :s], y_train, frac_corrupt, corrupt_quantile)
+            y_train = y_train + sigma * error_fun(n)
+
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
         return y_train, support, beta
@@ -239,7 +257,8 @@ def logistic_model(X, s, beta,return_support=False):
         return y_train
 
 
-def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, error_fun=None,frac_corrupt = 0.0,return_support=False):
+def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, error_fun=None,
+                 frac_corrupt = 0.0,return_support=False):
     """
     This method creates response from an LSS model
 
@@ -319,8 +338,8 @@ def sum_of_squares(X, sigma, s, beta, heritability=None, snr=None, error_fun=Non
         return y_train
 
 
-def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None,frac_corrupt = None,corrupt_how = 'permute',
-              return_support=False):
+def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None,
+              frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, return_support=False):
     """
     This method creates response from an LSS model
 
@@ -374,6 +393,9 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
+        elif corrupt_how == "leverage":
+            y_train = corrupt_leverage(X[:, :(m*r)], y_train, frac_corrupt, corrupt_quantile)
+            y_train = y_train + sigma * error_fun(n)
   
 
     if return_support:
@@ -399,8 +421,9 @@ def xor(X, sigma, beta, heritability=None, snr=None, error_fun=None):
     return y_train
 
 
-def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=None, error_fun=None,frac_corrupt = None,
-                     corrupt_how = 'permute',return_support=False, diagnostics=False):
+def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=None, error_fun=None,
+                     frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None,
+                     return_support=False, diagnostics=False):
     """
     This method creates response from an Linear + LSS model
 
@@ -475,6 +498,9 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
+        elif corrupt_how == "leverage":
+            y_train = corrupt_leverage(X[:, :max(m*r, s)], y_train, frac_corrupt, corrupt_quantile)
+            y_train = y_train + sigma * error_fun(n)
     #y_train = y_train + sigma * error_fun(n)
     if return_support:
         support = np.concatenate((np.ones(max(m * r, s)), np.zeros(X.shape[1] - max((m * r), s))))
@@ -485,7 +511,8 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
         return y_train
 
 
-def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None,frac_corrupt = None,corrupt_how = 'permute',
+def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None,
+                      frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None,
                       error_fun=None, return_support=False):
     """
     This method creates response from an Linear + LSS model
@@ -539,6 +566,9 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
+        elif corrupt_how == "leverage":
+            y_train = corrupt_leverage(X[:, :(m*r)], y_train, frac_corrupt, corrupt_quantile)
+            y_train = y_train + sigma * error_fun(n)
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
         return y_train, support, beta
