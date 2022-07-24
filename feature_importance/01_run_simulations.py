@@ -101,7 +101,7 @@ def compare_estimators(estimators: List[ModelConfig],
                     for i, (met_name, met) in enumerate(metrics):
                         if met is not None:
                             imp_vals = copy.deepcopy(fi_score["importance"])
-                            imp_vals[imp_vals == float("-inf")] = np.nanmin(imp_vals) - 1
+                            imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
                             if fi_est.ascending:
                                 metric_results[met_name] = met(support, imp_vals)
                             else:
