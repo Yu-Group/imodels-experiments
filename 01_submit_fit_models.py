@@ -6,7 +6,7 @@ from itertools import product
 config_name = 'figs_ensembles'
 DATASETS_CLASSIFICATION, DATASETS_REGRESSION, \
 ESTIMATORS_CLASSIFICATION, ESTIMATORS_REGRESSION = config.get_configs(config_name)
-partition = 'low'
+partition = 'high'
 # partition = 'low'
 s = Slurm("fit", {"partition": partition})
 
