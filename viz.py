@@ -18,7 +18,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
-import dataframe_image as dfi
 
 from config.figs_interactions.datasets import DATASETS_REGRESSION
 from util import remove_x_axis_duplicates, merge_overlapping_curves
@@ -214,6 +213,7 @@ def plot_bests(metric='rocauc', datasets=[],
                color_legend=True,
                seed=None,
                eps_legend_sep=0.01,
+               plot=True,
                save_name='fig', show_train=False, xlim=20):
     """Plot bests for different models as a function of complexity
     Note: for best legends, pass models_to_include from top to bottom
@@ -284,24 +284,26 @@ def plot_bests(metric='rocauc', datasets=[],
                 'name': name,
             })
             results_all.append(deepcopy(results))
-        plt.bar(names, vals,
-                yerr=yerr,
-                color=[COLORS.get(name, 'grey') for name in names])
-        #         plt.grid(zorder=100000)
+        
+        if plot:
+            plt.bar(names, vals,
+                    yerr=yerr,
+                    color=[COLORS.get(name, 'grey') for name in names])
+            #         plt.grid(zorder=100000)
 
-        plt.xticks(rotation=15)
-        #         plt.bar(np.arange(len(vals)), vals)
+            plt.xticks(rotation=15)
+            #         plt.bar(np.arange(len(vals)), vals)
 
-        # plot editing
-        plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA.get(dset_name, (-1))[0]}$)',
-                  fontsize='medium')
-        if i % C == 0:  # left col
-            plt.ylabel(metric.upper()
-                       .replace('ROC', '')
-                       .replace('R2', '$R^2$')
-                       )
-        if metric.upper() == 'ROCAUC':
-            plt.ylim(bottom=0.5)
+            # plot editing
+            plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA.get(dset_name, (-1))[0]}$)',
+                      fontsize='medium')
+            if i % C == 0:  # left col
+                plt.ylabel(metric.upper()
+                           .replace('ROC', '')
+                           .replace('R2', '$R^2$')
+                           )
+            if metric.upper() == 'ROCAUC':
+                plt.ylim(bottom=0.5)
         
     #         plt.legend()
     savefig(save_name)
@@ -436,6 +438,7 @@ def viz_interactions(datasets=[],
                      models_to_include=[],
                      config_name='figs_interactions',
                      save_path="") -> None:
+    import dataframe_image as dfi
     for i, dset in enumerate(tqdm(datasets)):
         if isinstance(dset, str):
             dset_name = dset
