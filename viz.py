@@ -291,7 +291,7 @@ def plot_bests(metric='rocauc', datasets=[],
                     color=[COLORS.get(name, 'grey') for name in names])
             #         plt.grid(zorder=100000)
 
-            plt.xticks(rotation=15)
+            plt.xticks(rotation=20)
             #         plt.bar(np.arange(len(vals)), vals)
 
             # plot editing
