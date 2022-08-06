@@ -17,10 +17,10 @@ s = Slurm("fit", {"partition": partition})
 
 
 if __name__ == '__main__':
-    split_seeds = range(1, 5)
+    split_seeds = range(0, 5)
     est_ds_lst = list(product(DATASETS_CLASSIFICATION, ESTIMATORS_CLASSIFICATION)) \
                        + list(product(DATASETS_REGRESSION, ESTIMATORS_REGRESSION))
-#     est_ds_lst = list(product(DATASETS_REGRESSION, ESTIMATORS_REGRESSION))
+    # est_ds_lst = list(product(DATASETS_REGRESSION, ESTIMATORS_REGRESSION))
 
     for split_seed in split_seeds:
         for dset, est in est_ds_lst:
