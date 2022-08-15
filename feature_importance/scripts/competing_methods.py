@@ -4,7 +4,7 @@ from sklearn.inspection import permutation_importance
 import shap,os,sys
 
 from imodels.importance import R2FExp, GeneralizedMDI, GeneralizedMDIJoint
-from imodels.importance import LassoScorer, RidgeScorer,ElasticNetScorer,RobustScorer,LogisticScorer,JointRidgeScorer,JointLogisticScorer,JointRobustScorer,JointLassoScorer
+from imodels.importance import LassoScorer, RidgeScorer,ElasticNetScorer,RobustScorer,LogisticScorer,JointRidgeScorer,JointLogisticScorer,JointRobustScorer,JointLassoScorer,JointALOElasticNetScorer,JointALOLogisticScorer
 from feature_importance.scripts.mdi_oob import MDI_OOB
 from feature_importance.scripts.mda import MDA
 from sklearn.linear_model import RidgeCV
