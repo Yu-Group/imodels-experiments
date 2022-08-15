@@ -192,6 +192,10 @@ def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normaliz
         scorer = JointRidgeScorer(criterion = criterion,metric = error_metric)
     elif scoring_type == "logistic":
          scorer = JointLogisticScorer(metric=error_metric)
+    elif scoring_type == "alo_logistic":
+         scorer = JointALOLogisticScorer(metric=error_metric)
+    elif scoring_type == "alo_elastic":
+        scorer = JointALOElasticNetScorer(metric=error_metric)
     else:
         scorer = ElasticNetScorer()
     
