@@ -62,7 +62,7 @@ def compare_estimators(estimators: List[ModelConfig],
         est = model.cls(**model.kwargs)
 
         start = time.time()
-        fit_parameters = inspect.signature(m.fit).parameters.keys()
+        fit_parameters = inspect.signature(est.fit).parameters.keys()
         if 'feature_names' in fit_parameters:
             est.fit(X_train, y_train, feature_names=feat_names)
         else:
@@ -91,16 +91,17 @@ def compare_estimators(estimators: List[ModelConfig],
                 important_features = get_important_features(importance, len(gt_importance))
                 interaction = get_interaction_score(est, X_, y_)
                 interacting_features = get_interacting_features(interaction, len(gt_interaction) * 2)
-            # print('best param', est.reg_param)
             if args.classification_or_regression == 'classification':
-                y_pred_proba = est.predict_proba(X_)[..., 1]
+                y_pred_proba = est.predict_proba(X_)
+                if y_pred_proba.size == y_.size * 2:  # binary classification with 2 outputs
+                    y_pred_proba = y_pred_proba[..., 1]  # take class 1 (for pyGAM, this is skipped)
             for i, (met_name, met) in enumerate(metrics):
                 if met is not None:
                     if met_name.startswith("interaction"):
                         if args.calc_interactions:
                             metric_results[met_name + suffix] = met(gt_interaction, interacting_features)
                             metric_results[met_name.replace("interaction", "importance") + suffix] = met(gt_importance,
-                                                                                                     important_features)
+                                                                                                         important_features)
 
                     elif args.classification_or_regression == 'regression' \
                             or met_name in ['accuracy', 'f1', 'precision', 'recall']:
@@ -232,7 +233,6 @@ if __name__ == '__main__':
     parser.add_argument('--calc_interactions', action='store_true',
                         help='whether to calculate interactions')
     args = parser.parse_args()
-    print('args.calc_interactions', args.calc_interactions)
 
     assert args.splitting_strategy in {
         'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata'}

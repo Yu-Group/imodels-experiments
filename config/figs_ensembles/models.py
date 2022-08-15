@@ -8,7 +8,7 @@ from sklearn.linear_model import LogisticRegressionCV, RidgeCV
 from imodels.experimental.figs_ensembles import FIGSExtClassifier, FIGSExtRegressor
 from imodels import FIGSClassifier
 from util import ModelConfig
-from xgboost import XGBClassifier
+# from xgboost import XGBClassifier
 from pygam import LogisticGAM, s
 
 # python 01_fit_models.py --config figs_ensembles --classification_or_regression classification --model Boosting-FIGS
