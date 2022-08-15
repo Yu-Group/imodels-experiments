@@ -2,6 +2,7 @@ import argparse
 import os
 import pickle as pkl
 import time
+import inspect
 import warnings
 from collections import defaultdict
 from os.path import join as oj
@@ -61,11 +62,10 @@ def compare_estimators(estimators: List[ModelConfig],
         est = model.cls(**model.kwargs)
 
         start = time.time()
-        try:
+        fit_parameters = inspect.signature(m.fit).parameters.keys()
+        if 'feature_names' in fit_parameters:
             est.fit(X_train, y_train, feature_names=feat_names)
-        except TypeError as e:
-            if str(e) != "fit() got an unexpected keyword argument 'feature_names'":
-                raise e
+        else:
             est.fit(X_train, y_train)
 
         end = time.time()

@@ -25,7 +25,7 @@ jobs:
         pyversion=$(python -c 'import sys; print(".".join(map(str, sys.version_info[:2])))')
         if [[ $pyversion == '3.6' ]]; then pip install 'numpy<1.20' 'scipy<1.6'; fi
         pip install git+https://github.com/csinva/imodels.git
-        pip install scikit-learn dvu jupyter matplotlib slurmpy tqdm pmlb pytest sh numpy xgboost
+        pip install scikit-learn dvu jupyter matplotlib slurmpy tqdm pmlb pytest sh numpy xgboost pygam
     - name: Test with pytest
       run: |
         pytest
