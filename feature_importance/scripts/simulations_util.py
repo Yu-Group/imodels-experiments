@@ -255,8 +255,38 @@ def logistic_model(X, s, beta,return_support=False):
         return y_train, support, beta
     else:
         return y_train
+    
+def logistic_lss_model(X, sigma, m, r, tau, beta,return_support = False):
+    """
+    This method is used to create responses from a logistic model model with lss
+    X: X matrix
+    s: sparsity
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+    sigma: s.d. of added noise
+    Returns:
+    numpy array of shape (n)
+    """
+    def lss_func(x, beta):
+        x_bool = (x - tau) > 0
+        y = 0
+        for j in range(m):
+            lss_term_components = x_bool[j * r:j * r + r]
+            lss_term = int(all(lss_term_components))
+            y += lss_term * beta[j]
+        prob = 1 / (1 + np.exp(-y))
+        return (np.random.uniform(size=1) < prob) * 1
 
+    beta = generate_coef(beta, m)
+    y_train = np.array([lss_func(X[i, :], s, beta) for i in range(len(X))]).ravel()
+    if return_support:
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+        return y_train, support, beta
+    else:
+        return y_train
 
+#def logistic_hier_model(X, sigma, m, r, tau, beta,return_support = False):
+
+    
 def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, error_fun=None,
                  frac_corrupt = 0.0,return_support=False):
     """
@@ -419,6 +449,85 @@ def xor(X, sigma, beta, heritability=None, snr=None, error_fun=None):
     y_train = y_train + sigma * error_fun(n)
 
     return y_train
+
+
+
+def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, snr=None, error_fun=None,
+              frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, return_support=False):
+    """
+    This method creates response from an linear + lss model
+
+    X: data matrix
+    m: number of interaction terms
+    r: max order of interaction
+    s: denotes number of linear terms in EACH interaction term
+    tau: threshold
+    sigma: standard deviation of noise
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+
+    :return
+    y_train: numpy array of shape (n)
+    """
+    n, p = X.shape
+    assert p >= m * r  # Cannot have more interactions * size than the dimension
+    assert s <= r
+    
+    def partial_linear_func(x,beta,s):
+        y = 0.0
+        count = 0
+        for j in range(m):
+            for i in range(s):
+                y += beta[count]*x[j*r+i]
+                count += 1
+        return y
+                
+
+    def lss_func(x, beta):
+        x_bool = (x - tau) > 0
+        y = 0
+        for j in range(m):
+            lss_term_components = x_bool[j * r:j * r + r]
+            lss_term = int(all(lss_term_components))
+            y += lss_term * beta[j]
+        return y
+
+    beta_lss = generate_coef(beta, m)
+    beta_linear = generate_coef(beta, s*m)
+    y_train_linear = np.array([partial_linear_func(X[i, :], s, beta_linear) for i in range(n)])
+    y_train_lss = np.array([lss_func(X[i, :], beta_lss) for i in range(n)])
+    y_train = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
+    if heritability is not None:
+        sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
+    if snr is not None:
+        sigma = (np.var(y_train) / snr) ** 0.5
+    
+    if frac_corrupt is None:
+        y_train = y_train + sigma * error_fun(n)
+    else:
+        num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
+        corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
+        if corrupt_how == 'permute':
+            corrupt_array = y_train[corrupt_indices]
+            corrupt_array = random.sample(list(corrupt_array), len(corrupt_array))
+            for i,index in enumerate(corrupt_indices):
+                y_train[index] = corrupt_array[i]
+            y_train = y_train + sigma * error_fun(n)           
+        elif corrupt_how == 'cauchy':
+            for i in range(len(y_train)):
+                if i in corrupt_indices:
+                    y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
+                else:
+                     y_train[i] = y_train[i] + sigma*error_fun()
+        elif corrupt_how == "leverage":
+            y_train = corrupt_leverage(X[:, :max(m*r, s)], y_train, frac_corrupt, corrupt_quantile)
+            y_train = y_train + sigma * error_fun(n)
+    if return_support:
+        support = np.concatenate((np.ones(max(m * r, s)), np.zeros(X.shape[1] - max((m * r), s))))
+        return y_train, support, beta_lss
+    elif diagnostics:
+        return y_train, y_train_linear, y_train_lss
+    else:
+        return y_train
 
 
 def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=None, error_fun=None,
