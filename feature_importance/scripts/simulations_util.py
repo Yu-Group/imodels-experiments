@@ -472,7 +472,7 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
     assert p >= m * r  # Cannot have more interactions * size than the dimension
     assert s <= r
     
-    def partial_linear_func(x,beta,s):
+    def partial_linear_func(x,s,beta):
         y = 0.0
         count = 0
         for j in range(m):
@@ -493,7 +493,7 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
 
     beta_lss = generate_coef(beta, m)
     beta_linear = generate_coef(beta, s*m)
-    y_train_linear = np.array([partial_linear_func(X[i, :], s, beta_linear) for i in range(n)])
+    y_train_linear = np.array([partial_linear_func(X[i, :],s,beta_linear ) for i in range(n)])
     y_train_lss = np.array([lss_func(X[i, :], beta_lss) for i in range(n)])
     y_train = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
     if heritability is not None:
