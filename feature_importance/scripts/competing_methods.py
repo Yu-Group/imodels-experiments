@@ -4,7 +4,7 @@ from sklearn.inspection import permutation_importance
 import shap,os,sys
 
 from imodels.importance import R2FExp, GeneralizedMDI, GeneralizedMDIJoint
-from imodels.importance import LassoScorer, RidgeScorer,ElasticNetScorer,RobustScorer,LogisticScorer,JointRidgeScorer,JointLogisticScorer,JointRobustScorer,JointLassoScorer
+from imodels.importance import LassoScorer, RidgeScorer,ElasticNetScorer,RobustScorer,LogisticScorer,JointRidgeScorer,JointLogisticScorer,JointRobustScorer,JointLassoScorer,JointALOElasticNetScorer,JointALOLogisticScorer
 from feature_importance.scripts.mdi_oob import MDI_OOB
 from feature_importance.scripts.mda import MDA
 from sklearn.linear_model import RidgeCV
@@ -34,7 +34,7 @@ def tree_mdi(X, y, fit):
 
 
 def tree_mdi_OOB(X, y, fit, type='oob',
-                 normalized=True, balanced=False, demean=False, normal_fX=False):
+                 normalized=False, balanced=False, demean=False, normal_fX=False):
     """
     Compute MDI-oob feature importance for a given random forest
     :param X: design matrix
@@ -192,6 +192,10 @@ def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normaliz
         scorer = JointRidgeScorer(criterion = criterion,metric = error_metric)
     elif scoring_type == "logistic":
          scorer = JointLogisticScorer(metric=error_metric)
+    elif scoring_type == "alo_logistic":
+         scorer = JointALOLogisticScorer(metric=error_metric)
+    elif scoring_type == "alo_elastic":
+        scorer = JointALOElasticNetScorer(metric=error_metric)
     else:
         scorer = ElasticNetScorer()
     
