@@ -34,7 +34,7 @@ def tree_mdi(X, y, fit):
 
 
 def tree_mdi_OOB(X, y, fit, type='oob',
-                 normalized=True, balanced=False, demean=False, normal_fX=False):
+                 normalized=False, balanced=False, demean=False, normal_fX=False):
     """
     Compute MDI-oob feature importance for a given random forest
     :param X: design matrix

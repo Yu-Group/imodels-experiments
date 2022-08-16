@@ -453,7 +453,7 @@ def xor(X, sigma, beta, heritability=None, snr=None, error_fun=None):
 
 
 def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, snr=None, error_fun=None,
-              frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, return_support=False):
+              frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, diagnostics=False, return_support=False):
     """
     This method creates response from an linear + lss model
 
@@ -500,6 +500,8 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
         sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
     if snr is not None:
         sigma = (np.var(y_train) / snr) ** 0.5
+    if error_fun is None:
+        error_fun = np.random.randn
     
     if frac_corrupt is None:
         y_train = y_train + sigma * error_fun(n)
