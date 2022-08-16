@@ -178,7 +178,7 @@ def gMDI(X,y,fit,normalize = False,add_raw = True,normalize_raw = False,refit = 
     return results
 
 
-def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normalize_raw = False,scoring_type = "ridge",random_state = None,lasso_sample_split = False,sample_weight = None,error_metric = "auto"):
+def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normalize_raw = False,scoring_type = "ridge",random_state = None,lasso_sample_split = False,sample_weight = None,oob = True, error_metric = "auto"):
 
     if error_metric == "auto":
         if scoring_type == "ridge":
@@ -199,7 +199,7 @@ def gjMDI(X,y,fit,criterion = "aic_c", normalize = False,add_raw = True,normaliz
     else:
         scorer = ElasticNetScorer()
     
-    gMDI_obj = GeneralizedMDIJoint(fit,scorer = scorer, normalize = normalize, add_raw = add_raw,normalize_raw = normalize_raw,random_state = random_state)
+    gMDI_obj = GeneralizedMDIJoint(fit,scorer = scorer, normalize = normalize, add_raw = add_raw,normalize_raw = normalize_raw,random_state = random_state,oob = oob)
     if isinstance(y[0], str):
         r_squared_mean, _, _, n_stumps, n_components_chosen = gMDI_obj.get_importance_scores(X, y, sample_weight= sample_weight,diagnostics=True)
     else:
