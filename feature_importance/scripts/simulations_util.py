@@ -284,8 +284,81 @@ def logistic_lss_model(X, sigma, m, r, tau, beta,return_support = False):
     else:
         return y_train
 
-#def logistic_hier_model(X, sigma, m, r, tau, beta,return_support = False):
+def logistic_partial_linear_lss_model(X,s, m, r, tau, beta,return_support = False):
+    """
+    This method is used to create responses from a logistic model model with lss
+    X: X matrix
+    s: sparsity
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+    sigma: s.d. of added noise
+    Returns:
+    numpy array of shape (n)
+    """
+    
+     def partial_linear_func(x,s,beta):
+        y = 0.0
+        count = 0
+        for j in range(m):
+            for i in range(s):
+                y += beta[count]*x[j*r+i]
+                count += 1
+        return y
+    
+    def lss_func(x, beta):
+        x_bool = (x - tau) > 0
+        y = 0
+        for j in range(m):
+            lss_term_components = x_bool[j * r:j * r + r]
+            lss_term = int(all(lss_term_components))
+            y += lss_term * beta[j]
+        return y
+    def logistic_link_func(y):
+        prob = 1 / (1 + np.exp(-y))
+        return (np.random.uniform(size=1) < prob) * 1
 
+    beta_lss = generate_coef(beta, m)
+    beta_linear = generate_coef(beta, s*m)
+    y_train_linear = np.array([partial_linear_func(X[i, :],s,beta_linear ) for i in range(n)])
+    y_train_lss = np.array([lss_func(X[i, :], beta_lss) for i in range(n)])
+    y_train = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
+    y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+    
+    if return_support:
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+        return y_train, support, beta
+    else:
+        return y_train
+    
+    
+    
+def logistic_hier_model(X, sigma, m, r, tau, beta,return_support = False):
+    
+    n, p = X.shape
+    assert p >= m * r
+
+    def reg_func(x, beta):
+        y = 0
+        for i in range(m):
+            hier_term = 1.0
+            for j in range(r):
+                hier_term += x[i * r + j] * hier_term
+            y += hier_term * beta[i]
+        return y
+    
+    def logistic_link_func(y):
+        prob = 1 / (1 + np.exp(-y))
+        return (np.random.uniform(size=1) < prob) * 1
+
+    beta = generate_coef(beta, m)
+    y_train = np.array([reg_func(X[i, :], beta) for i in range(n)])
+    y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+    
+    if return_support:
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+        return y_train, support, beta
+    else:
+        return y_train
+    
     
 def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, error_fun=None,
                  frac_corrupt = 0.0,return_support=False):
