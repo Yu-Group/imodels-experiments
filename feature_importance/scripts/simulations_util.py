@@ -295,7 +295,7 @@ def logistic_partial_linear_lss_model(X,s, m, r, tau, beta,return_support = Fals
     numpy array of shape (n)
     """
     
-     def partial_linear_func(x,s,beta):
+    def partial_linear_func(x,s,beta):
         y = 0.0
         count = 0
         for j in range(m):
