@@ -102,9 +102,12 @@ def compare_estimators(estimators: List[ModelConfig],
                         if met is not None:
                             imp_vals = copy.deepcopy(fi_score["importance"])
                             imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
+                            imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
                             if fi_est.ascending:
+                                imp_vals[np.isnan(imp_vals)] = -sys.maxsize - 1
                                 metric_results[met_name] = met(support, imp_vals)
                             else:
+                                imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
                                 metric_results[met_name] = met(support, -imp_vals)
                 # metric_results['time'] = end - start
 
