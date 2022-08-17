@@ -294,6 +294,8 @@ def logistic_partial_linear_lss_model(X,s, m, r, tau, beta,return_support = Fals
     Returns:
     numpy array of shape (n)
     """
+    n, p = X.shape
+    assert p >= m * r
     
     def partial_linear_func(x,s,beta):
         y = 0.0
