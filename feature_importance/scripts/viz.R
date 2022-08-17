@@ -357,3 +357,151 @@ plot_tpr <- function(results, facet_vars, point_size = 0.85,
   return(plt)
 }
 
+# plot stability results
+plot_perturbation_stability <- function(results1, results2 = NULL, 
+                                        param_name = "min_samples_leaf",
+                                        rho = 0.8,
+                                        sig_ids = 0:4,
+                                        cnsig_ids = 5:24,
+                                        manual_color_palette = NULL,
+                                        show_methods = NULL,
+                                        method_labels = ggplot2::waiver(),
+                                        save_dir = ".",
+                                        save_filename = NULL,
+                                        fig_height = 11,
+                                        fig_width = 11) {
+  my_theme <- vthemes::theme_vmodern(
+    size_preset = "medium", bg_color = "white", grid_color = "white",
+    axis.title = ggplot2::element_text(size = 12, face = "plain"),
+    legend.title = ggplot2::element_blank(),
+    legend.text = ggplot2::element_text(size = 9),
+    legend.text.align = 0,
+    plot.title = ggplot2::element_blank()
+  )
+  
+  if (is.null(results2)) {
+    results <- results1
+  } else {
+    results <- dplyr::bind_rows(results1, results2)
+  }
+  
+  if (!is.null(show_methods)) {
+    results <- results %>%
+      dplyr::filter(fi %in% show_methods)
+    if (!identical(method_labels, ggplot2::waiver())) {
+      method_names <- show_methods
+      names(method_names) <- method_labels
+      results$fi <- do.call(forcats::fct_recode, 
+                            args = c(list(results$fi), as.list(method_names)))
+      method_labels <- ggplot2::waiver()
+    }
+  }
+  
+  rankings <- results %>%
+    dplyr::group_by(dplyr::across(tidyselect::all_of(param_name)), 
+                    heritability, fi, rep) %>%
+    dplyr::mutate(
+      rank = rank(-importance),
+      group = dplyr::case_when(
+        var %in% sig_ids ~ "Sig",
+        var %in% cnsig_ids ~ "C-NSig",
+        TRUE ~ "NSig"
+      )
+    ) %>%
+    ungroup()
+  
+  agg_rankings <- rankings %>%
+    dplyr::group_by(group, dplyr::across(tidyselect::all_of(param_name)), 
+                    heritability, fi, rep) %>%
+    dplyr::summarise(avgrank = mean(rank)) %>%
+    dplyr::ungroup() %>%
+    dplyr::mutate(
+      group = factor(group, levels = c("Sig", "C-NSig", "NSig")),
+      dplyr::across(
+        tidyselect::all_of(param_name), 
+        ~ as.factor(.x)
+      )
+    )
+  
+  if (!is.null(rho)) {
+    agg_rankings <- agg_rankings %>%
+      dplyr::mutate(rho_name = sprintf("rho == %s", rho))
+  }
+  
+  ymin <- min(agg_rankings$avgrank)
+  ymax <- max(agg_rankings$avgrank)
+  
+  plt_ls <- list()
+  for (h in unique(agg_rankings$heritability)) {
+    plt <- agg_rankings %>%
+      dplyr::filter(heritability == h) %>%
+      ggplot2::ggplot() +
+      ggplot2::aes(x = group, y = avgrank, color = fi) +
+      ggplot2::geom_boxplot() +
+      ggplot2::ylim(c(ymin, ymax)) +
+      ggplot2::facet_grid(~ rho_name, labeller = ggplot2::label_parsed) +
+      my_theme +
+      scale_color_manual(values = manual_color_palette,
+                         labels = method_labels) +
+      ggplot2::theme(
+        panel.grid.major = ggplot2::element_line(colour = "#d9d9d9"),
+        panel.grid.major.x = ggplot2::element_blank(),
+        panel.grid.minor.x = ggplot2::element_blank(),
+        axis.line.y = ggplot2::element_blank(),
+        axis.ticks.y = ggplot2::element_blank(),
+        legend.position = "right"
+      ) +
+      # scale_color_manual(values = manual_color_palette) +
+      ggplot2::labs(x = "Feature Groups",
+                    y = sprintf("Avg Rank (PVE = %s)", h))
+    if (length(plt_ls) != 0) {
+      plt <- plt + 
+        ggplot2::theme(strip.text = ggplot2::element_blank())
+    }
+    plt_ls[[as.character(h)]] <- plt
+  }
+  agg_plt <- patchwork::wrap_plots(plt_ls) +
+    patchwork::plot_layout(ncol = 1, guides = "collect")
+  
+  plt_ls <- list()
+  for (h in unique(agg_rankings$heritability)) {
+    plt <- agg_rankings %>%
+      dplyr::filter(heritability == h) %>%
+      ggplot2::ggplot() +
+      ggplot2::aes(x = .data[[param_name]], y = avgrank, color = fi) +
+      ggplot2::geom_boxplot() +
+      ggplot2::ylim(c(ymin, ymax)) +
+      ggplot2::facet_grid(fi ~ group, labeller = ggplot2::label_parsed) +
+      my_theme +
+      scale_color_manual(values = manual_color_palette,
+                         labels = method_labels) +
+      ggplot2::theme(
+        panel.grid.major = ggplot2::element_line(colour = "#d9d9d9"),
+        panel.grid.major.x = ggplot2::element_blank(),
+        panel.grid.minor.x = ggplot2::element_blank(),
+        axis.line.y = ggplot2::element_blank(),
+        axis.ticks.y = ggplot2::element_blank(),
+        legend.position = "none"
+      ) +
+      # scale_color_manual(values = manual_color_palette) +
+      ggplot2::labs(x = param_name,
+                    y = sprintf("Avg Rank (PVE = %s)", h))
+    plt_ls[[as.character(h)]] <- plt
+  }
+  unagg_plt <- patchwork::wrap_plots(plt_ls) +
+    patchwork::plot_layout(nrow = 1, guides = "collect")
+  
+  if (!is.null(save_filename)) {
+    ggplot2::ggsave(
+      filename = file.path(save_dir, 
+                           sprintf("%s_aggregated.pdf", save_filename)), 
+      plot = agg_plt, units = "in", width = fig_width, height = fig_height
+    )
+    ggplot2::ggsave(
+      filename = file.path(save_dir,
+                           sprintf("%s_unaggregated.pdf", save_filename)), 
+      plot = unagg_plt, units = "in", width = fig_width, height = fig_height
+    )
+  }
+  return(list(agg = agg_plt, unagg = unagg_plt))
+}
