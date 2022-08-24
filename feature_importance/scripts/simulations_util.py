@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import random
 from scipy.linalg import toeplitz
+import warnings
 
 
 def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
@@ -256,7 +257,8 @@ def logistic_model(X, s, beta,return_support=False):
     else:
         return y_train
     
-def logistic_lss_model(X, sigma, m, r, tau, beta,return_support = False):
+
+def logistic_lss_model(X, sigma, m, r, tau, beta, min_active=None, return_support = False):
     """
     This method is used to create responses from a logistic model model with lss
     X: X matrix
@@ -266,6 +268,8 @@ def logistic_lss_model(X, sigma, m, r, tau, beta,return_support = False):
     Returns:
     numpy array of shape (n)
     """
+    n, p = X.shape
+
     def lss_func(x, beta):
         x_bool = (x - tau) > 0
         y = 0
@@ -276,15 +280,51 @@ def logistic_lss_model(X, sigma, m, r, tau, beta,return_support = False):
         prob = 1 / (1 + np.exp(-y))
         return (np.random.uniform(size=1) < prob) * 1
 
+    def lss_vector_fun(x, beta):
+        x_bool = (x - tau) > 0
+        y = 0
+        max_iter = 100
+        features = np.arange(p)
+        support_idx = []
+        for j in range(m):
+            cnt = 0
+            while True:
+                int_features = np.random.choice(features, size=r, replace=False)
+                lss_term_components = x_bool[:, int_features]
+                lss_term = np.apply_along_axis(all, 1, lss_term_components)
+                cnt += 1
+                if np.mean(lss_term) >= min_active or cnt > max_iter:
+                    y += lss_term * beta[j]
+                    features = list(set(features).difference(set(int_features)))
+                    support_idx.append(int_features)
+                    if cnt > max_iter:
+                        warnings.warn("Could not find interaction {} with min active >= {}".format(j, min_active))
+                    break
+        prob = 1 / (1 + np.exp(-y))
+        y = (np.random.uniform(size=n) < prob) * 1
+        support_idx = np.stack(support_idx).ravel()
+        support = np.zeros(p)
+        for j in support_idx:
+            support[j] = 1
+        return y, support
+
     beta = generate_coef(beta, m)
-    y_train = np.array([lss_func(X[i, :], s, beta) for i in range(len(X))]).ravel()
-    if return_support:
+    if tau == 'median':
+        tau = np.median(X,axis = 0)
+    
+    if min_active is None:
+        y_train = np.array([lss_func(X[i, :], beta) for i in range(n)]).ravel()
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+    else:
+        y_train, support = lss_vector_fun(X, beta)
+        y_train = y_train.ravel()
+
+    if return_support:
         return y_train, support, beta
     else:
         return y_train
 
-def logistic_partial_linear_lss_model(X,s, m, r, tau, beta,return_support = False):
+def logistic_partial_linear_lss_model(X,s, m, r, tau, beta, min_active=None, return_support = False):
     """
     This method is used to create responses from a logistic model model with lss
     X: X matrix
@@ -318,15 +358,50 @@ def logistic_partial_linear_lss_model(X,s, m, r, tau, beta,return_support = Fals
         prob = 1 / (1 + np.exp(-y))
         return (np.random.uniform(size=1) < prob) * 1
 
+    def lss_vector_fun(x, beta, beta_linear):
+        x_bool = (x - tau) > 0
+        y = 0
+        max_iter = 100
+        features = np.arange(p)
+        support_idx = []
+        for j in range(m):
+            cnt = 0
+            while True:
+                int_features = np.concatenate(
+                    [np.arange(j*r, j*r+s), np.random.choice(features, size=r-s, replace=False)]
+                )
+                lss_term_components = x_bool[:, int_features]
+                lss_term = np.apply_along_axis(all, 1, lss_term_components)
+                cnt += 1
+                if np.mean(lss_term) >= min_active or cnt > max_iter:
+                    norm_constant = sum(np.var(x[:, (j*r):(j*r+s)], axis=0) * beta_linear[(j*s):((j+1)*s)]**2)
+                    relative_beta = beta[j] / sum(beta_linear[(j*s):((j+1)*s)])
+                    y += lss_term * relative_beta * np.sqrt(norm_constant) / np.std(lss_term)
+                    features = list(set(features).difference(set(int_features)))
+                    support_idx.append(int_features)
+                    if cnt > max_iter:
+                        warnings.warn("Could not find interaction {} with min active >= {}".format(j, min_active))
+                    break
+        support_idx = np.stack(support_idx).ravel()
+        support = np.zeros(p)
+        for j in support_idx:
+            support[j] = 1
+        return y, support    
+
     beta_lss = generate_coef(beta, m)
     beta_linear = generate_coef(beta, s*m)
+    if tau == 'median':
+        tau = np.median(X,axis = 0)
     y_train_linear = np.array([partial_linear_func(X[i, :],s,beta_linear ) for i in range(n)])
-    y_train_lss = np.array([lss_func(X[i, :], beta_lss) for i in range(n)])
+    if min_active is None:
+        y_train_lss = np.array([lss_func(X[i, :], beta_lss) for i in range(n)])
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+    else:
+        y_train_lss, support = lss_vector_fun(X, beta_lss, beta_linear)
     y_train = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
     y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
     
     if return_support:
-        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
         return y_train, support, beta
     else:
         return y_train
@@ -443,7 +518,7 @@ def sum_of_squares(X, sigma, s, beta, heritability=None, snr=None, error_fun=Non
         return y_train
 
 
-def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None,
+def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None, min_active=None,
               frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, return_support=False):
     """
     This method creates response from an LSS model
@@ -470,10 +545,42 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
             y += lss_term * beta[j]
         return y
 
+    def lss_vector_fun(x, beta):
+        x_bool = (x - tau) > 0
+        y = 0
+        max_iter = 100
+        features = np.arange(p)
+        support_idx = []
+        for j in range(m):
+            cnt = 0
+            while True:
+                int_features = np.random.choice(features, size=r, replace=False)
+                lss_term_components = x_bool[:, int_features]
+                lss_term = np.apply_along_axis(all, 1, lss_term_components)
+                cnt += 1
+                if np.mean(lss_term) >= min_active or cnt > max_iter:
+                    y += lss_term * beta[j]
+                    features = list(set(features).difference(set(int_features)))
+                    support_idx.append(int_features)
+                    if cnt > max_iter:
+                        warnings.warn("Could not find interaction {} with min active >= {}".format(j, min_active))
+                    break
+        support_idx = np.stack(support_idx).ravel()
+        support = np.zeros(p)
+        for j in support_idx:
+            support[j] = 1
+        return y, support
+
     beta = generate_coef(beta, m)
     if tau == 'median':
         tau = np.median(X,axis = 0)
-    y_train = np.array([lss_func(X[i, :], beta) for i in range(n)])
+    
+    if min_active is None:
+        y_train = np.array([lss_func(X[i, :], beta) for i in range(n)])
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+    else:
+        y_train, support = lss_vector_fun(X, beta)
+
     if heritability is not None:
         sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
     if snr is not None:
@@ -502,9 +609,7 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
             y_train = corrupt_leverage(X[:, :(m*r)], y_train, frac_corrupt, corrupt_quantile)
             y_train = y_train + sigma * error_fun(n)
   
-
     if return_support:
-        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
         return y_train, support, beta
     else:
         return y_train
@@ -527,7 +632,7 @@ def xor(X, sigma, beta, heritability=None, snr=None, error_fun=None):
 
 
 
-def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, snr=None, error_fun=None,
+def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, snr=None, error_fun=None, min_active=None,
               frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, diagnostics=False, return_support=False):
     """
     This method creates response from an linear + lss model
@@ -566,10 +671,47 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
             y += lss_term * beta[j]
         return y
 
+    def lss_vector_fun(x, beta, beta_linear):
+        x_bool = (x - tau) > 0
+        y = 0
+        max_iter = 100
+        features = np.arange(p)
+        support_idx = []
+        for j in range(m):
+            cnt = 0
+            while True:
+                int_features = np.concatenate(
+                    [np.arange(j*r, j*r+s), np.random.choice(features, size=r-s, replace=False)]
+                )
+                lss_term_components = x_bool[:, int_features]
+                lss_term = np.apply_along_axis(all, 1, lss_term_components)
+                cnt += 1
+                if np.mean(lss_term) >= min_active or cnt > max_iter:
+                    norm_constant = sum(np.var(x[:, (j*r):(j*r+s)], axis=0) * beta_linear[(j*s):((j+1)*s)]**2)
+                    relative_beta = beta[j] / sum(beta_linear[(j*s):((j+1)*s)])
+                    y += lss_term * relative_beta * np.sqrt(norm_constant) / np.std(lss_term)
+                    features = list(set(features).difference(set(int_features)))
+                    support_idx.append(int_features)
+                    if cnt > max_iter:
+                        warnings.warn("Could not find interaction {} with min active >= {}".format(j, min_active))
+                    break
+        support_idx = np.stack(support_idx).ravel()
+        support = np.zeros(p)
+        for j in support_idx:
+            support[j] = 1
+        return y, support
+
     beta_lss = generate_coef(beta, m)
     beta_linear = generate_coef(beta, s*m)
+    if tau == 'median':
+        tau = np.median(X,axis = 0)
+
     y_train_linear = np.array([partial_linear_func(X[i, :],s,beta_linear ) for i in range(n)])
-    y_train_lss = np.array([lss_func(X[i, :], beta_lss) for i in range(n)])
+    if min_active is None:
+        y_train_lss = np.array([lss_func(X[i, :], beta_lss) for i in range(n)])
+        support = np.concatenate((np.ones(max(m * r, s)), np.zeros(X.shape[1] - max((m * r), s))))
+    else:
+        y_train_lss, support = lss_vector_fun(X, beta_lss, beta_linear)
     y_train = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
     if heritability is not None:
         sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
@@ -599,7 +741,6 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
             y_train = corrupt_leverage(X[:, :max(m*r, s)], y_train, frac_corrupt, corrupt_quantile)
             y_train = y_train + sigma * error_fun(n)
     if return_support:
-        support = np.concatenate((np.ones(max(m * r, s)), np.zeros(X.shape[1] - max((m * r), s))))
         return y_train, support, beta_lss
     elif diagnostics:
         return y_train, y_train_linear, y_train_lss
