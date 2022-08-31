@@ -436,6 +436,32 @@ def logistic_hier_model(X, sigma, m, r, tau, beta,return_support = False):
     else:
         return y_train
     
+def logistic_sum_of_poly(X,m,r,beta,return_support = False):
+    n, p = X.shape
+    assert p >= m * r
+
+    def reg_func(x, beta):
+        y = 0
+        for j in range(m):
+            poly_term_components = x[j * r:j * r + r]
+            poly_term = np.prod(poly_term_components)
+            y += poly_term * beta[j]
+        return y
+       
+    def logistic_link_func(y):
+        prob = 1 / (1 + np.exp(-y))
+        return (np.random.uniform(size=1) < prob) * 1
+
+    beta = generate_coef(beta, m)
+    y_train = np.array([reg_func(X[i, :], beta) for i in range(n)])
+    y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+    
+    if return_support:
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+        return y_train, support, beta
+    else:
+        return y_train
+    
     
 def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, error_fun=None,
                  frac_corrupt = 0.0,return_support=False):
@@ -629,6 +655,7 @@ def xor(X, sigma, beta, heritability=None, snr=None, error_fun=None):
     y_train = y_train + sigma * error_fun(n)
 
     return y_train
+
 
 
 
@@ -837,7 +864,28 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
     else:
         return y_train
 
-
+#def hierarchical_lss(X,sigma = None,m = 1, s = 0, beta = 1, heritability = None, snr = None,return_support = False):
+#    
+#    n, p = X.shape
+#    assert p >= m * r
+#    
+#    def partial_linear_func(x,s,beta):
+#        y = 0.0
+#        for i in range(s):
+#            y += beta[i]*x[i]
+#        return y
+#    def nested_lss_model(x,m,beta):
+#        y = 0.0
+#        x_bool = (x - tau) > 0
+#        for i in range(m):    
+#    if return_support:
+#        support = np.concatenate((np.ones(max(m * r, s)), np.zeros(X.shape[1] - max((m * r), s))))
+#        return y_train, support, beta_lss
+#    elif diagnostics:
+#        return y_train, y_train_linear, y_train_lss
+#    else:
+#        return y_train
+                    
 def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None,
                       frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None,
                       error_fun=None, return_support=False):
@@ -902,6 +950,8 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
     else:
         return y_train
 
+
+    
 
 def model_based_X(X_fun, X_params_dict, y, model, n=None):
     X = X_fun(**X_params_dict)
