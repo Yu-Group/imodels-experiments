@@ -400,6 +400,7 @@ def logistic_partial_linear_lss_model(X,s, m, r, tau, beta, min_active=None, ret
         y_train_lss, support = lss_vector_fun(X, beta_lss, beta_linear)
     y_train = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
     y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+    y_train = y_train.ravel()
     
     if return_support:
         return y_train, support, beta
@@ -429,6 +430,7 @@ def logistic_hier_model(X, sigma, m, r, tau, beta,return_support = False):
     beta = generate_coef(beta, m)
     y_train = np.array([reg_func(X[i, :], beta) for i in range(n)])
     y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+    y_train = y_train.ravel()
     
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
@@ -455,6 +457,7 @@ def logistic_sum_of_poly(X,m,r,beta,return_support = False):
     beta = generate_coef(beta, m)
     y_train = np.array([reg_func(X[i, :], beta) for i in range(n)])
     y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+    y_train = y_train.ravel()
     
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
