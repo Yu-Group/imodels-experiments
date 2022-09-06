@@ -363,13 +363,17 @@ plot_perturbation_stability <- function(results1, results2 = NULL,
                                         rho = 0.8,
                                         sig_ids = 0:4,
                                         cnsig_ids = 5:24,
+                                        descending_methods = NULL,
                                         manual_color_palette = NULL,
                                         show_methods = NULL,
                                         method_labels = ggplot2::waiver(),
+                                        plot_types = c("boxplot", "errbar"),
                                         save_dir = ".",
                                         save_filename = NULL,
                                         fig_height = 11,
                                         fig_width = 11) {
+  plot_types <- match.arg(plot_types, several.ok = TRUE)
+  
   my_theme <- vthemes::theme_vmodern(
     size_preset = "medium", bg_color = "white", grid_color = "white",
     axis.title = ggplot2::element_text(size = 12, face = "plain"),
@@ -393,8 +397,16 @@ plot_perturbation_stability <- function(results1, results2 = NULL,
       names(method_names) <- method_labels
       results$fi <- do.call(forcats::fct_recode, 
                             args = c(list(results$fi), as.list(method_names)))
+      results$fi <- factor(results$fi, levels = method_labels)
       method_labels <- ggplot2::waiver()
     }
+  }
+  
+  if (!is.null(descending_methods)) {
+    results <- results %>%
+      dplyr::mutate(
+        importance = ifelse(fi %in% descending_methods, -importance, importance)
+      )
   }
   
   rankings <- results %>%
@@ -431,37 +443,69 @@ plot_perturbation_stability <- function(results1, results2 = NULL,
   ymin <- min(agg_rankings$avgrank)
   ymax <- max(agg_rankings$avgrank)
   
-  plt_ls <- list()
-  for (h in unique(agg_rankings$heritability)) {
-    plt <- agg_rankings %>%
-      dplyr::filter(heritability == h) %>%
-      ggplot2::ggplot() +
-      ggplot2::aes(x = group, y = avgrank, color = fi) +
-      ggplot2::geom_boxplot() +
-      ggplot2::ylim(c(ymin, ymax)) +
-      ggplot2::facet_grid(~ rho_name, labeller = ggplot2::label_parsed) +
-      my_theme +
-      scale_color_manual(values = manual_color_palette,
-                         labels = method_labels) +
-      ggplot2::theme(
-        panel.grid.major = ggplot2::element_line(colour = "#d9d9d9"),
-        panel.grid.major.x = ggplot2::element_blank(),
-        panel.grid.minor.x = ggplot2::element_blank(),
-        axis.line.y = ggplot2::element_blank(),
-        axis.ticks.y = ggplot2::element_blank(),
-        legend.position = "right"
-      ) +
-      # scale_color_manual(values = manual_color_palette) +
-      ggplot2::labs(x = "Feature Groups",
-                    y = sprintf("Avg Rank (PVE = %s)", h))
-    if (length(plt_ls) != 0) {
-      plt <- plt + 
-        ggplot2::theme(strip.text = ggplot2::element_blank())
+  for (type in plot_types) {
+    plt_ls <- list()
+    for (h in unique(agg_rankings$heritability)) {
+      if (identical(type, "boxplot")) {
+        plt <- agg_rankings %>%
+          dplyr::filter(heritability == h) %>%
+          ggplot2::ggplot() +
+          ggplot2::aes(x = group, y = avgrank, color = fi) +
+          ggplot2::geom_boxplot()
+      } else if (identical(type, "errbar")) {
+        plt <- agg_rankings %>%
+          dplyr::filter(heritability == h) %>%
+          dplyr::group_by(group, fi, rho_name) %>%
+          dplyr::summarise(
+            .mean = mean(avgrank),
+            .sd = sd(avgrank)
+          ) %>%
+          ggplot2::ggplot() +
+          # ggplot2::geom_point(
+          #   ggplot2::aes(x = group, y = .mean, color = fi, group = fi),
+          #   position = ggplot2::position_dodge2(width = 0.8, padding = 0.8)
+          # ) +
+          ggplot2::geom_errorbar(
+            ggplot2::aes(x = group, ymin = .mean - .sd, ymax = .mean + .sd, color = fi, group = fi),
+            position = ggplot2::position_dodge2(width = 0, padding = 0.5), width = 0.5
+          )
+      }
+      plt <- plt +
+        ggplot2::ylim(c(ymin, ymax)) +
+        ggplot2::facet_grid(~ rho_name, labeller = ggplot2::label_parsed) +
+        my_theme +
+        ggplot2::theme(
+          panel.grid.major = ggplot2::element_line(colour = "#d9d9d9"),
+          panel.grid.major.x = ggplot2::element_blank(),
+          panel.grid.minor.x = ggplot2::element_blank(),
+          axis.line.y = ggplot2::element_blank(),
+          axis.ticks.y = ggplot2::element_blank(),
+          legend.position = "right"
+        ) +
+        # scale_color_manual(values = manual_color_palette) +
+        ggplot2::labs(x = "Feature Groups",
+                      y = sprintf("Avg Rank (PVE = %s)", h))
+      if (!is.null(manual_color_palette)) {
+        plt <- plt +
+          ggplot2::scale_color_manual(values = manual_color_palette,
+                                      labels = method_labels)
+      }
+      if (length(plt_ls) != 0) {
+        plt <- plt + 
+          ggplot2::theme(strip.text = ggplot2::element_blank())
+      }
+      plt_ls[[as.character(h)]] <- plt
     }
-    plt_ls[[as.character(h)]] <- plt
+    agg_plt <- patchwork::wrap_plots(plt_ls) +
+      patchwork::plot_layout(ncol = 1, guides = "collect")
+    if (!is.null(save_filename)) {
+      ggplot2::ggsave(
+        filename = file.path(save_dir, 
+                             sprintf("%s_%s_aggregated.pdf", save_filename, type)), 
+        plot = agg_plt, units = "in", width = fig_width, height = fig_height
+      )
+    }
   }
-  agg_plt <- patchwork::wrap_plots(plt_ls) +
-    patchwork::plot_layout(ncol = 1, guides = "collect")
   
   plt_ls <- list()
   for (h in unique(agg_rankings$heritability)) {
@@ -473,8 +517,6 @@ plot_perturbation_stability <- function(results1, results2 = NULL,
       ggplot2::ylim(c(ymin, ymax)) +
       ggplot2::facet_grid(fi ~ group, labeller = ggplot2::label_parsed) +
       my_theme +
-      scale_color_manual(values = manual_color_palette,
-                         labels = method_labels) +
       ggplot2::theme(
         panel.grid.major = ggplot2::element_line(colour = "#d9d9d9"),
         panel.grid.major.x = ggplot2::element_blank(),
@@ -486,17 +528,17 @@ plot_perturbation_stability <- function(results1, results2 = NULL,
       # scale_color_manual(values = manual_color_palette) +
       ggplot2::labs(x = param_name,
                     y = sprintf("Avg Rank (PVE = %s)", h))
+    if (!is.null(manual_color_palette)) {
+      plt <- plt +
+        ggplot2::scale_color_manual(values = manual_color_palette,
+                                    labels = method_labels)
+    }
     plt_ls[[as.character(h)]] <- plt
   }
   unagg_plt <- patchwork::wrap_plots(plt_ls) +
     patchwork::plot_layout(nrow = 1, guides = "collect")
   
   if (!is.null(save_filename)) {
-    ggplot2::ggsave(
-      filename = file.path(save_dir, 
-                           sprintf("%s_aggregated.pdf", save_filename)), 
-      plot = agg_plt, units = "in", width = fig_width, height = fig_height
-    )
     ggplot2::ggsave(
       filename = file.path(save_dir,
                            sprintf("%s_unaggregated.pdf", save_filename)), 
