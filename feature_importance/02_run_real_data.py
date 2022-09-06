@@ -21,29 +21,24 @@ import sys
 from collections import defaultdict
 from typing import Callable, List, Tuple
 import itertools
-from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score
 
 sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../..")
 import fi_config
-from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, pr_auc_score, compute_nsg_feat_corr_w_sig_subspace, apply_splitting_strategy
+from util import ModelConfig, FIModelConfig, apply_splitting_strategy
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
 
 def compare_estimators(estimators: List[ModelConfig],
                        fi_estimators: List[FIModelConfig],
-                       X, y, support: List,
-                       metrics: List[Tuple[str, Callable]],
-                       args, ) -> Tuple[dict, dict]:
-    """Calculates results given estimators, feature importance estimators, datasets, and metrics.
+                       X, y, args, ) -> Tuple[dict, dict]:
+    """Calculates results given estimators, feature importance estimators, and datasets.
     Called in run_comparison
     """
     if type(estimators) != list:
         raise Exception("First argument needs to be a list of Models")
-    if type(metrics) != list:
-        raise Exception("Argument metrics needs to be a list containing ('name', callable) pairs")
 
     # initialize results
     results = defaultdict(lambda: [])
@@ -80,38 +75,18 @@ def compare_estimators(estimators: List[ModelConfig],
             est.fit(X_train, y_train)
             # end = time.time()
 
-            # compute correlation between signal and nonsignal features
-            x_cor = np.empty(len(support))
-            x_cor[:] = np.NaN
-            x_cor[support == 0] = compute_nsg_feat_corr_w_sig_subspace(X_train[:, support == 1], X_train[:, support == 0])
-
             # loop over fi estimators
             for fi_est in fi_ests:
+                print(fi_est.name)
                 metric_results = {
                     'model': model.name,
                     'fi': fi_est.name,
                     'splitting_strategy': splitting_strategy
                 }
                 fi_score = fi_est.cls(X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
-                support_df = pd.DataFrame({"var": np.arange(len(support)),
-                                           "true_support": support,
-                                           "cor_with_signal": x_cor})
-                metric_results['fi_scores'] = pd.merge(copy.deepcopy(fi_score), support_df, on="var", how="left")
-                if np.max(support) != np.min(support):
-                    for i, (met_name, met) in enumerate(metrics):
-                        if met is not None:
-                            imp_vals = copy.deepcopy(fi_score["importance"])
-                            imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
-                            imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
-                            if fi_est.ascending:
-                                imp_vals[np.isnan(imp_vals)] = -sys.maxsize - 1
-                                metric_results[met_name] = met(support, imp_vals)
-                            else:
-                                imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
-                                metric_results[met_name] = met(support, -imp_vals)
-                # metric_results['time'] = end - start
+                metric_results['fi_scores'] = copy.deepcopy(fi_score)
 
-                # initialize results with metadata and metric results
+                # initialize results with metadata and results
                 kwargs: dict = model.kwargs  # dict
                 for k in kwargs:
                     results[k].append(kwargs[k])
@@ -126,8 +101,7 @@ def compare_estimators(estimators: List[ModelConfig],
 
 
 def run_comparison(path: str,
-                   X, y, support: List,
-                   metrics: List[Tuple[str, Callable]],
+                   X, y, 
                    estimators: List[ModelConfig],
                    fi_estimators: List[FIModelConfig],
                    args):
@@ -155,12 +129,10 @@ def run_comparison(path: str,
 
     results = compare_estimators(estimators=estimators,
                                  fi_estimators=fi_estimators,
-                                 X=X, y=y, support=support,
-                                 metrics=metrics,
+                                 X=X, y=y,
                                  args=args)
 
     estimators_list = [e.name for e in estimators]
-    metrics_list = [m[0] for m in metrics]
 
     df = pd.DataFrame.from_dict(results)
     df['split_seed'] = args.split_seed
@@ -171,17 +143,12 @@ def run_comparison(path: str,
             'sim_name': args.config,
             'estimators': estimators_list,
             'fi_estimators': fi_estimator.name,
-            'metrics': metrics_list,
 
             # actual values
             'df': df.loc[df.fi == fi_estimator.name],
         }
         pkl.dump(output_dict, open(model_comparison_file, 'wb'))
     return df
-
-
-def get_metrics():
-    return [('rocauc', roc_auc_score), ('prauc', pr_auc_score)]
 
 
 def reformat_results(results):
@@ -192,24 +159,29 @@ def reformat_results(results):
     return results_df
 
 
-def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args):
+def run_simulation(i, path, Xpath, ypath, ests, fi_ests, args):
     os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
     np.random.seed(i)
-    X = X_dgp(**X_params_dict)
-    y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
-    if args.omit_vars is not None:
-        omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
-        support = np.delete(support, omit_vars)
-        X = np.delete(X, omit_vars, axis=1)
-        del beta  # note: beta is not currently supported when using omit_vars
+    X_df = pd.read_csv(Xpath)
+    y_df = pd.read_csv(ypath)
+    for col in y_df.columns:
+        y = y_df[col].to_numpy().ravel()
+        keep_idx = ~np.isnan(y)
+        X = X_df[keep_idx].to_numpy()
+        y = y[keep_idx]
+        if y_df.shape[1] > 1:
+            output_path = oj(path, col)
+        else:
+            output_path = path    
+        for est in ests:
+            results = run_comparison(
+                path=oj(output_path, "rep" + str(i)),
+                X=X, y=y,
+                estimators=est,
+                fi_estimators=fi_ests,
+                args=args
+            )
 
-    for est in ests:
-        results = run_comparison(path=oj(path, val_name, "rep" + str(i)),
-                                 X=X, y=y, support=support,
-                                 metrics=metrics,
-                                 estimators=est,
-                                 fi_estimators=fi_ests,
-                                 args=args)
     return True
 
 
@@ -224,13 +196,15 @@ if __name__ == '__main__':
         default_dir = oj(os.path.dirname(os.path.realpath(__file__)), 'results')
 
     parser.add_argument('--nreps', type=int, default=2)
-    parser.add_argument('--model', type=str, default=None)  # , default='c4')
-    parser.add_argument('--fi_model', type=str, default=None)  # , default='c4')
-    parser.add_argument('--config', type=str, default='test')
-    parser.add_argument('--omit_vars', type=str, default=None)  # comma-separated string of variables to omit
+    parser.add_argument('--model', type=str, default=None)
+    parser.add_argument('--fi_model', type=str, default=None)
+    # parser.add_argument('--config', type=str, default='min_samples_stability_04_sim')
+    # parser.add_argument('--config', type=str, default='test_classification')
+    parser.add_argument('--config', type=str, default='gmdi.ccle_rnaseq_real_data')
 
     # for multiple reruns, should support varying split_seed
-    parser.add_argument('--ignore_cache', action='store_true', default=False)
+    # parser.add_argument('--ignore_cache', action='store_true', default=False)
+    parser.add_argument('--ignore_cache', action='store_true', default=True)
     parser.add_argument('--verbose', action='store_true', default=True)
     parser.add_argument('--parallel', action='store_true', default=False)
     parser.add_argument('--parallel_id', nargs='+', type=int, default=None)
@@ -239,8 +213,8 @@ if __name__ == '__main__':
     parser.add_argument('--results_path', type=str, default=default_dir)
 
     # arguments for rmd output of results
-    parser.add_argument('--create_rmd', action='store_true', default=False)
-    parser.add_argument('--show_vars', type=int, default=None)
+    # parser.add_argument('--create_rmd', action='store_true', default=False)
+    # parser.add_argument('--show_vars', type=int, default=None)
 
     args = parser.parse_args()
 
@@ -252,11 +226,7 @@ if __name__ == '__main__':
             n_cores = args.n_cores
         client = Client(n_workers=n_cores)
 
-    ests, fi_ests, \
-    X_dgp, X_params_dict, y_dgp, y_params_dict, \
-    vary_param_name, vary_param_vals = fi_config.get_fi_configs(args.config)
-
-    metrics = get_metrics()
+    ests, fi_ests, Xpath, ypath = fi_config.get_fi_configs(args.config, real_data=True)
 
     if args.model:
         ests = list(filter(lambda x: args.model.lower() == x[0].name.lower(), ests))
@@ -273,90 +243,18 @@ if __name__ == '__main__':
               'fi_ests', fi_ests)
         print('\tsaving to', args.results_path)
 
-    if args.omit_vars is not None:
-        results_dir = oj(args.results_path, args.config + "_omitted_vars")
-    else:
-        results_dir = oj(args.results_path, args.config)
-
-    if isinstance(vary_param_name, list):
-        path = oj(results_dir, "varying_" + "_".join(vary_param_name), "seed" + str(args.split_seed))
-    else:
-        path = oj(results_dir, "varying_" + vary_param_name, "seed" + str(args.split_seed))
+    results_dir = oj(args.results_path, args.config)
+    path = oj(results_dir, "seed" + str(args.split_seed))
     os.makedirs(path, exist_ok=True)
 
     eval_out = defaultdict(list)
 
-    vary_type = None
-    if isinstance(vary_param_name, list):  # multiple parameters are being varied
-        # get parameters that are being varied over and identify whether it's a DGP/method/fi_method argument
-        keys, values = zip(*vary_param_vals.items())
-        vary_param_dicts = [dict(zip(keys, v)) for v in itertools.product(*values)]
-        vary_type = {}
-        for vary_param_dict in vary_param_dicts:
-            for param_name, param_val in vary_param_dict.items():
-                if param_name in X_params_dict.keys() and param_name in y_params_dict.keys():
-                    raise ValueError('Cannot vary over parameter in both X and y DGPs.')
-                elif param_name in X_params_dict.keys():
-                    vary_type[param_name] = "dgp"
-                    X_params_dict[param_name] = vary_param_vals[param_name][param_val]
-                elif param_name in y_params_dict.keys():
-                    vary_type[param_name] = "dgp"
-                    y_params_dict[param_name] = vary_param_vals[param_name][param_val]
-                else:
-                    est_kwargs = list(
-                        itertools.chain(*[list(est.kwargs.keys()) for est in list(itertools.chain(*ests))]))
-                    fi_est_kwargs = list(
-                        itertools.chain(*[list(fi_est.kwargs.keys()) for fi_est in list(itertools.chain(*fi_ests))]))
-                    if param_name in est_kwargs:
-                        vary_type[param_name] = "est"
-                    elif param_name in fi_est_kwargs:
-                        vary_type[param_name] = "fi_est"
-                    else:
-                        raise ValueError('Invalid vary_param_name.')
-
-            if args.parallel:
-                futures = [
-                    dask.delayed(run_simulation)(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp,
-                                                 y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in
-                    range(args.nreps)]
-                results = dask.compute(*futures)
-            else:
-                results = [
-                    run_simulation(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict,
-                                   y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
-            assert all(results)
-
-    else:  # only on parameter is being varied over
-        # get parameter that is being varied over and identify whether it's a DGP/method/fi_method argument
-        for val_name, val in vary_param_vals.items():
-            if vary_param_name in X_params_dict.keys() and vary_param_name in y_params_dict.keys():
-                raise ValueError('Cannot vary over parameter in both X and y DGPs.')
-            elif vary_param_name in X_params_dict.keys():
-                vary_type = "dgp"
-                X_params_dict[vary_param_name] = val
-            elif vary_param_name in y_params_dict.keys():
-                vary_type = "dgp"
-                y_params_dict[vary_param_name] = val
-            else:
-                est_kwargs = list(itertools.chain(*[list(est.kwargs.keys()) for est in list(itertools.chain(*ests))]))
-                fi_est_kwargs = list(
-                    itertools.chain(*[list(fi_est.kwargs.keys()) for fi_est in list(itertools.chain(*fi_ests))]))
-                if vary_param_name in est_kwargs:
-                    vary_type = "est"
-                elif vary_param_name in fi_est_kwargs:
-                    vary_type = "fi_est"
-                else:
-                    raise ValueError('Invalid vary_param_name.')
-
-            if args.parallel:
-                futures = [
-                    dask.delayed(run_simulation)(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests,
-                                                 fi_ests, metrics, args) for i in range(args.nreps)]
-                results = dask.compute(*futures)
-            else:
-                results = [run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests,
-                                          metrics, args) for i in range(args.nreps)]
-            assert all(results)
+    if args.parallel:
+        futures = [dask.delayed(run_simulation)(i, path, Xpath, ypath, ests, fi_ests, args) for i in range(args.nreps)]
+        results = dask.compute(*futures)
+    else:
+        results = [run_simulation(i, path, Xpath, ypath, ests, fi_ests, args) for i in range(args.nreps)]
+    assert all(results)
 
     print('completed all experiments successfully!')
 
@@ -432,28 +330,5 @@ if __name__ == '__main__':
     results_df.to_csv(oj(path, 'results.csv'), index=False)
 
     print('merged and saved all experiment results successfully!')
-
-    # create R markdown summary of results
-    if args.create_rmd:
-        if args.show_vars is None:
-            show_vars = 'NULL'
-        else:
-            show_vars = args.show_vars
-
-        if isinstance(vary_param_name, list):
-            vary_param_name = "; ".join(vary_param_name)
-
-        sim_rmd = os.path.basename(results_dir) + '_simulation_results.Rmd'
-        os.system(
-            'cp {} \'{}\''.format(oj("rmd", "simulation_results.Rmd"), sim_rmd)
-        )
-        os.system(
-            'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\', quiet = TRUE)"'.format(
-                sim_rmd,
-                results_dir, vary_param_name, str(args.split_seed), str(show_vars),
-                oj(path, "simulation_results.html"))
-        )
-        os.system('rm \'{}\''.format(sim_rmd))
-        print("created rmd of simulation results successfully!")
 
 # %%
