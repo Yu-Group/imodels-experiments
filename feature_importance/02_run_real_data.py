@@ -71,20 +71,20 @@ def compare_estimators(estimators: List[ModelConfig],
                 y_test = y
 
             # fit model
-            # start = time.time()
             est.fit(X_train, y_train)
-            # end = time.time()
 
             # loop over fi estimators
             for fi_est in fi_ests:
-                print(fi_est.name)
                 metric_results = {
                     'model': model.name,
                     'fi': fi_est.name,
                     'splitting_strategy': splitting_strategy
                 }
+                start = time.time()
                 fi_score = fi_est.cls(X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
+                end = time.time()
                 metric_results['fi_scores'] = copy.deepcopy(fi_score)
+                metric_results['time'] = end - start
 
                 # initialize results with metadata and results
                 kwargs: dict = model.kwargs  # dict

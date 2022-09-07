@@ -76,9 +76,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 y_test = y
 
             # fit model
-            # start = time.time()
             est.fit(X_train, y_train)
-            # end = time.time()
 
             # compute correlation between signal and nonsignal features
             x_cor = np.empty(len(support))
@@ -92,7 +90,9 @@ def compare_estimators(estimators: List[ModelConfig],
                     'fi': fi_est.name,
                     'splitting_strategy': splitting_strategy
                 }
+                start = time.time()
                 fi_score = fi_est.cls(X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
+                end = time.time()
                 support_df = pd.DataFrame({"var": np.arange(len(support)),
                                            "true_support": support,
                                            "cor_with_signal": x_cor})
@@ -109,7 +109,7 @@ def compare_estimators(estimators: List[ModelConfig],
                             else:
                                 imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
                                 metric_results[met_name] = met(support, -imp_vals)
-                # metric_results['time'] = end - start
+                metric_results['time'] = end - start
 
                 # initialize results with metadata and metric results
                 kwargs: dict = model.kwargs  # dict
