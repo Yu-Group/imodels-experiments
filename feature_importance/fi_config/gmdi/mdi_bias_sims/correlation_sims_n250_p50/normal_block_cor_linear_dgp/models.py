@@ -11,7 +11,9 @@ ESTIMATORS = [
 
 FI_ESTIMATORS = [
     [FIModelConfig('GMDI_ridge', GMDI_pipeline, model_type='tree')],
+    [FIModelConfig('GMDI_ridge_oob', GMDI_pipeline, model_type='tree', other_params = {'subsetting_scheme': 'oob'})],
     [FIModelConfig('GPermutation_ridge', GMDI_pipeline, model_type='tree', other_params = {'mode': 'keep_rest'})],
+    [FIModelConfig('GPermutation_ridge_oob', GMDI_pipeline, model_type='tree', other_params = {'mode': 'keep_rest', 'subsetting_scheme': 'oob'})],
     [FIModelConfig('MDI', tree_mdi, model_type='tree')],
     [FIModelConfig('MDI-oob', tree_mdi_OOB, model_type='tree')],
     [FIModelConfig('Permutation', tree_perm_importance, model_type='tree')],
