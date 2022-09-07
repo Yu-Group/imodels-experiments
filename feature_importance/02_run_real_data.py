@@ -101,7 +101,7 @@ def compare_estimators(estimators: List[ModelConfig],
 
 
 def run_comparison(path: str,
-                   X, y, 
+                   X, y,
                    estimators: List[ModelConfig],
                    fi_estimators: List[FIModelConfig],
                    args):
@@ -160,8 +160,6 @@ def reformat_results(results):
 
 
 def run_simulation(i, path, Xpath, ypath, ests, fi_ests, args):
-    os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
-    np.random.seed(i)
     X_df = pd.read_csv(Xpath)
     y_df = pd.read_csv(ypath)
     for col in y_df.columns:
@@ -172,8 +170,12 @@ def run_simulation(i, path, Xpath, ypath, ests, fi_ests, args):
         if y_df.shape[1] > 1:
             output_path = oj(path, col)
         else:
-            output_path = path    
+            output_path = path
+        os.makedirs(oj(output_path, "rep" + str(i)), exist_ok=True)
         for est in ests:
+            for idx in range(len(est)):
+                if "random_state" in est[idx].kwargs.keys():
+                    est[idx].kwargs["random_state"] = i
             results = run_comparison(
                 path=oj(output_path, "rep" + str(i)),
                 X=X, y=y,
@@ -195,26 +197,19 @@ if __name__ == '__main__':
     else:
         default_dir = oj(os.path.dirname(os.path.realpath(__file__)), 'results')
 
-    parser.add_argument('--nreps', type=int, default=2)
+    parser.add_argument('--nreps', type=int, default=1)
     parser.add_argument('--model', type=str, default=None)
     parser.add_argument('--fi_model', type=str, default=None)
-    # parser.add_argument('--config', type=str, default='min_samples_stability_04_sim')
-    # parser.add_argument('--config', type=str, default='test_classification')
-    parser.add_argument('--config', type=str, default='gmdi.ccle_rnaseq_real_data')
+    parser.add_argument('--config', type=str, default='test_real_data')
 
     # for multiple reruns, should support varying split_seed
-    # parser.add_argument('--ignore_cache', action='store_true', default=False)
-    parser.add_argument('--ignore_cache', action='store_true', default=True)
+    parser.add_argument('--ignore_cache', action='store_true', default=False)
     parser.add_argument('--verbose', action='store_true', default=True)
     parser.add_argument('--parallel', action='store_true', default=False)
     parser.add_argument('--parallel_id', nargs='+', type=int, default=None)
     parser.add_argument('--n_cores', type=int, default=None)
     parser.add_argument('--split_seed', type=int, default=0)
     parser.add_argument('--results_path', type=str, default=default_dir)
-
-    # arguments for rmd output of results
-    # parser.add_argument('--create_rmd', action='store_true', default=False)
-    # parser.add_argument('--show_vars', type=int, default=None)
 
     args = parser.parse_args()
 
@@ -269,61 +264,30 @@ if __name__ == '__main__':
         model_comparison_files_all += model_comparison_files
 
     # aggregate results
+    y_df = pd.read_csv(ypath)
     results_list = []
-    if isinstance(vary_param_name, list):
-        for vary_param_dict in vary_param_dicts:
-            val_name = "_".join(vary_param_dict.values())
+    for col in y_df.columns:
+        if y_df.shape[1] > 1:
+            output_path = oj(path, col)
+        else:
+            output_path = path
+        for i in range(args.nreps):
+            all_files = glob.glob(oj(output_path, 'rep' + str(i), '*'))
+            model_files = sorted([f for f in all_files if os.path.basename(f) in model_comparison_files_all])
 
-            for i in range(args.nreps):
-                all_files = glob.glob(oj(path, val_name, 'rep' + str(i), '*'))
-                model_files = sorted([f for f in all_files if os.path.basename(f) in model_comparison_files_all])
+            if len(model_files) == 0:
+                print('No files found at ', oj(output_path, 'rep' + str(i)))
+                continue
 
-                if len(model_files) == 0:
-                    print('No files found at ', oj(path, val_name, 'rep' + str(i)))
-                    continue
+            results = pd.concat(
+                [pkl.load(open(f, 'rb'))['df'] for f in model_files],
+                axis=0
+            )
+            results.insert(0, 'rep', i)
+            if y_df.shape[1] > 1:
+                results.insert(1, 'y_task', col)
+            results_list.append(results)
 
-                results = pd.concat(
-                    [pkl.load(open(f, 'rb'))['df'] for f in model_files],
-                    axis=0
-                )
-
-                for param_name, param_val in vary_param_dict.items():
-                    val = vary_param_vals[param_name][param_val]
-                    if vary_type[param_name] == "dgp":
-                        if np.isscalar(val):
-                            results.insert(0, param_name, val)
-                        else:
-                            results.insert(0, param_name, [val for i in range(results.shape[0])])
-                        results.insert(1, param_name + "_name", param_val)
-                    elif vary_type[param_name] == "est" or vary_type[param_name] == "fi_est":
-                        results.insert(0, param_name + "_name", copy.deepcopy(results[param_name]))
-                results.insert(0, 'rep', i)
-                results_list.append(results)
-    else:
-        for val_name, val in vary_param_vals.items():
-            for i in range(args.nreps):
-                all_files = glob.glob(oj(path, val_name, 'rep' + str(i), '*'))
-                model_files = sorted([f for f in all_files if os.path.basename(f) in model_comparison_files_all])
-
-                if len(model_files) == 0:
-                    print('No files found at ', oj(path, val_name, 'rep' + str(i)))
-                    continue
-
-                results = pd.concat(
-                    [pkl.load(open(f, 'rb'))['df'] for f in model_files],
-                    axis=0
-                )
-                if vary_type == "dgp":
-                    if np.isscalar(val):
-                        results.insert(0, vary_param_name, val)
-                    else:
-                        results.insert(0, vary_param_name, [val for i in range(results.shape[0])])
-                    results.insert(1, vary_param_name + "_name", val_name)
-                    results.insert(2, 'rep', i)
-                elif vary_type == "est" or vary_type == "fi_est":
-                    results.insert(0, vary_param_name + "_name", copy.deepcopy(results[vary_param_name]))
-                    results.insert(1, 'rep', i)
-                results_list.append(results)
     results_merged = pd.concat(results_list, axis=0)
     pkl.dump(results_merged, open(oj(path, 'results.pkl'), 'wb'))
     results_df = reformat_results(results_merged)
