@@ -164,7 +164,7 @@ def run_simulation(i, path, Xpath, ypath, ests, fi_ests, args):
     y_df = pd.read_csv(ypath)
     for col in y_df.columns:
         y = y_df[col].to_numpy().ravel()
-        keep_idx = ~np.isnan(y)
+        keep_idx = ~pd.isnull(y)
         X = X_df[keep_idx].to_numpy()
         y = y[keep_idx]
         if y_df.shape[1] > 1:
