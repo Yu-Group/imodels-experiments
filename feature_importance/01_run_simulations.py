@@ -117,7 +117,7 @@ def compare_estimators(estimators: List[ModelConfig],
                     results[k].append(kwargs[k])
                 for k in fi_kwargs:
                     if k in fi_est.kwargs:
-                        results[k].append(fi_est.kwargs[k])
+                        results[k].append(str(fi_est.kwargs[k]))
                     else:
                         results[k].append(None)
                 for met_name, met_val in metric_results.items():
