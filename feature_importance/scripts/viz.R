@@ -361,8 +361,7 @@ plot_tpr <- function(results, facet_vars, point_size = 0.85,
 plot_perturbation_stability <- function(results1, results2 = NULL, 
                                         param_name = "min_samples_leaf",
                                         rho = 0.8,
-                                        sig_ids = 0:4,
-                                        cnsig_ids = 5:24,
+                                        group_fun = NULL,
                                         descending_methods = NULL,
                                         manual_color_palette = NULL,
                                         show_methods = NULL,
@@ -371,7 +370,8 @@ plot_perturbation_stability <- function(results1, results2 = NULL,
                                         save_dir = ".",
                                         save_filename = NULL,
                                         fig_height = 11,
-                                        fig_width = 11) {
+                                        fig_width = 11,
+                                        ...) {
   plot_types <- match.arg(plot_types, several.ok = TRUE)
   
   my_theme <- vthemes::theme_vmodern(
@@ -382,6 +382,17 @@ plot_perturbation_stability <- function(results1, results2 = NULL,
     legend.text.align = 0,
     plot.title = ggplot2::element_blank()
   )
+  
+  if (is.null(group_fun)) {
+    group_fun <- function(var, sig_ids, cnsig_ids) {
+      dplyr::case_when(
+        var %in% sig_ids ~ "Sig",
+        var %in% cnsig_ids ~ "C-NSig",
+        TRUE ~ "NSig"
+      ) %>%
+        factor(levels = c("Sig", "C-NSig", "NSig"))
+    }
+  }
   
   if (is.null(results2)) {
     results <- results1
@@ -414,13 +425,9 @@ plot_perturbation_stability <- function(results1, results2 = NULL,
                     heritability, fi, rep) %>%
     dplyr::mutate(
       rank = rank(-importance),
-      group = dplyr::case_when(
-        var %in% sig_ids ~ "Sig",
-        var %in% cnsig_ids ~ "C-NSig",
-        TRUE ~ "NSig"
-      )
+      group = group_fun(var, ...)
     ) %>%
-    ungroup()
+    dplyr::ungroup()
   
   agg_rankings <- rankings %>%
     dplyr::group_by(group, dplyr::across(tidyselect::all_of(param_name)), 
@@ -428,7 +435,6 @@ plot_perturbation_stability <- function(results1, results2 = NULL,
     dplyr::summarise(avgrank = mean(rank)) %>%
     dplyr::ungroup() %>%
     dplyr::mutate(
-      group = factor(group, levels = c("Sig", "C-NSig", "NSig")),
       dplyr::across(
         tidyselect::all_of(param_name), 
         ~ as.factor(.x)
@@ -455,7 +461,8 @@ plot_perturbation_stability <- function(results1, results2 = NULL,
       } else if (identical(type, "errbar")) {
         plt <- agg_rankings %>%
           dplyr::filter(heritability == h) %>%
-          dplyr::group_by(group, fi, rho_name) %>%
+          dplyr::group_by(group, fi, 
+                          dplyr::across(tidyselect::all_of(param_name))) %>%
           dplyr::summarise(
             .mean = mean(avgrank),
             .sd = sd(avgrank)
@@ -472,7 +479,7 @@ plot_perturbation_stability <- function(results1, results2 = NULL,
       }
       plt <- plt +
         ggplot2::ylim(c(ymin, ymax)) +
-        ggplot2::facet_grid(~ rho_name, labeller = ggplot2::label_parsed) +
+        ggplot2::facet_grid(~ .data[[param_name]], labeller = ggplot2::label_parsed) +
         my_theme +
         ggplot2::theme(
           panel.grid.major = ggplot2::element_line(colour = "#d9d9d9"),

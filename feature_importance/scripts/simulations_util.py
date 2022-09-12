@@ -61,6 +61,40 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
             X = IndexedArray(pd.DataFrame(X).to_numpy(), index=keep_idx)
             return X
     return X.to_numpy()
+    
+    
+def sample_1000g_X(fpath=None, normalize=True,
+                   sample_row_n=None, sample_col_n=None, permute_col=True,
+                   snp_order=["rare", "rare", "rare", "common", "common", "common"]):
+
+    X = pd.read_csv(fpath)
+    if normalize:
+        X = X / X.std()
+    if sample_row_n is not None:
+        keep_idx = np.random.choice(X.shape[0], sample_row_n, replace=False)
+        X = X.iloc[keep_idx, :]
+    X = X.to_numpy()
+    
+    rare_columns = list(range(int(X.shape[1] / 2)))
+    common_columns = list(range(int(X.shape[1] / 2), X.shape[1]))
+    if permute_col:
+        rare_columns = np.random.permutation(rare_columns)
+        common_columns = np.random.permutation(common_columns)
+    if sample_col_n is not None:
+        rare_columns = np.random.choice(rare_columns, int(sample_col_n / 2), replace = False)
+        common_columns = np.random.choice(common_columns, int(sample_col_n / 2), replace = False)
+    rare_columns = list(rare_columns)
+    common_columns = list(common_columns)
+    
+    signal_snps = []
+    for snp_type in snp_order:
+        if snp_type == "rare":
+            signal_snps.append(rare_columns.pop(0))
+        elif snp_type == "common":
+            signal_snps.append(common_columns.pop(0))
+    
+    X = X[:, signal_snps + rare_columns + common_columns]
+    return X
 
 
 def sample_normal_X(n, d, mean=0, scale=1, corr=0, Sigma=None):
