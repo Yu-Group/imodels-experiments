@@ -10,7 +10,7 @@ from sklearn.metrics import accuracy_score, mean_squared_error
 from sklearn.preprocessing import scale
 
 
-def MDI_OOB(rf, X, y, type='oob', normalized=True, balanced=False, demean=False, normal_fX=False):
+def MDI_OOB(rf, X, y, type='oob', normalized=False, balanced=False, demean=False, normal_fX=False):
     n_samples, n_features = X.shape
     if len(y.shape) != 2:
         raise ValueError('y must be 2d array (n_samples, 1) if numerical or (n_samples, n_categories).')
@@ -34,7 +34,7 @@ def MDI_OOB(rf, X, y, type='oob', normalized=True, balanced=False, demean=False,
             else:
                 indices = np.arange(n_samples)
         else:
-            raise ValueError('type is not recognized. (%s)' % (type))
+            raise ValueError('type is not recognized. (%s)'%(type))
         _, _, contributions = _predict_tree(tree, X[indices, :])
         if balanced and (type == 'oob' or type == 'test'):
             base_indices = _generate_sample_indices(tree.random_state, n_samples, n_samples)
@@ -56,13 +56,15 @@ def MDI_OOB(rf, X, y, type='oob', normalized=True, balanced=False, demean=False,
                 contributions[:, :, k] = scale(contributions[:, :, k])
         tmp = np.tensordot(np.array(y[indices, :]) * final_weights, contributions, axes=([0, 1], [0, 2]))
         if normalized:
-            if sum(tmp) != 0:
-                out += tmp / sum(tmp)
+            # if sum(tmp) != 0:
+            #     out += tmp / sum(tmp)
+            out += tmp / sum(tmp)
         else:
             out += tmp / len(indices)
         if normalized:
-            if sum(tmp) != 0:
-                SE += (tmp / sum(tmp)) ** 2
+            # if sum(tmp) != 0:
+            #     SE += (tmp / sum(tmp)) ** 2
+            SE += (tmp / sum(tmp)) ** 2
         else:
             SE += (tmp / len(indices)) ** 2
     out /= rf.n_estimators
