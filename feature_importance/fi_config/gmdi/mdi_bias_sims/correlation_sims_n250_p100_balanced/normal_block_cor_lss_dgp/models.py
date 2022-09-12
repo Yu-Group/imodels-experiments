@@ -1,6 +1,6 @@
 from sklearn.ensemble import RandomForestRegressor
 from feature_importance.util import ModelConfig, FIModelConfig
-from feature_importance.scripts.competing_methods import tree_mdi, tree_mdi_OOB, tree_perm_importance, tree_shap
+from feature_importance.scripts.competing_methods import lin_reg_marginal_t_test,tree_mdi, tree_mdi_OOB, tree_perm_importance, tree_shap
 from imodels.importance.r2f_exp_cleaned import GMDI_pipeline
 
 
@@ -17,5 +17,6 @@ FI_ESTIMATORS = [
     [FIModelConfig('MDI', tree_mdi, model_type='tree')],
     [FIModelConfig('MDI-oob', tree_mdi_OOB, model_type='tree')],
     [FIModelConfig('Permutation', tree_perm_importance, model_type='tree')],
-    [FIModelConfig('TreeSHAP', tree_shap, model_type='tree')]
+    [FIModelConfig('TreeSHAP', tree_shap, model_type='tree')],
+    [FIModelConfig('Ttest',lin_reg_marginal_t_test,ascending = False,model_type = 'linear')]
 ]

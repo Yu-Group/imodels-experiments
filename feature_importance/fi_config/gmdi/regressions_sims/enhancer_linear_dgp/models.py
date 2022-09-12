@@ -18,5 +18,5 @@ FI_ESTIMATORS = [
     [FIModelConfig('MDI-oob', tree_mdi_OOB, model_type='tree')],
     [FIModelConfig('Permutation', tree_perm_importance, model_type='tree')],
     [FIModelConfig('TreeSHAP', tree_shap, model_type='tree')],
-    [FIModelConfig('Ttest', lin_reg_marginal_t_test, ascending = False,model_type='linear')],
+    [FIModelConfig('Ttest',lin_reg_marginal_t_test,ascending = False,model_type = 'linear')]
 ]
