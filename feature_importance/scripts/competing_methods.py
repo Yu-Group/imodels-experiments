@@ -4,6 +4,8 @@ import sklearn.base
 from sklearn.inspection import permutation_importance
 import shap,os,sys
 from functools import reduce
+from sklearn.linear_model import LinearRegression, LogisticRegression
+import statsmodels.api as sm
 
 from imodels.importance import R2FExp, GeneralizedMDI, GeneralizedMDIJoint
 from imodels.importance import LassoScorer, RidgeScorer,ElasticNetScorer,RobustScorer,LogisticScorer,JointRidgeScorer,JointLogisticScorer,JointRobustScorer,JointLassoScorer,JointALOElasticNetScorer,JointALOLogisticScorer
@@ -252,6 +254,36 @@ def ridge_cv(X,y,alphas=np.logspace(-4, 3, 100)):
     
     if isinstance(X, pd.DataFrame):
         results.index = X.columns
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+
+    return results
+
+def lin_reg_marginal_t_test(X, y, fit=None):
+    '''
+    Extracts basic t-test results from linear regression
+    Based on statsmodels regression fit
+    :param X: design matrix
+    :param y: response
+    :param fit: fitted model of interest, ideally lin reg from statsmodel
+    :return: dataframe - [Var, Importance]
+                         Var: variable name
+                         Importance: p-values from t-test
+    '''
+
+    # check if using statsmodels fit (better to extract p-values)
+    # refit if using sklearn
+    n_feats = X.shape[1]
+    results = np.zeros(n_feats)
+    if fit is None or isinstance(fit, LinearRegression):
+        model = sm.OLS
+    elif isinstance(fit, LogisticRegression):
+        model = sm.Logit
+    for i in range(n_feats):
+        lin_reg = model(y, X[:, i])
+        fit = lin_reg.fit()
+        results[i] = fit.pvalues[0]
+    results = pd.DataFrame(data=results, columns=['importance'])
     results.index.name = 'var'
     results.reset_index(inplace=True)
 
