@@ -1,7 +1,9 @@
 import pandas as pd
 import numpy as np
+import sklearn.base
 from sklearn.inspection import permutation_importance
 import shap,os,sys
+from functools import reduce
 
 from imodels.importance import R2FExp, GeneralizedMDI, GeneralizedMDIJoint
 from imodels.importance import LassoScorer, RidgeScorer,ElasticNetScorer,RobustScorer,LogisticScorer,JointRidgeScorer,JointLogisticScorer,JointRobustScorer,JointLassoScorer,JointALOElasticNetScorer,JointALOLogisticScorer
@@ -93,7 +95,12 @@ def tree_shap(X, y, fit):
     """
     explainer = shap.TreeExplainer(fit)
     shap_values = explainer.shap_values(X)
-    results = abs(shap_values)
+    if sklearn.base.is_classifier(fit):
+        def add_abs(a, b):
+            return abs(a) + abs(b)
+        results = reduce(add_abs, shap_values)
+    else:
+        results = abs(shap_values)
     results = results.mean(axis=0)
     results = pd.DataFrame(data=results, columns=['importance'])
     # Use column names from dataframe if possible
