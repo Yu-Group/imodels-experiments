@@ -53,17 +53,17 @@ source("../../scripts/viz.R", chdir = TRUE)
 # notes: need to set 'results = "asis"' in the code chunk header
 view_results <- function(metrics_plt_ls, 
                          rmetrics_plt_ls = list(), 
-                         tpr_plt_ls = list()) {
+                         tpr_plt_ls = list(),
+                         datasets = c("German Credit" = "german",
+                                      "UK Biobank" = "ukbb",
+                                      "CCLE" = "ccle_prot",
+                                      "fMRI" = "fmri")) {
   sim_names <- names(metrics_plt_ls)
-  datasets <- c("german", "ukbb", "ccle_prot", "fmri")
-  dataset_names <- c("German Credit", "UK Biobank", "CCLE", "fMRI")
-  for (dataset in datasets) {
-    dataset_name <- dplyr::case_when(
-      dataset == "german" ~ "German Credit",
-      dataset == "ukbb" ~ "UK Biobank",
-      dataset == "ccle_prot" ~ "CCLE",
-      dataset == "fmri" ~ "fMRI"
-    )
+  dataset_names <- names(datasets)
+  names(datasets) <- NULL
+  for (i in 1:length(datasets)) {
+    dataset <- datasets[i]
+    dataset_name <- dataset_names[i]
     sims <- sim_names[stringr::str_detect(sim_names, dataset)]
     if (length(sims) == 0) {
       next
@@ -114,7 +114,7 @@ metrics_plt_ls <- list()
 rmetrics_plt_ls <- list()
 tpr_plt_ls <- list()
 for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FALSE)) {
-  if (stringr::str_detect(basename(results_subdir), "omitted|algorithmic_choices|sparsity_sims|stability_sims")) {
+  if (stringr::str_detect(basename(results_subdir), "normal|omitted|algorithmic_choices|sparsity_sims|stability_sims")) {
     next
   }
   for (vary_param_dir in list.dirs(results_subdir, full.names = FALSE, recursive = FALSE)) {
@@ -307,3 +307,50 @@ view_results(metrics_plt_ls)
 
 ```
 
+# Artificial Simulations {.tabset .tabset-vmodern}
+
+```{r results="asis"}
+# read in results
+metrics_plt_ls <- list()
+rmetrics_plt_ls <- list()
+for (results_subdir in list.dirs(results_dir, full.names = TRUE, recursive = FALSE)) {
+  if (!stringr::str_detect(basename(results_subdir), "normal|boolean")) {
+    next
+  }
+  for (vary_param_dir in list.dirs(results_subdir, full.names = FALSE, recursive = FALSE)) {
+    # print(file.path(results_subdir, vary_param_dir))
+    fname <- file.path(results_subdir, vary_param_dir, paste0("seed", seed), "results.csv")
+    sim_name <- stringr::str_extract(basename(results_subdir), "[^\\.]*$") %>%
+      stringr::str_remove("\\_dgp")
+    facet_str <- "heritability"
+    x_str <- "n"
+    if (stringr::str_detect(sim_name, "rho")) {
+      x_str <- "rho"
+    }
+    
+    results <- reformat_results(data.table::fread(fname))
+    metrics_plt_ls[[sim_name]] <- plot_metrics(
+      results, x_str = x_str, facet_str = facet_str, alpha = alpha,
+      point_size = point_size, line_size = line_size, errbar_width = errbar_width,
+      inside_legend = FALSE, manual_color_palette = manual_color_palette, 
+      show_methods = show_methods, method_labels = method_labels,
+      custom_theme = custom_theme
+    ) +
+      ggplot2::labs(x = "Sample Size", y = "Mean", 
+                    color = "Method", alpha = "Method")
+    
+    rmetrics_plt_ls[[sim_name]] <- plot_restricted_metrics(
+      results, x_str = x_str, facet_str = facet_str, alpha = alpha,
+      point_size = point_size, line_size = line_size, errbar_width = errbar_width,
+      inside_legend = FALSE, manual_color_palette = manual_color_palette, 
+      show_methods = show_methods, method_labels = method_labels,
+      custom_theme = custom_theme
+    ) +
+      ggplot2::labs(x = "Sample Size", y = "Mean", 
+                    color = "Method", alpha = "Method")
+  }
+}
+
+view_results(metrics_plt_ls, rmetrics_plt_ls, datasets = c("Normal" = "normal"))
+
+```

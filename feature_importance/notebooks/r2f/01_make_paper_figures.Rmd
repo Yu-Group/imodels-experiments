@@ -6,7 +6,7 @@ output: vthemes::vmodern
 params:
   results_dir: 
     label: "Results directory"
-    value: "results/"
+    value: "/global/scratch/users/tiffanytang/feature_importance/results/"
   seed:
     label: "Seed"
     value: 12345
@@ -41,9 +41,10 @@ metrics_all <- c("rocauc", "prauc")
 point_size <- 2
 line_size <- 1
 errbar_width <- 0
-manual_color_palette <- c("black", "orange", "#71beb7", "#218a1e", "#cc3399")
-show_methods <- c("r2f", "Permutation_RF", "MDI_RF", "MDI-oob_RF", "TreeSHAP_RF")
-method_labels <- c(bquote(~r^2*"f"), "Permutation", "MDI", "MDI-oob", "TreeSHAP")
+# manual_color_palette <- c("black", "orange", "#71beb7", "#218a1e", "#cc3399")
+manual_color_palette <- c("black", "orange", "#CC3399", "#218A1E", "#800000")
+show_methods <- c("gjMDI_ridge_norm_loocv_RF", "Permutation_RF", "MDI_RF", "MDI-oob_RF", "TreeSHAP_RF")
+method_labels <- c("gMDI", "Permutation", "MDI", "MDI-oob", "TreeSHAP")
 custom_theme <- vthemes::theme_vmodern(
   size_preset = "medium", bg_color = "white", grid_color = "white",
   axis.ticks = ggplot2::element_line(size = ggplot2::rel(2), colour = "black"),
@@ -436,10 +437,18 @@ ggplot2::ggsave(
 # data resampling stability sims
 y_dgp <- c('linear','lss','poly_int')
 for(i in y_dgp){
-  results <- read.csv(file.path(results_dir,paste0("stability_resampling_",i,".csv")))
+  sim_name <- sprintf("normal_block_cor_%s_dgp", y_dgp)
+  fname <- file.path(results_dir, paste0("r2f.stability_sims.data_resampling_experiment.",
+                                         sim_name), 
+                       "varying_heritability_rho", 
+                       paste0("seed", seed), "results.csv")
+  results <- data.table::fread(fname) %>%
+    as.data.frame()
+    # reformat_results()
+  # results <- read.csv(file.path(results_dir,paste0("stability_resampling_",i,".csv")))
 
   rankings <- results %>%
-    dplyr::group_by(heritability,rho,fi,rep) %>%
+    dplyr::group_by(heritability, rho_name, fi, rep) %>%
     dplyr::summarise(rank = rank(-importance),
                      var = var)
   
@@ -453,7 +462,7 @@ for(i in y_dgp){
   }
 
   rankings <- rankings %>%
-    dplyr::group_by(group,rep,heritability,rho,fi) %>%
+    dplyr::group_by(group, rep, heritability, rho_name, fi) %>%
     dplyr::summarise(avgrank = mean(rank))
   
   methods = c('r2f','Permutation','MDI','MDI-oob','TreeSHAP')
@@ -461,7 +470,7 @@ for(i in y_dgp){
   rankings$group <- factor(rankings$group,levels = groups)
   rankings$fi <- factor(rankings$fi,levels = methods)
 
-  ranks.sub$rho = factor(ranks.sub$rho,levels = c(0.5,0.8,0.99))
+  ranks.sub$rho_name = factor(ranks.sub$rho_name,levels = c(0.5,0.8,0.99))
   levels(ranks.sub$rho) <- c('rho == 0.5','rho == 0.8','rho == 0.99')
 
   summary(ranks.sub$avgrank)
@@ -1027,8 +1036,10 @@ for (x_model in x_models) {
 
 ```{r}
 vary_param_name <- "heritability_sample_row_n"
-y_models <- c("linear", "lss", "poly_int")
-x_models <- c("german", "ukbb")
+# y_models <- c("linear", "lss", "poly_int")
+# x_models <- c("german", "ukbb")
+y_models <- "partial_linear_lss2"
+x_models <- "enhancer"
 
 # read in data
 results_ls <- list()
@@ -1108,12 +1119,12 @@ for (metric in metrics_all) {
         }
       }
       plt <- plt +
-        plot_layout(ncol = length(heritabilities), nrow = 1)
+        plot_layout(ncol = 2, nrow = 2)
       ggplot2::ggsave(
         file.path(plots_dir, "appendix",
                   sprintf("real_data_artificial_y_omitted_vars_sims_%s_%s_%s_errbars.pdf", 
                           y_model, x_model, metric)), 
-        plot = plt, units = "in", width = 14, height = 3
+        plot = plt, units = "in", width = 10, height = 8
       )
     }
   }

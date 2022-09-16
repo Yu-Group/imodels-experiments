@@ -231,7 +231,7 @@ def tree_mda(X, y, fit, type="oob", n_repeats=10, metric="auto"):
     if metric == "auto":
         if isinstance(y[0], str):
             metric = "accuracy"
-            raise ValueError('MDA has not yet been configured for classification.')
+            # raise ValueError('MDA has not yet been configured for classification.')
         else:
             metric = "mse"
 

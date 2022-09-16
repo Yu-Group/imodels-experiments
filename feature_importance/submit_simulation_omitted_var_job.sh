@@ -4,6 +4,9 @@
 #SBATCH --time=12:00:00
 #
 #SBATCH --nodes=1
+#
+#SBATCH --mail-type=ALL
+#SBATCH --mail-user=tiffany.tang@berkeley.edu
 
 module load python/3.7
 module load r
