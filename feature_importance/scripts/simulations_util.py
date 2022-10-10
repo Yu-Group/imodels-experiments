@@ -575,11 +575,67 @@ def sum_of_squares(X, sigma, s, beta, heritability=None, snr=None, error_fun=Non
         error_fun = np.random.randn
     y_train = y_train + sigma * error_fun((len(X)))
     if return_support:
-        support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
         return y_train, support, beta
     else:
         return y_train
 
+def poly_int_model(X,sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None, min_active=None,
+              frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, return_support=False):
+    """                                                                                                                                                                                                        
+    This method creates response from an LSS model                                                                                                                                                                                                                                                                                                                                                  
+    X: data matrix                                                                                                                                                                                             
+    m: number of interaction terms                                                                                                                                                                             
+    r: max order of interaction                                                                                                                                                                                
+    tau: threshold                                                                                                                                                                                            
+    sigma: standard deviation of noise                                                                                                                                                                        
+    beta: coefficient vector. If beta not a vector, then assumed a constant                                                                                                                                   
+                                                                                                                                                                                                              
+    :return                                                                                                                                                                                                   
+    y_train: numpy array of shape (n)                                                                                                                                                                         
+    """
+    n, p = X.shape
+    assert p >= m * r  # Cannot have more interactions * size than the dimension                                                                                                                              
+    beta = generate_coef(beta, m)
+    def poly_func(x, beta):
+        y = 0
+        for j in range(m):
+            poly_term_components = x[j * r:j * r + r]
+            poly_term = np.prod(poly_term_components) 
+            y += poly_term * beta[j]
+        return y
+    
+    y_train = np.array([poly_func(X[i, :], beta) for i in range(n)])
+    support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+    if heritability is not None:
+        sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
+    if snr is not None:
+        sigma = (np.var(y_train) / snr) ** 0.5
+    if error_fun is None:
+        error_fun = np.random.randn
+    if frac_corrupt is None:
+        y_train = y_train + sigma * error_fun(n)
+    else:
+        num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
+        corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
+        if corrupt_how == 'permute':
+            corrupt_array = y_train[corrupt_indices]
+            corrupt_array = random.sample(list(corrupt_array), len(corrupt_array))
+            for i,index in enumerate(corrupt_indices):
+                y_train[index] = corrupt_array[i]
+            y_train = y_train + sigma * error_fun(n)
+        elif corrupt_how == 'cauchy':
+            for i in range(len(y_train)):
+                if i in corrupt_indices:
+                    y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
+                else:
+                     y_train[i] = y_train[i] + sigma*error_fun()
+        elif corrupt_how == "leverage":
+            y_train = corrupt_leverage(X[:, :(m*r)], y_train, frac_corrupt, corrupt_quantile)
+            y_train = y_train + sigma * error_fun(n)
+    if return_support:
+        return y_train, support, beta
+    else:
+        return y_train
 
 def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None, min_active=None,
               frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, return_support=False):
