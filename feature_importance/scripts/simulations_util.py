@@ -368,7 +368,7 @@ def logistic_lss_model(X, sigma, m, r, tau, beta, min_active=None, frac_label_co
         y_train, support = lss_vector_fun(X, beta)
         y_train = y_train.ravel()
     
-     if frac_label_corruption is None:
+    if frac_label_corruption is None:
         y_train = y_train
     else:
         zero_indices = np.where(y_train == 0)[0]
