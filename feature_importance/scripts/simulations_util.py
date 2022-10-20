@@ -264,7 +264,7 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         return y_train
 
 
-def logistic_model(X, s, beta,return_support=False):
+def logistic_model(X, s, beta,frac_label_corruption = None,return_support=False):
     """
     This method is used to create responses from a sum of squares model with hard sparsity
     Parameters:
@@ -285,6 +285,21 @@ def logistic_model(X, s, beta,return_support=False):
 
     beta = generate_coef(beta, s)
     y_train = np.array([create_y(X[i, :], s, beta) for i in range(len(X))]).ravel()
+    if frac_label_corruption is None:
+        y_train = y_train
+    else:
+        zero_indices = np.where(y_train == 0)[0]
+        one_indices = np.where(y_train == 1)[0]
+        majority_label_indices = zero_indices
+        majority_label = 0
+        if len(zero_indices) < len(one_indices): 
+            majority_label_indices = one_indices
+            majority_label  = 1
+        corrupt_indices = np.random.choice(majority_label_indices, size = math.ceil(frac_label_corruption*len(majority_label_indices)))
+        if majority_label == 1: 
+            y_train[corrupt_indices] = 0.0
+        else:
+            y_train[corrupt_indices] = 1.0
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
         return y_train, support, beta
@@ -292,7 +307,7 @@ def logistic_model(X, s, beta,return_support=False):
         return y_train
     
 
-def logistic_lss_model(X, sigma, m, r, tau, beta, min_active=None, return_support = False):
+def logistic_lss_model(X, sigma, m, r, tau, beta, min_active=None, frac_label_corruption = None,return_support = False):
     """
     This method is used to create responses from a logistic model model with lss
     X: X matrix
@@ -352,13 +367,29 @@ def logistic_lss_model(X, sigma, m, r, tau, beta, min_active=None, return_suppor
     else:
         y_train, support = lss_vector_fun(X, beta)
         y_train = y_train.ravel()
+    
+     if frac_label_corruption is None:
+        y_train = y_train
+    else:
+        zero_indices = np.where(y_train == 0)[0]
+        one_indices = np.where(y_train == 1)[0]
+        majority_label_indices = zero_indices
+        majority_label = 0
+        if len(zero_indices) < len(one_indices): 
+            majority_label_indices = one_indices
+            majority_label  = 1
+        corrupt_indices = np.random.choice(majority_label_indices, size = math.ceil(frac_label_corruption*len(majority_label_indices)))
+        if majority_label == 1: 
+            y_train[corrupt_indices] = 0.0
+        else:
+            y_train[corrupt_indices] = 1.0
 
     if return_support:
         return y_train, support, beta
     else:
         return y_train
 
-def logistic_partial_linear_lss_model(X,s, m, r, tau, beta, min_active=None, return_support = False):
+def logistic_partial_linear_lss_model(X,s, m, r, tau, beta, min_active=None, frac_label_corruption = None,return_support = False):
     """
     This method is used to create responses from a logistic model model with lss
     X: X matrix
@@ -434,6 +465,24 @@ def logistic_partial_linear_lss_model(X,s, m, r, tau, beta, min_active=None, ret
         y_train_lss, support = lss_vector_fun(X, beta_lss, beta_linear)
     y_train = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
     y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+    
+    if frac_label_corruption is None:
+        y_train = y_train
+    else:
+        zero_indices = np.where(y_train == 0)[0]
+        one_indices = np.where(y_train == 1)[0]
+        majority_label_indices = zero_indices
+        majority_label = 0
+        if len(zero_indices) < len(one_indices): 
+            majority_label_indices = one_indices
+            majority_label  = 1
+        corrupt_indices = np.random.choice(majority_label_indices, size = math.ceil(frac_label_corruption*len(majority_label_indices)))
+        if majority_label == 1: 
+            y_train[corrupt_indices] = 0.0
+        else:
+            y_train[corrupt_indices] = 1.0
+
+    
     y_train = y_train.ravel()
     
     if return_support:
@@ -443,7 +492,7 @@ def logistic_partial_linear_lss_model(X,s, m, r, tau, beta, min_active=None, ret
     
     
     
-def logistic_hier_model(X, sigma, m, r, tau, beta,return_support = False):
+def logistic_hier_model(X, sigma, m, r, tau, beta,frac_label_corruption = None,return_support = False):
     
     n, p = X.shape
     assert p >= m * r
@@ -464,6 +513,22 @@ def logistic_hier_model(X, sigma, m, r, tau, beta,return_support = False):
     beta = generate_coef(beta, m)
     y_train = np.array([reg_func(X[i, :], beta) for i in range(n)])
     y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+    
+    if frac_label_corruption is None:
+        y_train = y_train
+    else:
+        zero_indices = np.where(y_train == 0)[0]
+        one_indices = np.where(y_train == 1)[0]
+        majority_label_indices = zero_indices
+        majority_label = 0
+        if len(zero_indices) < len(one_indices): 
+            majority_label_indices = one_indices
+            majority_label  = 1
+        corrupt_indices = np.random.choice(majority_label_indices, size = math.ceil(frac_label_corruption*len(majority_label_indices)))
+        if majority_label == 1: 
+            y_train[corrupt_indices] = 0.0
+        else:
+            y_train[corrupt_indices] = 1.0
     y_train = y_train.ravel()
     
     if return_support:
@@ -472,7 +537,7 @@ def logistic_hier_model(X, sigma, m, r, tau, beta,return_support = False):
     else:
         return y_train
     
-def logistic_sum_of_poly(X,m,r,beta,return_support = False):
+def logistic_sum_of_poly(X,m,r,beta,frac_label_corruption = None,return_support = False):
     n, p = X.shape
     assert p >= m * r
 
@@ -491,6 +556,23 @@ def logistic_sum_of_poly(X,m,r,beta,return_support = False):
     beta = generate_coef(beta, m)
     y_train = np.array([reg_func(X[i, :], beta) for i in range(n)])
     y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+    
+    if frac_label_corruption is None:
+        y_train = y_train
+    else:
+        zero_indices = np.where(y_train == 0)[0]
+        one_indices = np.where(y_train == 1)[0]
+        majority_label_indices = zero_indices
+        majority_label = 0
+        if len(zero_indices) < len(one_indices): 
+            majority_label_indices = one_indices
+            majority_label  = 1
+        corrupt_indices = np.random.choice(majority_label_indices, size = math.ceil(frac_label_corruption*len(majority_label_indices)))
+        if majority_label == 1: 
+            y_train[corrupt_indices] = 0.0
+        else:
+            y_train[corrupt_indices] = 1.0
+
     y_train = y_train.ravel()
     
     if return_support:
