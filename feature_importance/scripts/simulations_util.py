@@ -264,27 +264,70 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         return y_train
 
 
-def logistic_model(X, s, beta,frac_label_corruption = None,return_support=False):
+def logistic_heritability_search(X, heritability, s, prob_fun, beta_grid=np.logspace(-4, 4, 100), eps=0.01, max_iter=1000):
+
+    cur_beta = None
+    for idx, beta in enumerate(beta_grid):
+        beta_vec = generate_coef(beta, s)
+        prob_train = np.array([prob_fun(X[i, :], beta_vec) for i in range(len(X))]).ravel()
+        y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
+        pve = np.var(prob_train) / np.var(y_train)
+        if pve > heritability:
+            min_beta = beta_grid[idx-1]
+            max_beta = beta
+            cur_beta = (min_beta + max_beta) / 2
+            iter = 0
+            while np.abs(pve - heritability) > eps and iter < max_iter:
+                beta_vec = generate_coef(cur_beta, s)
+                prob_train = np.array([prob_fun(X[i, :], beta_vec) for i in range(len(X))]).ravel()
+                y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
+                pve = np.var(prob_train) / np.var(y_train)
+                if pve > heritability:
+                    max_beta = cur_beta
+                else:
+                    min_beta = cur_beta
+                cur_beta = (min_beta + max_beta) / 2
+                iter += 1
+            beta = beta_vec
+            break
+    if cur_beta is None:
+        raise ValueError("Could not find heritability. Beta grid needs to be expanded.")
+        
+    return y_train, beta
+
+
+def logistic_model(X, s, beta=None, beta_grid=np.logspace(-4, 4, 100), heritability=None, frac_label_corruption=None, return_support=False):
     """
     This method is used to create responses from a sum of squares model with hard sparsity
     Parameters:
     X: X matrix
     s: sparsity
     beta: coefficient vector. If beta not a vector, then assumed a constant
-    sigma: s.d. of added noise
     Returns:
     numpy array of shape (n)
     """
-
-    def create_y(x, s, beta):
+    
+    def create_prob(x, beta):
         linear_term = 0
-        for j in range(s):
+        for j in range(len(beta)):
+            linear_term += x[j] * beta[j]
+        prob = 1 / (1 + np.exp(-linear_term))
+        return prob
+
+    def create_y(x, beta):
+        linear_term = 0
+        for j in range(len(beta)):
             linear_term += x[j] * beta[j]
         prob = 1 / (1 + np.exp(-linear_term))
         return (np.random.uniform(size=1) < prob) * 1
 
-    beta = generate_coef(beta, s)
-    y_train = np.array([create_y(X[i, :], s, beta) for i in range(len(X))]).ravel()
+    if heritability is None:
+        beta = generate_coef(beta, s)
+        y_train = np.array([create_y(X[i, :], beta_vec) for i in range(len(X))]).ravel()
+    else:
+        # find beta to get desired heritability via adaptive grid search within eps=0.01
+        y_train, beta = logistic_heritability_search(X, heritability, s, create_prob, beta_grid)
+        
     if frac_label_corruption is None:
         y_train = y_train
     else:
@@ -307,18 +350,27 @@ def logistic_model(X, s, beta,frac_label_corruption = None,return_support=False)
         return y_train
     
 
-def logistic_lss_model(X, sigma, m, r, tau, beta, min_active=None, frac_label_corruption = None,return_support = False):
+def logistic_lss_model(X, m, r, tau, beta=None, heritability=None, beta_grid=np.logspace(-4, 4, 100), min_active=None, frac_label_corruption=None, return_support=False):
     """
     This method is used to create responses from a logistic model model with lss
     X: X matrix
     s: sparsity
     beta: coefficient vector. If beta not a vector, then assumed a constant
-    sigma: s.d. of added noise
     Returns:
     numpy array of shape (n)
     """
     n, p = X.shape
 
+    def lss_prob_func(x, beta):
+        x_bool = (x - tau) > 0
+        y = 0
+        for j in range(m):
+            lss_term_components = x_bool[j * r:j * r + r]
+            lss_term = int(all(lss_term_components))
+            y += lss_term * beta[j]
+        prob = 1 / (1 + np.exp(-y))
+        return prob
+    
     def lss_func(x, beta):
         x_bool = (x - tau) > 0
         y = 0
@@ -357,16 +409,23 @@ def logistic_lss_model(X, sigma, m, r, tau, beta, min_active=None, frac_label_co
             support[j] = 1
         return y, support
 
-    beta = generate_coef(beta, m)
     if tau == 'median':
         tau = np.median(X,axis = 0)
     
-    if min_active is None:
-        y_train = np.array([lss_func(X[i, :], beta) for i in range(n)]).ravel()
-        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+    if heritability is None:
+        beta = generate_coef(beta, m)
+        if min_active is None:
+            y_train = np.array([lss_func(X[i, :], beta) for i in range(n)]).ravel()
+            support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+        else:
+            y_train, support = lss_vector_fun(X, beta)
+            y_train = y_train.ravel()
     else:
-        y_train, support = lss_vector_fun(X, beta)
-        y_train = y_train.ravel()
+        if min_active is not None:
+            raise ValueError("Cannot set heritability and min_active at the same time.")
+        # find beta to get desired heritability via adaptive grid search within eps=0.01
+        y_train, beta = logistic_heritability_search(X, heritability, m, lss_prob_func, beta_grid)
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
     
     if frac_label_corruption is None:
         y_train = y_train
@@ -389,13 +448,13 @@ def logistic_lss_model(X, sigma, m, r, tau, beta, min_active=None, frac_label_co
     else:
         return y_train
 
-def logistic_partial_linear_lss_model(X,s, m, r, tau, beta, min_active=None, frac_label_corruption = None,return_support = False):
+
+def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=None, beta_grid=np.logspace(-4, 4, 100), min_active=None, frac_label_corruption=None, return_support=False):
     """
     This method is used to create responses from a logistic model model with lss
     X: X matrix
     s: sparsity
     beta: coefficient vector. If beta not a vector, then assumed a constant
-    sigma: s.d. of added noise
     Returns:
     numpy array of shape (n)
     """
@@ -419,9 +478,14 @@ def logistic_partial_linear_lss_model(X,s, m, r, tau, beta, min_active=None, fra
             lss_term = int(all(lss_term_components))
             y += lss_term * beta[j]
         return y
+        
     def logistic_link_func(y):
         prob = 1 / (1 + np.exp(-y))
         return (np.random.uniform(size=1) < prob) * 1
+        
+    def logistic_prob_func(y):
+        prob = 1 / (1 + np.exp(-y))
+        return prob
 
     def lss_vector_fun(x, beta, beta_linear):
         x_bool = (x - tau) > 0
@@ -453,19 +517,63 @@ def logistic_partial_linear_lss_model(X,s, m, r, tau, beta, min_active=None, fra
             support[j] = 1
         return y, support    
 
-    beta_lss = generate_coef(beta, m)
-    beta_linear = generate_coef(beta, s*m)
     if tau == 'median':
         tau = np.median(X,axis = 0)
-    y_train_linear = np.array([partial_linear_func(X[i, :],s,beta_linear ) for i in range(n)])
-    if min_active is None:
-        y_train_lss = np.array([lss_func(X[i, :], beta_lss) for i in range(n)])
-        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+
+    if heritability is None:
+        beta_lss = generate_coef(beta, m)
+        beta_linear = generate_coef(beta, s*m)
+        
+        y_train_linear = np.array([partial_linear_func(X[i, :],s,beta_linear ) for i in range(n)])
+        if min_active is None:
+            y_train_lss = np.array([lss_func(X[i, :], beta_lss) for i in range(n)])
+            support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+        else:
+            y_train_lss, support = lss_vector_fun(X, beta_lss, beta_linear)
+        y_train = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
+        y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
     else:
-        y_train_lss, support = lss_vector_fun(X, beta_lss, beta_linear)
-    y_train = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
-    y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
-    
+        if min_active is not None:
+            raise ValueError("Cannot set heritability and min_active at the same time.")
+        # find beta to get desired heritability via adaptive grid search within eps=0.01
+        eps = 0.01
+        cur_beta = None
+        for idx, beta in enumerate(beta_grid):
+            beta_lss_vec = generate_coef(beta, m)
+            beta_linear_vec = generate_coef(beta, s*m)
+            
+            y_train_linear = np.array([partial_linear_func(X[i, :], s, beta_linear_vec) for i in range(n)])
+            y_train_lss = np.array([lss_func(X[i, :], beta_lss_vec) for i in range(n)])
+            y_train_sum = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
+            prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)
+            y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
+            pve = np.var(prob_train) / np.var(y_train)
+            if pve > heritability:
+                min_beta = beta_grid[idx-1]
+                max_beta = beta
+                cur_beta = (min_beta + max_beta) / 2
+                while np.abs(pve - heritability) > eps:
+                    beta_lss_vec = generate_coef(cur_beta, m)
+                    beta_linear_vec = generate_coef(cur_beta, s*m)
+                    
+                    y_train_linear = np.array([partial_linear_func(X[i, :], s, beta_linear_vec) for i in range(n)])
+                    y_train_lss = np.array([lss_func(X[i, :], beta_lss_vec) for i in range(n)])
+                    y_train_sum = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
+                    
+                    prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)
+                    y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
+                    pve = np.var(prob_train) / np.var(y_train)
+                    if pve > heritability:
+                        max_beta = cur_beta
+                    else:
+                        min_beta = cur_beta
+                    cur_beta = (min_beta + max_beta) / 2
+                beta = beta_vec
+                break
+        if cur_beta is None:
+            raise ValueError("Could not find heritability. Beta grid needs to be expanded.")
+        support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+
     if frac_label_corruption is None:
         y_train = y_train
     else:
@@ -482,7 +590,6 @@ def logistic_partial_linear_lss_model(X,s, m, r, tau, beta, min_active=None, fra
         else:
             y_train[corrupt_indices] = 1.0
 
-    
     y_train = y_train.ravel()
     
     if return_support:
@@ -492,7 +599,7 @@ def logistic_partial_linear_lss_model(X,s, m, r, tau, beta, min_active=None, fra
     
     
     
-def logistic_hier_model(X, sigma, m, r, tau, beta,frac_label_corruption = None,return_support = False):
+def logistic_hier_model(X, m, r, tau, beta=None, heritability=None, beta_grid=np.logspace(-4, 4, 100), frac_label_corruption=None, return_support = False):
     
     n, p = X.shape
     assert p >= m * r
@@ -509,10 +616,23 @@ def logistic_hier_model(X, sigma, m, r, tau, beta,frac_label_corruption = None,r
     def logistic_link_func(y):
         prob = 1 / (1 + np.exp(-y))
         return (np.random.uniform(size=1) < prob) * 1
-
-    beta = generate_coef(beta, m)
-    y_train = np.array([reg_func(X[i, :], beta) for i in range(n)])
-    y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+        
+    def prob_func(x, beta):
+        y = 0
+        for i in range(m):
+            hier_term = 1.0
+            for j in range(r):
+                hier_term += x[i * r + j] * hier_term
+            y += hier_term * beta[i]
+        return 1 / (1 + np.exp(-y))
+    
+    if heritability is None:
+        beta = generate_coef(beta, m)
+        y_train = np.array([reg_func(X[i, :], beta) for i in range(n)])
+        y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+    else:
+        # find beta to get desired heritability via adaptive grid search within eps=0.01
+        y_train, beta = logistic_heritability_search(X, heritability, m, prob_func, beta_grid)
     
     if frac_label_corruption is None:
         y_train = y_train
@@ -537,7 +657,7 @@ def logistic_hier_model(X, sigma, m, r, tau, beta,frac_label_corruption = None,r
     else:
         return y_train
     
-def logistic_sum_of_poly(X,m,r,beta,frac_label_corruption = None,return_support = False):
+def logistic_sum_of_poly(X, m, r, beta=None, heritability=None, beta_grid=np.logspace(-4, 4, 100), frac_label_corruption=None, return_support = False):
     n, p = X.shape
     assert p >= m * r
 
@@ -552,10 +672,22 @@ def logistic_sum_of_poly(X,m,r,beta,frac_label_corruption = None,return_support 
     def logistic_link_func(y):
         prob = 1 / (1 + np.exp(-y))
         return (np.random.uniform(size=1) < prob) * 1
+        
+    def prob_func(x, beta):
+        y = 0
+        for j in range(m):
+            poly_term_components = x[j * r:j * r + r]
+            poly_term = np.prod(poly_term_components)
+            y += poly_term * beta[j]
+        return 1 / (1 + np.exp(-y))
 
-    beta = generate_coef(beta, m)
-    y_train = np.array([reg_func(X[i, :], beta) for i in range(n)])
-    y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+    if heritability is None:
+        beta = generate_coef(beta, m)
+        y_train = np.array([reg_func(X[i, :], beta) for i in range(n)])
+        y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
+    else:
+        # find beta to get desired heritability via adaptive grid search within eps=0.01
+        y_train, beta = logistic_heritability_search(X, heritability, m, prob_func, beta_grid)
     
     if frac_label_corruption is None:
         y_train = y_train
