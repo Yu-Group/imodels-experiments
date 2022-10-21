@@ -54,6 +54,10 @@ def MDI_OOB(rf, X, y, type='oob', normalized=False, balanced=False, demean=False
         if normal_fX:
             for k in range(contributions.shape[-1]):
                 contributions[:, :, k] = scale(contributions[:, :, k])
+        if contributions.shape[2] == 2:
+            contributions = contributions[:, :, 1:]
+        elif contributions.shape[2] > 2:
+            raise ValueError('Multi-class y is not currently supported.')
         tmp = np.tensordot(np.array(y[indices, :]) * final_weights, contributions, axes=([0, 1], [0, 2]))
         if normalized:
             # if sum(tmp) != 0:
