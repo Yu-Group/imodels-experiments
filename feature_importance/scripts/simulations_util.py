@@ -545,7 +545,7 @@ def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=N
             y_train_linear = np.array([partial_linear_func(X[i, :], s, beta_linear_vec) for i in range(n)])
             y_train_lss = np.array([lss_func(X[i, :], beta_lss_vec) for i in range(n)])
             y_train_sum = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
-            prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)
+            prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)])
             y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
             pve = np.var(prob_train) / np.var(y_train)
             if pve > heritability:
@@ -560,7 +560,7 @@ def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=N
                     y_train_lss = np.array([lss_func(X[i, :], beta_lss_vec) for i in range(n)])
                     y_train_sum = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
                     
-                    prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)
+                    prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)])
                     y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
                     pve = np.var(prob_train) / np.var(y_train)
                     if pve > heritability:
