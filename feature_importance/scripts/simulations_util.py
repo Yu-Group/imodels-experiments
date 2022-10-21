@@ -264,39 +264,67 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         return y_train
 
 
-def logistic_heritability_search(X, heritability, s, prob_fun, beta_grid=np.logspace(-4, 4, 100), eps=0.01, max_iter=1000):
+def logistic_heritability_search(X, heritability, s, prob_fun, beta_grid=np.logspace(-4, 4, 100),
+                                 eps=0.01, max_iter=1000, jitter_beta=False, return_pve=True):
+    pves = {}
 
-    cur_beta = None
+    # first search over beta grid
     for idx, beta in enumerate(beta_grid):
+        np.random.seed(12345)
         beta_vec = generate_coef(beta, s)
+        if jitter_beta:
+            beta_vec = beta_vec + np.random.uniform(-1e-4, 1e-4, beta_vec.shape)
         prob_train = np.array([prob_fun(X[i, :], beta_vec) for i in range(len(X))]).ravel()
         y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
         pve = np.var(prob_train) / np.var(y_train)
+        pves[(idx, beta)] = pve
+
+    # find beta with heritability closest to desired heritability
+    (idx, beta), pve = min(pves.items(), key=lambda x: abs(x[1] - heritability))
+
+    # search nearby beta to get closer to desired heritability
+    if pve > heritability:
+        min_beta = beta_grid[idx-1]
+        max_beta = beta
+    else:
+        min_beta = beta
+        max_beta = beta_grid[idx+1]
+    cur_beta = (min_beta + max_beta) / 2
+    iter = 0
+    while np.abs(pve - heritability) > eps:
+        np.random.seed(12345)
+        beta_vec = generate_coef(cur_beta, s)
+        if jitter_beta:
+            beta_vec = beta_vec + np.random.uniform(-1e-4, 1e-4, beta_vec.shape)
+        prob_train = np.array([prob_fun(X[i, :], beta_vec) for i in range(len(X))]).ravel()
+        y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
+        pve = np.var(prob_train) / np.var(y_train)
+        pves[(iter, cur_beta)] = pve
         if pve > heritability:
-            min_beta = beta_grid[idx-1]
-            max_beta = beta
-            cur_beta = (min_beta + max_beta) / 2
-            iter = 0
-            while np.abs(pve - heritability) > eps and iter < max_iter:
-                beta_vec = generate_coef(cur_beta, s)
-                prob_train = np.array([prob_fun(X[i, :], beta_vec) for i in range(len(X))]).ravel()
-                y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
-                pve = np.var(prob_train) / np.var(y_train)
-                if pve > heritability:
-                    max_beta = cur_beta
-                else:
-                    min_beta = cur_beta
-                cur_beta = (min_beta + max_beta) / 2
-                iter += 1
+            max_beta = cur_beta
+        else:
+            min_beta = cur_beta
+        cur_beta = (min_beta + max_beta) / 2
+        beta = beta_vec
+        iter += 1
+        if iter > max_iter:
+            (_, cur_beta), pve = min(pves.items(), key=lambda x: abs(x[1] - heritability))
+            beta_vec = generate_coef(cur_beta, s)
+            prob_train = np.array([prob_fun(X[i, :], beta_vec) for i in range(len(X))]).ravel()
+            np.random.seed(12345)
+            y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
+            pve = np.var(prob_train) / np.var(y_train)
             beta = beta_vec
             break
-    if cur_beta is None:
-        raise ValueError("Could not find heritability. Beta grid needs to be expanded.")
-        
-    return y_train, beta
+
+    if return_pve:
+        return y_train, beta, pve, pves
+    else:
+        return y_train, beta
 
 
-def logistic_model(X, s, beta=None, beta_grid=np.logspace(-4, 4, 100), heritability=None, frac_label_corruption=None, return_support=False):
+def logistic_model(X, s, beta=None, beta_grid=np.logspace(-4, 4, 100), heritability=None,
+                   frac_label_corruption=None, return_support=False):
     """
     This method is used to create responses from a sum of squares model with hard sparsity
     Parameters:
@@ -326,7 +354,7 @@ def logistic_model(X, s, beta=None, beta_grid=np.logspace(-4, 4, 100), heritabil
         y_train = np.array([create_y(X[i, :], beta_vec) for i in range(len(X))]).ravel()
     else:
         # find beta to get desired heritability via adaptive grid search within eps=0.01
-        y_train, beta = logistic_heritability_search(X, heritability, s, create_prob, beta_grid)
+        y_train, beta, heritability, hdict = logistic_heritability_search(X, heritability, s, create_prob, beta_grid)
         
     if frac_label_corruption is None:
         y_train = y_train
@@ -345,12 +373,13 @@ def logistic_model(X, s, beta=None, beta_grid=np.logspace(-4, 4, 100), heritabil
             y_train[corrupt_indices] = 1.0
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
-        return y_train, support, beta
+        return y_train, support, beta#, heritability, hdict
     else:
         return y_train
     
 
-def logistic_lss_model(X, m, r, tau, beta=None, heritability=None, beta_grid=np.logspace(-4, 4, 100), min_active=None, frac_label_corruption=None, return_support=False):
+def logistic_lss_model(X, m, r, tau, beta=None, heritability=None, beta_grid=np.logspace(-4, 4, 100),
+                       min_active=None, frac_label_corruption=None, return_support=False):
     """
     This method is used to create responses from a logistic model model with lss
     X: X matrix
@@ -423,8 +452,8 @@ def logistic_lss_model(X, m, r, tau, beta=None, heritability=None, beta_grid=np.
     else:
         if min_active is not None:
             raise ValueError("Cannot set heritability and min_active at the same time.")
-        # find beta to get desired heritability via adaptive grid search within eps=0.01
-        y_train, beta = logistic_heritability_search(X, heritability, m, lss_prob_func, beta_grid)
+        # find beta to get desired heritability via adaptive grid search within eps=0.01 (need to jitter beta to reach higher signals)
+        y_train, beta, heritability, hdict = logistic_heritability_search(X, heritability, m, lss_prob_func, beta_grid, jitter_beta=True)
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
     
     if frac_label_corruption is None:
@@ -444,12 +473,13 @@ def logistic_lss_model(X, m, r, tau, beta=None, heritability=None, beta_grid=np.
             y_train[corrupt_indices] = 1.0
 
     if return_support:
-        return y_train, support, beta
+        return y_train, support, beta#, heritability, hdict
     else:
         return y_train
 
 
-def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=None, beta_grid=np.logspace(-4, 4, 100), min_active=None, frac_label_corruption=None, return_support=False):
+def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=None, beta_grid=np.logspace(-4, 4, 100),
+                                      min_active=None, frac_label_corruption=None, return_support=False):
     """
     This method is used to create responses from a logistic model model with lss
     X: X matrix
@@ -537,41 +567,65 @@ def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=N
             raise ValueError("Cannot set heritability and min_active at the same time.")
         # find beta to get desired heritability via adaptive grid search within eps=0.01
         eps = 0.01
-        cur_beta = None
+        max_iter = 1000
+        pves = {}
         for idx, beta in enumerate(beta_grid):
             beta_lss_vec = generate_coef(beta, m)
             beta_linear_vec = generate_coef(beta, s*m)
-            
+
             y_train_linear = np.array([partial_linear_func(X[i, :], s, beta_linear_vec) for i in range(n)])
             y_train_lss = np.array([lss_func(X[i, :], beta_lss_vec) for i in range(n)])
             y_train_sum = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
-            prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)])
+            prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)]).ravel()
+            np.random.seed(12345)
             y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
             pve = np.var(prob_train) / np.var(y_train)
+            pves[(idx, beta)] = pve
+
+        (idx, beta), pve = min(pves.items(), key=lambda x: abs(x[1] - heritability))
+        if pve > heritability:
+            min_beta = beta_grid[idx-1]
+            max_beta = beta
+        else:
+            min_beta = beta
+            max_beta = beta_grid[idx+1]
+        cur_beta = (min_beta + max_beta) / 2
+        iter = 0
+        while np.abs(pve - heritability) > eps:
+            beta_lss_vec = generate_coef(cur_beta, m)
+            beta_linear_vec = generate_coef(cur_beta, s*m)
+
+            y_train_linear = np.array([partial_linear_func(X[i, :], s, beta_linear_vec) for i in range(n)])
+            y_train_lss = np.array([lss_func(X[i, :], beta_lss_vec) for i in range(n)])
+            y_train_sum = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
+
+            prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)]).ravel()
+            np.random.seed(12345)
+            y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
+            pve = np.var(prob_train) / np.var(y_train)
+            pves[(iter, cur_beta)] = pve
             if pve > heritability:
-                min_beta = beta_grid[idx-1]
-                max_beta = beta
-                cur_beta = (min_beta + max_beta) / 2
-                while np.abs(pve - heritability) > eps:
-                    beta_lss_vec = generate_coef(cur_beta, m)
-                    beta_linear_vec = generate_coef(cur_beta, s*m)
-                    
-                    y_train_linear = np.array([partial_linear_func(X[i, :], s, beta_linear_vec) for i in range(n)])
-                    y_train_lss = np.array([lss_func(X[i, :], beta_lss_vec) for i in range(n)])
-                    y_train_sum = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
-                    
-                    prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)])
-                    y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
-                    pve = np.var(prob_train) / np.var(y_train)
-                    if pve > heritability:
-                        max_beta = cur_beta
-                    else:
-                        min_beta = cur_beta
-                    cur_beta = (min_beta + max_beta) / 2
-                beta = beta_vec
+                max_beta = cur_beta
+            else:
+                min_beta = cur_beta
+            beta = cur_beta
+            cur_beta = (min_beta + max_beta) / 2
+            iter += 1
+            if iter > max_iter:
+                (_, cur_beta), pve = min(pves.items(), key=lambda x: abs(x[1] - heritability))
+                beta_lss_vec = generate_coef(cur_beta, m)
+                beta_linear_vec = generate_coef(cur_beta, s*m)
+
+                y_train_linear = np.array([partial_linear_func(X[i, :], s, beta_linear_vec) for i in range(n)])
+                y_train_lss = np.array([lss_func(X[i, :], beta_lss_vec) for i in range(n)])
+                y_train_sum = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
+
+                prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)]).ravel()
+                np.random.seed(12345)
+                y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
+                pve = np.var(prob_train) / np.var(y_train)
+                beta = cur_beta
                 break
-        if cur_beta is None:
-            raise ValueError("Could not find heritability. Beta grid needs to be expanded.")
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
 
     if frac_label_corruption is None:
@@ -593,13 +647,13 @@ def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=N
     y_train = y_train.ravel()
     
     if return_support:
-        return y_train, support, beta
+        return y_train, support, beta#, pve, pves
     else:
         return y_train
+
     
-    
-    
-def logistic_hier_model(X, m, r, tau, beta=None, heritability=None, beta_grid=np.logspace(-4, 4, 100), frac_label_corruption=None, return_support = False):
+def logistic_hier_model(X, m, r, beta=None, heritability=None, beta_grid=np.logspace(-4, 4, 100),
+                        frac_label_corruption=None, return_support=False):
     
     n, p = X.shape
     assert p >= m * r
@@ -632,7 +686,7 @@ def logistic_hier_model(X, m, r, tau, beta=None, heritability=None, beta_grid=np
         y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
     else:
         # find beta to get desired heritability via adaptive grid search within eps=0.01
-        y_train, beta = logistic_heritability_search(X, heritability, m, prob_func, beta_grid)
+        y_train, beta, heritability, hdict = logistic_heritability_search(X, heritability, m, prob_func, beta_grid)
     
     if frac_label_corruption is None:
         y_train = y_train
@@ -653,11 +707,13 @@ def logistic_hier_model(X, m, r, tau, beta=None, heritability=None, beta_grid=np
     
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
-        return y_train, support, beta
+        return y_train, support, beta#, heritability, hdict
     else:
         return y_train
+
     
-def logistic_sum_of_poly(X, m, r, beta=None, heritability=None, beta_grid=np.logspace(-4, 4, 100), frac_label_corruption=None, return_support = False):
+def logistic_sum_of_poly(X, m, r, beta=None, heritability=None, beta_grid=np.logspace(-4, 4, 100),
+                         frac_label_corruption=None, return_support=False):
     n, p = X.shape
     assert p >= m * r
 
@@ -687,7 +743,7 @@ def logistic_sum_of_poly(X, m, r, beta=None, heritability=None, beta_grid=np.log
         y_train = np.array([logistic_link_func(y_train[i]) for i in range(n)])
     else:
         # find beta to get desired heritability via adaptive grid search within eps=0.01
-        y_train, beta = logistic_heritability_search(X, heritability, m, prob_func, beta_grid)
+        y_train, beta, heritability, hdict = logistic_heritability_search(X, heritability, m, prob_func, beta_grid)
     
     if frac_label_corruption is None:
         y_train = y_train
@@ -709,13 +765,13 @@ def logistic_sum_of_poly(X, m, r, beta=None, heritability=None, beta_grid=np.log
     
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
-        return y_train, support, beta
+        return y_train, support, beta#, heritability, hdict
     else:
         return y_train
     
     
 def sum_of_polys(X, sigma, m, r, beta, heritability=None, snr=None, error_fun=None,
-                 frac_corrupt = 0.0,return_support=False):
+                 frac_corrupt=0.0, return_support=False):
     """
     This method creates response from an LSS model
 
@@ -793,8 +849,9 @@ def sum_of_squares(X, sigma, s, beta, heritability=None, snr=None, error_fun=Non
     else:
         return y_train
 
-def poly_int_model(X,sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None, min_active=None,
-              frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, return_support=False):
+
+def poly_int_model(X,sigma, m, r, beta, heritability=None, snr=None, error_fun=None,
+                   frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, return_support=False):
     """                                                                                                                                                                                                        
     This method creates response from an LSS model                                                                                                                                                                                                                                                                                                                                                  
     X: data matrix                                                                                                                                                                                             
@@ -964,10 +1021,9 @@ def xor(X, sigma, beta, heritability=None, snr=None, error_fun=None):
     return y_train
 
 
-
-
-def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, snr=None, error_fun=None, min_active=None,
-              frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, diagnostics=False, return_support=False):
+def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, snr=None, error_fun=None,
+                             min_active=None, frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None,
+                             diagnostics=False, return_support=False):
     """
     This method creates response from an linear + lss model
 
@@ -1256,8 +1312,6 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
         return y_train, support, beta
     else:
         return y_train
-
-
     
 
 def model_based_X(X_fun, X_params_dict, y, model, n=None):
@@ -1338,3 +1392,5 @@ class IndexedArray(np.ndarray):
         if obj is None:
             return
         self.index = getattr(obj, 'index', None)
+
+#%%
