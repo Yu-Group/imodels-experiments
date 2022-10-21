@@ -309,9 +309,11 @@ def logistic_heritability_search(X, heritability, s, prob_fun, beta_grid=np.logs
         iter += 1
         if iter > max_iter:
             (_, cur_beta), pve = min(pves.items(), key=lambda x: abs(x[1] - heritability))
-            beta_vec = generate_coef(cur_beta, s)
-            prob_train = np.array([prob_fun(X[i, :], beta_vec) for i in range(len(X))]).ravel()
             np.random.seed(12345)
+            beta_vec = generate_coef(cur_beta, s)
+            if jitter_beta:
+                beta_vec = beta_vec + np.random.uniform(-1e-4, 1e-4, beta_vec.shape)
+            prob_train = np.array([prob_fun(X[i, :], beta_vec) for i in range(len(X))]).ravel()
             y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
             pve = np.var(prob_train) / np.var(y_train)
             beta = beta_vec
