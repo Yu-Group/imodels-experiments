@@ -381,7 +381,7 @@ def logistic_model(X, s, beta=None, beta_grid=np.logspace(-4, 4, 100), heritabil
             y_train[corrupt_indices] = 1.0
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
-        return y_train, support, beta, heritability, hdict
+        return y_train, support, beta#, heritability, hdict
     else:
         return y_train
     
@@ -481,7 +481,7 @@ def logistic_lss_model(X, m, r, tau, beta=None, heritability=None, beta_grid=np.
             y_train[corrupt_indices] = 1.0
 
     if return_support:
-        return y_train, support, beta, heritability, hdict
+        return y_train, support, beta #, heritability, hdict
     else:
         return y_train
 
@@ -585,12 +585,22 @@ def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=N
             y_train_lss = np.array([lss_func(X[i, :], beta_lss_vec) for i in range(n)])
             y_train_sum = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
             prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)]).ravel()
-            np.random.seed(12345)
+            np.random.seed(idx)
             y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
             pve = np.var(prob_train) / np.var(y_train)
             pves[(idx, beta)] = pve
 
         (idx, beta), pve = min(pves.items(), key=lambda x: abs(x[1] - heritability))
+        beta_lss_vec = generate_coef(beta, m)
+        beta_linear_vec = generate_coef(beta, s*m)
+
+        y_train_linear = np.array([partial_linear_func(X[i, :], s, beta_linear_vec) for i in range(n)])
+        y_train_lss = np.array([lss_func(X[i, :], beta_lss_vec) for i in range(n)])
+        y_train_sum = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
+
+        prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)]).ravel()
+        np.random.seed(idx)
+        y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
         if pve > heritability:
             min_beta = beta_grid[idx-1]
             max_beta = beta
@@ -598,7 +608,7 @@ def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=N
             min_beta = beta
             max_beta = beta_grid[idx+1]
         cur_beta = (min_beta + max_beta) / 2
-        iter = 0
+        iter = 1
         while np.abs(pve - heritability) > eps:
             beta_lss_vec = generate_coef(cur_beta, m)
             beta_linear_vec = generate_coef(cur_beta, s*m)
@@ -608,10 +618,10 @@ def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=N
             y_train_sum = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
 
             prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)]).ravel()
-            np.random.seed(12345)
+            np.random.seed(iter + len(beta_grid))
             y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
             pve = np.var(prob_train) / np.var(y_train)
-            pves[(iter, cur_beta)] = pve
+            pves[(iter + len(beta_grid), cur_beta)] = pve
             if pve > heritability:
                 max_beta = cur_beta
             else:
@@ -620,7 +630,7 @@ def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=N
             cur_beta = (min_beta + max_beta) / 2
             iter += 1
             if iter > max_iter:
-                (_, cur_beta), pve = min(pves.items(), key=lambda x: abs(x[1] - heritability))
+                (idx, cur_beta), pve = min(pves.items(), key=lambda x: abs(x[1] - heritability))
                 beta_lss_vec = generate_coef(cur_beta, m)
                 beta_linear_vec = generate_coef(cur_beta, s*m)
 
@@ -629,7 +639,7 @@ def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=N
                 y_train_sum = np.array([y_train_linear[i] + y_train_lss[i] for i in range(n)])
 
                 prob_train = np.array([logistic_prob_func(y_train_sum[i]) for i in range(n)]).ravel()
-                np.random.seed(12345)
+                np.random.seed(idx)
                 y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
                 pve = np.var(prob_train) / np.var(y_train)
                 beta = cur_beta
@@ -655,7 +665,7 @@ def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=N
     y_train = y_train.ravel()
     
     if return_support:
-        return y_train, support, beta, pve, pves
+        return y_train, support, beta#, pve, pves
     else:
         return y_train
 
@@ -715,7 +725,7 @@ def logistic_hier_model(X, m, r, beta=None, heritability=None, beta_grid=np.logs
     
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
-        return y_train, support, beta, heritability, hdict
+        return y_train, support, beta#, heritability, hdict
     else:
         return y_train
 
@@ -773,7 +783,7 @@ def logistic_sum_of_poly(X, m, r, beta=None, heritability=None, beta_grid=np.log
     
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
-        return y_train, support, beta, heritability, hdict
+        return y_train, support, beta#, heritability, hdict
     else:
         return y_train
     
