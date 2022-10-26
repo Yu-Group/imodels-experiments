@@ -270,7 +270,7 @@ def logistic_heritability_search(X, heritability, s, prob_fun, beta_grid=np.logs
 
     # first search over beta grid
     for idx, beta in enumerate(beta_grid):
-        np.random.seed(12345)
+        np.random.seed(idx)
         beta_vec = generate_coef(beta, s)
         if jitter_beta:
             beta_vec = beta_vec + np.random.uniform(-1e-4, 1e-4, beta_vec.shape)
@@ -281,6 +281,12 @@ def logistic_heritability_search(X, heritability, s, prob_fun, beta_grid=np.logs
 
     # find beta with heritability closest to desired heritability
     (idx, beta), pve = min(pves.items(), key=lambda x: abs(x[1] - heritability))
+    np.random.seed(idx)
+    beta_vec = generate_coef(beta, s)
+    if jitter_beta:
+        beta_vec = beta_vec + np.random.uniform(-1e-4, 1e-4, beta_vec.shape)
+    prob_train = np.array([prob_fun(X[i, :], beta_vec) for i in range(len(X))]).ravel()
+    y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
 
     # search nearby beta to get closer to desired heritability
     if pve > heritability:
@@ -290,16 +296,16 @@ def logistic_heritability_search(X, heritability, s, prob_fun, beta_grid=np.logs
         min_beta = beta
         max_beta = beta_grid[idx+1]
     cur_beta = (min_beta + max_beta) / 2
-    iter = 0
+    iter = 1
     while np.abs(pve - heritability) > eps:
-        np.random.seed(12345)
+        np.random.seed(iter + len(beta_grid))
         beta_vec = generate_coef(cur_beta, s)
         if jitter_beta:
             beta_vec = beta_vec + np.random.uniform(-1e-4, 1e-4, beta_vec.shape)
         prob_train = np.array([prob_fun(X[i, :], beta_vec) for i in range(len(X))]).ravel()
         y_train = (np.random.uniform(size=len(prob_train)) < prob_train) * 1
         pve = np.var(prob_train) / np.var(y_train)
-        pves[(iter, cur_beta)] = pve
+        pves[(iter + len(beta_grid), cur_beta)] = pve
         if pve > heritability:
             max_beta = cur_beta
         else:
@@ -308,8 +314,8 @@ def logistic_heritability_search(X, heritability, s, prob_fun, beta_grid=np.logs
         beta = beta_vec
         iter += 1
         if iter > max_iter:
-            (_, cur_beta), pve = min(pves.items(), key=lambda x: abs(x[1] - heritability))
-            np.random.seed(12345)
+            (idx, cur_beta), pve = min(pves.items(), key=lambda x: abs(x[1] - heritability))
+            np.random.seed(idx)
             beta_vec = generate_coef(cur_beta, s)
             if jitter_beta:
                 beta_vec = beta_vec + np.random.uniform(-1e-4, 1e-4, beta_vec.shape)
@@ -320,7 +326,7 @@ def logistic_heritability_search(X, heritability, s, prob_fun, beta_grid=np.logs
             break
 
     if return_pve:
-        return y_train, beta, pve, pves
+        return y_train, beta, pve, pves  #, prob_train
     else:
         return y_train, beta
 
@@ -375,7 +381,7 @@ def logistic_model(X, s, beta=None, beta_grid=np.logspace(-4, 4, 100), heritabil
             y_train[corrupt_indices] = 1.0
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
-        return y_train, support, beta#, heritability, hdict
+        return y_train, support, beta, heritability, hdict
     else:
         return y_train
     
@@ -475,7 +481,7 @@ def logistic_lss_model(X, m, r, tau, beta=None, heritability=None, beta_grid=np.
             y_train[corrupt_indices] = 1.0
 
     if return_support:
-        return y_train, support, beta#, heritability, hdict
+        return y_train, support, beta, heritability, hdict
     else:
         return y_train
 
@@ -649,7 +655,7 @@ def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=N
     y_train = y_train.ravel()
     
     if return_support:
-        return y_train, support, beta#, pve, pves
+        return y_train, support, beta, pve, pves
     else:
         return y_train
 
@@ -709,7 +715,7 @@ def logistic_hier_model(X, m, r, beta=None, heritability=None, beta_grid=np.logs
     
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
-        return y_train, support, beta#, heritability, hdict
+        return y_train, support, beta, heritability, hdict
     else:
         return y_train
 
@@ -767,7 +773,7 @@ def logistic_sum_of_poly(X, m, r, beta=None, heritability=None, beta_grid=np.log
     
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
-        return y_train, support, beta#, heritability, hdict
+        return y_train, support, beta, heritability, hdict
     else:
         return y_train
     
@@ -1379,6 +1385,27 @@ def sample_real_y(X, y, s=None, return_support=False):
     if return_support:
         beta = None
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
+        return y, support, beta
+    else:
+        return y
+
+
+def entropy_X(n):
+    x1 = np.random.normal(0, 1, (n, 1))
+    x2 = np.random.choice([0, 1], (n, 1), replace=True)
+    x3 = np.random.choice(np.arange(4), (n, 1), replace=True)
+    x4 = np.random.choice(np.arange(10), (n, 1), replace=True)
+    x5 = np.random.choice(np.arange(20), (n, 1), replace=True)
+    X = np.concatenate((x1, x2, x3, x4, x5), axis=1)
+    return X
+
+
+def entropy_y(X, return_support=False):
+    prob = (1 + X[:, 1]) / 3
+    y = (np.random.uniform(size=len(prob)) < prob) * 1
+    if return_support:
+        support = np.array([0, 1, 0, 0, 0])
+        beta = None
         return y, support, beta
     else:
         return y
