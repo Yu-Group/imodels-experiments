@@ -359,7 +359,7 @@ def logistic_model(X, s, beta=None, beta_grid=np.logspace(-4, 4, 100), heritabil
 
     if heritability is None:
         beta = generate_coef(beta, s)
-        y_train = np.array([create_y(X[i, :], beta_vec) for i in range(len(X))]).ravel()
+        y_train = np.array([create_y(X[i, :], beta) for i in range(len(X))]).ravel()
     else:
         # find beta to get desired heritability via adaptive grid search within eps=0.01
         y_train, beta, heritability, hdict = logistic_heritability_search(X, heritability, s, create_prob, beta_grid)
