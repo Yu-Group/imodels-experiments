@@ -368,7 +368,7 @@ def logistic_model(X, s, beta=None, beta_grid=np.logspace(-4, 4, 100), heritabil
     if frac_label_corruption is None:
         y_train = y_train
     else:
-        corrupt_indices = np.random.choice(np.arange(len(y_train)), size=math.ceil(frac_label_corruption*len(len(y_train))))
+        corrupt_indices = np.random.choice(np.arange(len(y_train)), size=math.ceil(frac_label_corruption*len(y_train)))
         y_train[corrupt_indices] = 1 - y_train[corrupt_indices]
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
@@ -458,7 +458,7 @@ def logistic_lss_model(X, m, r, tau, beta=None, heritability=None, beta_grid=np.
     if frac_label_corruption is None:
         y_train = y_train
     else:
-        corrupt_indices = np.random.choice(np.arange(len(y_train)), size=math.ceil(frac_label_corruption*len(len(y_train))))
+        corrupt_indices = np.random.choice(np.arange(len(y_train)), size=math.ceil(frac_label_corruption*len(y_train)))
         y_train[corrupt_indices] = 1 - y_train[corrupt_indices]
 
     if return_support:
@@ -630,7 +630,7 @@ def logistic_partial_linear_lss_model(X, s, m, r, tau, beta=None, heritability=N
     if frac_label_corruption is None:
         y_train = y_train
     else:
-        corrupt_indices = np.random.choice(np.arange(len(y_train)), size=math.ceil(frac_label_corruption*len(len(y_train))))
+        corrupt_indices = np.random.choice(np.arange(len(y_train)), size=math.ceil(frac_label_corruption*len(y_train)))
         y_train[corrupt_indices] = 1 - y_train[corrupt_indices]
 
     y_train = y_train.ravel()
@@ -680,7 +680,7 @@ def logistic_hier_model(X, m, r, beta=None, heritability=None, beta_grid=np.logs
     if frac_label_corruption is None:
         y_train = y_train
     else:
-        corrupt_indices = np.random.choice(np.arange(len(y_train)), size=math.ceil(frac_label_corruption*len(len(y_train))))
+        corrupt_indices = np.random.choice(np.arange(len(y_train)), size=math.ceil(frac_label_corruption*len(y_train)))
         y_train[corrupt_indices] = 1 - y_train[corrupt_indices]
     y_train = y_train.ravel()
     
@@ -727,7 +727,7 @@ def logistic_sum_of_poly(X, m, r, beta=None, heritability=None, beta_grid=np.log
     if frac_label_corruption is None:
         y_train = y_train
     else:
-        corrupt_indices = np.random.choice(np.arange(len(y_train)), size=math.ceil(frac_label_corruption*len(len(y_train))))
+        corrupt_indices = np.random.choice(np.arange(len(y_train)), size=math.ceil(frac_label_corruption*len(y_train)))
         y_train[corrupt_indices] = 1 - y_train[corrupt_indices]
 
     y_train = y_train.ravel()
