@@ -3,6 +3,7 @@ import pandas as pd
 import random
 from scipy.linalg import toeplitz
 import warnings
+import math
 
 
 def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
@@ -1360,8 +1361,8 @@ def entropy_X(n):
     return X
 
 
-def entropy_y(X, return_support=False):
-    prob = (1 + X[:, 1]) / 3
+def entropy_y(X, c=3, return_support=False):
+    prob = ((c - 2) * X[:, 1] + 1) / c
     y = (np.random.uniform(size=len(prob)) < prob) * 1
     if return_support:
         support = np.array([0, 1, 0, 0, 0])
