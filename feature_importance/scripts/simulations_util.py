@@ -1351,18 +1351,24 @@ def sample_real_y(X, y, s=None, return_support=False):
         return y
 
 
-def entropy_X(n):
-    x1 = np.random.normal(0, 1, (n, 1))
-    x2 = np.random.choice([0, 1], (n, 1), replace=True)
+def entropy_X(n, scale=False):
+    x1 = np.random.choice([0, 1], (n, 1), replace=True)
+    x2 = np.random.normal(0, 1, (n, 1))
     x3 = np.random.choice(np.arange(4), (n, 1), replace=True)
     x4 = np.random.choice(np.arange(10), (n, 1), replace=True)
     x5 = np.random.choice(np.arange(20), (n, 1), replace=True)
     X = np.concatenate((x1, x2, x3, x4, x5), axis=1)
+    if scale:
+        X = (X - X.mean()) / X.std()
     return X
 
 
 def entropy_y(X, c=3, return_support=False):
-    prob = ((c - 2) * X[:, 1] + 1) / c
+    if any(X[:, 0] < 0):
+        x = (X[:, 0] > 0) * 1
+    else:
+        x = X[:, 0]
+    prob = ((c - 2) * x + 1) / c
     y = (np.random.uniform(size=len(prob)) < prob) * 1
     if return_support:
         support = np.array([0, 1, 0, 0, 0])
