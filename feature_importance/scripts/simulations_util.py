@@ -197,21 +197,25 @@ def generate_coef(beta, s):
     return beta
 
 
-def corrupt_leverage(X_support, y_train, frac_corrupt, corrupt_quantile):
-    ranked_rows = np.apply_along_axis(np.linalg.norm, axis=1, arr=X_support).argsort().argsort()
+def corrupt_leverage(x_train, y_train, mean_shift, corrupt_quantile, mode="normal"):
+    assert mode in ["normal", "constant"]
+    ranked_rows = np.apply_along_axis(np.linalg.norm, axis=1, arr=x_train).argsort().argsort()
     low_idx = np.where(ranked_rows < round(corrupt_quantile * len(y_train)))[0]
     hi_idx = np.where(ranked_rows >= (len(y_train) - round(corrupt_quantile * len(y_train))))[0]
-    low_switch = np.random.choice(low_idx, size=round(frac_corrupt * len(low_idx)), replace=False)
-    hi_switch = np.random.choice(hi_idx, size=round(frac_corrupt * len(hi_idx)), replace=False)
-    y_low = y_train[low_switch]
-    y_hi = y_train[hi_switch]
-    y_train[hi_switch] = y_low
-    y_train[low_switch] = y_hi
+    if mode == "normal":
+        hi_corrupted = np.random.normal(mean_shift, 1, size=len(hi_idx))
+        low_corrupted = np.random.normal(-mean_shift, 1, size=len(low_idx))
+    elif mode == "constant":
+        hi_corrupted = mean_shift
+        low_corrupted = -mean_shift
+    y_train[hi_idx] = hi_corrupted
+    y_train[low_idx] = low_corrupted
     return y_train
 
 
 def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
-                 frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, return_support=False):
+                 frac_corrupt=None, corrupt_how='permute', corrupt_size=None, 
+                 corrupt_mean=None, return_support=False):
     """
     This method is used to crete responses from a linear model with hard sparsity
     Parameters:
@@ -254,9 +258,22 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
-        elif corrupt_how == "leverage":
-            y_train = corrupt_leverage(X[:, :s], y_train, frac_corrupt, corrupt_quantile)
+        elif corrupt_how == "leverage_min_max":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
             y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(s, p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
+        elif corrupt_how == "leverage_quantile":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
+            y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(s, p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
 
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
@@ -820,7 +837,8 @@ def sum_of_squares(X, sigma, s, beta, heritability=None, snr=None, error_fun=Non
 
 
 def poly_int_model(X,sigma, m, r, beta, heritability=None, snr=None, error_fun=None,
-                   frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, return_support=False):
+                   frac_corrupt=None, corrupt_how='permute', corrupt_size=None, 
+                   corrupt_mean=None, return_support=False):
     """                                                                                                                                                                                                        
     This method creates response from an LSS model                                                                                                                                                                                                                                                                                                                                                  
     X: data matrix                                                                                                                                                                                             
@@ -869,16 +887,30 @@ def poly_int_model(X,sigma, m, r, beta, heritability=None, snr=None, error_fun=N
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
-        elif corrupt_how == "leverage":
-            y_train = corrupt_leverage(X[:, :(m*r)], y_train, frac_corrupt, corrupt_quantile)
+        elif corrupt_how == "leverage_min_max":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
             y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(m*r, p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
+        elif corrupt_how == "leverage_quantile":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
+            y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(m*r, p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
     if return_support:
         return y_train, support, beta
     else:
         return y_train
 
 def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None, min_active=None,
-              frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None, return_support=False):
+              frac_corrupt=None, corrupt_how='permute', corrupt_size=None, corrupt_mean=None,
+              return_support=False):
     """
     This method creates response from an LSS model
 
@@ -964,9 +996,22 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
-        elif corrupt_how == "leverage":
-            y_train = corrupt_leverage(X[:, :(m*r)], y_train, frac_corrupt, corrupt_quantile)
+        elif corrupt_how == "leverage_min_max":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
             y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(m*r, p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
+        elif corrupt_how == "leverage_quantile":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
+            y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(m*r, p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
   
     if return_support:
         return y_train, support, beta
@@ -991,8 +1036,8 @@ def xor(X, sigma, beta, heritability=None, snr=None, error_fun=None):
 
 
 def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, snr=None, error_fun=None,
-                             min_active=None, frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None,
-                             diagnostics=False, return_support=False):
+                             min_active=None, frac_corrupt=None, corrupt_how='permute', corrupt_size=None,
+                             corrupt_mean=None, diagnostics=False, return_support=False):
     """
     This method creates response from an linear + lss model
 
@@ -1096,9 +1141,23 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
-        elif corrupt_how == "leverage":
-            y_train = corrupt_leverage(X[:, :max(m*r, s)], y_train, frac_corrupt, corrupt_quantile)
+        elif corrupt_how == "leverage_min_max":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
             y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(max(m*r, s), p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
+        elif corrupt_how == "leverage_quantile":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
+            y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(max(m*r, s), p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
+        
     if return_support:
         return y_train, support, beta_lss
     elif diagnostics:
@@ -1108,8 +1167,8 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
 
 
 def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=None, error_fun=None,
-                     frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None,
-                     return_support=False, diagnostics=False):
+                     frac_corrupt=None, corrupt_how='permute', corrupt_size=None,
+                     corrupt_mean=None, return_support=False, diagnostics=False):
     """
     This method creates response from an Linear + LSS model
 
@@ -1184,9 +1243,23 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
-        elif corrupt_how == "leverage":
-            y_train = corrupt_leverage(X[:, :max(m*r, s)], y_train, frac_corrupt, corrupt_quantile)
+        elif corrupt_how == "leverage_min_max":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
             y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(max(m*r, s), p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
+        elif corrupt_how == "leverage_quantile":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
+            y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(max(m*r, s), p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
+        
     #y_train = y_train + sigma * error_fun(n)
     if return_support:
         support = np.concatenate((np.ones(max(m * r, s)), np.zeros(X.shape[1] - max((m * r), s))))
@@ -1219,8 +1292,8 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
 #        return y_train
                     
 def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None,
-                      frac_corrupt=None, corrupt_how='permute', corrupt_quantile=None,
-                      error_fun=None, return_support=False):
+                      frac_corrupt=None, corrupt_how='permute', corrupt_size=None,
+                      corrupt_mean=None, error_fun=None, return_support=False):
     """
     This method creates response from an Linear + LSS model
 
@@ -1273,9 +1346,23 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
-        elif corrupt_how == "leverage":
-            y_train = corrupt_leverage(X[:, :(m*r)], y_train, frac_corrupt, corrupt_quantile)
+        elif corrupt_how == "leverage_min_max":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
             y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(m*r, p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
+        elif corrupt_how == "leverage_quantile":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
+            y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(m*r, p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
+        
     if return_support:
         support = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
         return y_train, support, beta
