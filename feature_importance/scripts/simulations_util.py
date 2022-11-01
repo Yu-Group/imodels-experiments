@@ -199,6 +199,8 @@ def generate_coef(beta, s):
 
 def corrupt_leverage(x_train, y_train, mean_shift, corrupt_quantile, mode="normal"):
     assert mode in ["normal", "constant"]
+    if mean_shift is None:
+        return y_train
     ranked_rows = np.apply_along_axis(np.linalg.norm, axis=1, arr=x_train).argsort().argsort()
     low_idx = np.where(ranked_rows < round(corrupt_quantile * len(y_train)))[0]
     hi_idx = np.where(ranked_rows >= (len(y_train) - round(corrupt_quantile * len(y_train))))[0]
@@ -258,7 +260,7 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
-        elif corrupt_how == "leverage_min_max":
+        elif corrupt_how == "leverage_constant":
             if isinstance(corrupt_size, int):
                 corrupt_quantile = corrupt_size / n
             else:
@@ -266,7 +268,7 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
             y_train = y_train + sigma * error_fun(n)
             corrupt_idx = np.random.choice(range(s, p), size=1)
             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
-        elif corrupt_how == "leverage_quantile":
+        elif corrupt_how == "leverage_random":
             if isinstance(corrupt_size, int):
                 corrupt_quantile = corrupt_size / n
             else:
