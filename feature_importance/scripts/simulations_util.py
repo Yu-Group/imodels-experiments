@@ -246,6 +246,8 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
     if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
+        if frac_corrupt is None:
+            frac_corrupt = 0
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
         corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
         if corrupt_how == 'permute':
@@ -875,6 +877,8 @@ def poly_int_model(X,sigma, m, r, beta, heritability=None, snr=None, error_fun=N
     if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
+        if frac_corrupt is None:
+            frac_corrupt = 0
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
         corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
         if corrupt_how == 'permute':
@@ -984,6 +988,8 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
     if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
+        if frac_corrupt is None:
+            frac_corrupt = 0
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
         corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
         if corrupt_how == 'permute':
@@ -1129,6 +1135,8 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
     if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
+        if frac_corrupt is None:
+            frac_corrupt = 0
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
         corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
         if corrupt_how == 'permute':
@@ -1231,6 +1239,8 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
     if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
+        if frac_corrupt is None:
+            frac_corrupt = 0
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
         corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
         if corrupt_how == 'permute':
@@ -1334,6 +1344,8 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
     if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
+        if frac_corrupt is None:
+            frac_corrupt = 0
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
         corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
         if corrupt_how == 'permute':
