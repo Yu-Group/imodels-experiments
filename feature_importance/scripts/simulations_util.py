@@ -243,7 +243,7 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         sigma = (np.var(y_train) / snr) ** 0.5
     if error_fun is None:
         error_fun = np.random.randn
-    if frac_corrupt is None:
+    if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
@@ -275,7 +275,6 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
                 corrupt_quantile = corrupt_size
             y_train = y_train + sigma * error_fun(n)
             corrupt_idx = np.random.choice(range(s, p), size=1)
-            print(corrupt_idx)
             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
 
     if return_support:
@@ -873,7 +872,7 @@ def poly_int_model(X,sigma, m, r, beta, heritability=None, snr=None, error_fun=N
         sigma = (np.var(y_train) / snr) ** 0.5
     if error_fun is None:
         error_fun = np.random.randn
-    if frac_corrupt is None:
+    if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
@@ -890,7 +889,7 @@ def poly_int_model(X,sigma, m, r, beta, heritability=None, snr=None, error_fun=N
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
-        elif corrupt_how == "leverage_min_max":
+        elif corrupt_how == "leverage_constant":
             if isinstance(corrupt_size, int):
                 corrupt_quantile = corrupt_size / n
             else:
@@ -898,7 +897,7 @@ def poly_int_model(X,sigma, m, r, beta, heritability=None, snr=None, error_fun=N
             y_train = y_train + sigma * error_fun(n)
             corrupt_idx = np.random.choice(range(m*r, p), size=1)
             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
-        elif corrupt_how == "leverage_quantile":
+        elif corrupt_how == "leverage_random":
             if isinstance(corrupt_size, int):
                 corrupt_quantile = corrupt_size / n
             else:
@@ -982,7 +981,7 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
     if error_fun is None:
         error_fun = np.random.randn
 
-    if frac_corrupt is None:
+    if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
@@ -999,7 +998,7 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
-        elif corrupt_how == "leverage_min_max":
+        elif corrupt_how == "leverage_constant":
             if isinstance(corrupt_size, int):
                 corrupt_quantile = corrupt_size / n
             else:
@@ -1127,7 +1126,7 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
     if error_fun is None:
         error_fun = np.random.randn
     
-    if frac_corrupt is None:
+    if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
@@ -1144,7 +1143,7 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
-        elif corrupt_how == "leverage_min_max":
+        elif corrupt_how == "leverage_constant":
             if isinstance(corrupt_size, int):
                 corrupt_quantile = corrupt_size / n
             else:
@@ -1229,7 +1228,7 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
     if error_fun is None:
         error_fun = np.random.randn
     
-    if frac_corrupt is None:
+    if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
@@ -1246,7 +1245,7 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
-        elif corrupt_how == "leverage_min_max":
+        elif corrupt_how == "leverage_constant":
             if isinstance(corrupt_size, int):
                 corrupt_quantile = corrupt_size / n
             else:
@@ -1332,7 +1331,7 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
     if error_fun is None:
         error_fun = np.random.randn
 
-    if frac_corrupt is None:
+    if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
@@ -1349,7 +1348,7 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
                 else:
                      y_train[i] = y_train[i] + sigma*error_fun()
-        elif corrupt_how == "leverage_min_max":
+        elif corrupt_how == "leverage_constant":
             if isinstance(corrupt_size, int):
                 corrupt_quantile = corrupt_size / n
             else:
