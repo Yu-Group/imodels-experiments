@@ -275,6 +275,7 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
                 corrupt_quantile = corrupt_size
             y_train = y_train + sigma * error_fun(n)
             corrupt_idx = np.random.choice(range(s, p), size=1)
+            print(corrupt_idx)
             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
 
     if return_support:
@@ -1006,7 +1007,7 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
             y_train = y_train + sigma * error_fun(n)
             corrupt_idx = np.random.choice(range(m*r, p), size=1)
             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
-        elif corrupt_how == "leverage_quantile":
+        elif corrupt_how == "leverage_random":
             if isinstance(corrupt_size, int):
                 corrupt_quantile = corrupt_size / n
             else:
@@ -1151,7 +1152,7 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
             y_train = y_train + sigma * error_fun(n)
             corrupt_idx = np.random.choice(range(max(m*r, s), p), size=1)
             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
-        elif corrupt_how == "leverage_quantile":
+        elif corrupt_how == "leverage_random":
             if isinstance(corrupt_size, int):
                 corrupt_quantile = corrupt_size / n
             else:
@@ -1253,7 +1254,7 @@ def linear_lss_model(X, sigma, m, r, tau, beta, s=None, heritability=None, snr=N
             y_train = y_train + sigma * error_fun(n)
             corrupt_idx = np.random.choice(range(max(m*r, s), p), size=1)
             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
-        elif corrupt_how == "leverage_quantile":
+        elif corrupt_how == "leverage_random":
             if isinstance(corrupt_size, int):
                 corrupt_quantile = corrupt_size / n
             else:
@@ -1356,7 +1357,7 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
             y_train = y_train + sigma * error_fun(n)
             corrupt_idx = np.random.choice(range(m*r, p), size=1)
             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
-        elif corrupt_how == "leverage_quantile":
+        elif corrupt_how == "leverage_random":
             if isinstance(corrupt_size, int):
                 corrupt_quantile = corrupt_size / n
             else:
