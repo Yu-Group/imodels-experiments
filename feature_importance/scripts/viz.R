@@ -62,6 +62,8 @@ plot_metrics <- function(results,
                          manual_color_palette = NULL,
                          show_methods = NULL,
                          method_labels = ggplot2::waiver(),
+                         alpha_values = NULL,
+                         legend_position = NULL,
                          custom_theme = vthemes::theme_vmodern(size_preset = "medium")) {
   if (is.null(show_methods)) {
     show_methods <- sort(unique(results$method))
@@ -105,13 +107,15 @@ plot_metrics <- function(results,
       width = errbar_width
     ) 
   if (!is.null(manual_color_palette)) {
+    if (is.null(alpha_values)) {
+      alpha_values <- c(1, rep(alpha, length(method_labels) - 1))
+    }
     plt <- plt + 
       ggplot2::scale_color_manual(
         values = manual_color_palette, labels = method_labels
       ) +
       ggplot2::scale_alpha_manual(
-        values = c(1, rep(alpha, length(method_labels) - 1)), 
-        labels = method_labels
+        values = alpha_values, labels = method_labels
       )
   }
   if (!is.null(custom_theme)) {
@@ -127,10 +131,13 @@ plot_metrics <- function(results,
   }
   
   if (inside_legend) {
+    if (is.null(legend_position)) {
+      legend_position <- c(0.75, 0.3)
+    }
     plt <- plt +
       ggplot2::theme(
         legend.title = ggplot2::element_blank(),
-        legend.position = c(0.75, 0.3),
+        legend.position = legend_position,
         legend.background = ggplot2::element_rect(
           color = "slategray", size = 0.1
         )
@@ -475,7 +482,7 @@ plot_perturbation_stability <- function(results,
           )
       }
       plt <- plt +
-        ggplot2::ylim(c(ymin, ymax)) +
+        ggplot2::coord_cartesian(ylim = c(ymin, ymax)) +
         ggplot2::facet_grid(~ .data[[facet_cols]], labeller = ggplot2::label_parsed) +
         my_theme +
         ggplot2::theme(
@@ -518,7 +525,7 @@ plot_perturbation_stability <- function(results,
         ggplot2::ggplot() +
         ggplot2::aes(x = .data[[param_name]], y = avgrank, color = fi) +
         ggplot2::geom_boxplot() +
-        ggplot2::ylim(c(ymin, ymax)) +
+        ggplot2::coord_cartesian(ylim = c(ymin, ymax)) +
         ggplot2::facet_grid(
           reformulate(c(facet_cols, "group"), "fi"), 
           labeller = ggplot2::label_parsed
@@ -559,13 +566,16 @@ plot_top_stability <- function(results,
                                group_id = NULL,
                                top_r = 10,
                                show_max_features = 5,
+                               varnames = NULL,
                                base_method = "GMDI_ridge",
                                return_df = FALSE,
                                descending_methods = NULL,
                                manual_color_palette = NULL,
                                show_methods = NULL,
-                               method_labels = ggplot2::waiver()) {
+                               method_labels = ggplot2::waiver(),
+                               ...) {
   
+  plt_ls <- list()
   if (!is.null(show_methods)) {
     results <- results %>%
       dplyr::filter(fi %in% show_methods)
@@ -585,6 +595,11 @@ plot_top_stability <- function(results,
         importance = ifelse(fi %in% descending_methods, -importance, importance)
       )
   }
+  
+  if (is.null(varnames)) {
+    varnames <- 0:(length(unique(results$var)) - 1)
+  }
+  varnames_df <- data.frame(var = 0:(length(varnames) - 1), Feature = varnames)
   
   rankings <- results %>%
     dplyr::group_by(
@@ -648,7 +663,7 @@ plot_top_stability <- function(results,
       theme_options = list(size_preset = "xlarge")
     ) +
       ggplot2::labs(
-        x = sprintf("Number of Features in Top 10 Across %s RF Fits", 
+        x = sprintf("Number of Distinct Features in Top 10 Across %s RF Fits", 
                     length(unique(results$rep))),
         color = "Method"
       ) +
@@ -656,45 +671,92 @@ plot_top_stability <- function(results,
       ggplot2::theme(
         axis.text.y = ggplot2::element_text(color = rev(ytext_label_colors))
       )
+    
+    if (!is.null(manual_color_palette)) {
+      plt <- plt +
+        ggplot2::scale_color_manual(values = manual_color_palette,
+                                    labels = method_labels,
+                                    guide = ggplot2::guide_legend(reverse = TRUE))
+    }
+    
+    plt_ls[["Summary"]] <- plt
+    
+  } else {
+    plt <- stability_df %>%
+      dplyr::left_join(y = varnames_df, by = "var") %>%
+      dplyr::filter(stability_score > 0) %>%
+      dplyr::left_join(y = n_nonzero_stability_df, by = "fi") %>%
+      dplyr::mutate(fi = sprintf("%s (# features = %s)", fi, n_features)) %>%
+      ggplot2::ggplot() +
+      ggplot2::aes(
+        x = reorder(Feature, -stability_score), y = stability_score
+      ) +
+      ggplot2::facet_wrap(~ fi, scales = "free_x", ncol = 1) +
+      ggplot2::geom_bar(stat = "identity") +
+      ggplot2::labs(
+        x = "Gene", y = sprintf("Proportion of RF Fits in Top %s", top_r)
+      ) +
+      vthemes::theme_vmodern(x_text_angle = TRUE, size_preset = "medium")
+    
+    if (!is.null(manual_color_palette)) {
+      plt <- plt +
+        ggplot2::scale_color_manual(values = manual_color_palette,
+                                    labels = method_labels,
+                                    guide = ggplot2::guide_legend(reverse = TRUE))
+    }
+    plt_ls[["Non-zero Stability Scores Per Method"]] <- plt
   }
   
   if (is.null(group_id)) {
     rankings <- rankings %>%
       dplyr::mutate(
-        .group = "All Data"
+        .group = "Stability of Top Features"
       )
     group_id <- ".group"
   }
   
-  for (group in unique(results[[group_id]])) {
-    if (length(unique(reuslts[[group_id]])) > 1) {
-      cat(sprintf("\n\n## %s \n\n", drug))
-    }
-    
-    keep_features <- rankings %>%
+  for (group in unique(rankings[[group_id]])) {
+    plt <- rankings %>%
       dplyr::filter(.data[[group_id]] == group) %>%
       dplyr::group_by(fi, var) %>%
       dplyr::summarise(
         mean_rank = mean(rank),
-        median_rank = median(rank)
+        median_rank = median(rank),
+        `SD(Feature Rank)` = sd(rank),
+        .groups = "keep"
       ) %>%
+      dplyr::group_by(fi) %>%
       dplyr::mutate(
         agg_feature_rank = rank(mean_rank, ties.method = "random")
       ) %>%
-      dplyr::filter(agg_feature_rank <= max_features)
-    plt <- 
-  }
-  
-  if (!is.null(manual_color_palette)) {
-    plt <- plt +
-      ggplot2::scale_color_manual(values = manual_color_palette,
-                                  labels = method_labels)
+      dplyr::filter(agg_feature_rank <= show_max_features) %>%
+      dplyr::mutate(`Average Feature Rank` = as.factor(agg_feature_rank)) %>%
+      dplyr::left_join(y = varnames_df, by = "var") %>%
+      dplyr::rename("Method" = "fi") %>%
+      dplyr::ungroup() %>%
+      ggplot2::ggplot() +
+      ggplot2::aes(
+        x = `Average Feature Rank`, y = `SD(Feature Rank)`, fill = Method, label = Feature
+      ) +
+      ggplot2::geom_bar(
+        stat = "identity", position = "dodge"
+      ) +
+      ggplot2::labs(title = group) +
+      vthemes::scale_fill_vmodern(discrete = TRUE) +
+      vthemes::theme_vmodern()
+    
+    if (!is.null(manual_color_palette)) {
+      plt <- plt +
+        ggplot2::scale_fill_manual(values = manual_color_palette,
+                                   labels = method_labels)
+    }
+    plt_ls[[group]] <- plt
   }
   
   if (return_df) {
-    return(list(plot = plt, rankings = rankings, stability = stability_df))
+    return(list(plot_ls = plt_ls, rankings = rankings, stability = stability_df))
   } else {
-    return(plt)
+    return(plt_ls)
   }
 }
 
