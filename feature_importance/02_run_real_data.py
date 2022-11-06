@@ -162,7 +162,11 @@ def reformat_results(results):
 def run_simulation(i, path, Xpath, ypath, ests, fi_ests, args):
     X_df = pd.read_csv(Xpath)
     y_df = pd.read_csv(ypath)
-    for col in y_df.columns:
+    if args.response_idx is None:
+        keep_cols = y_df.columns
+    else:
+        keep_cols = [args.response_idx]
+    for col in keep_cols:
         y = y_df[col].to_numpy().ravel()
         keep_idx = ~pd.isnull(y)
         X = X_df[keep_idx].to_numpy()
@@ -201,6 +205,7 @@ if __name__ == '__main__':
     parser.add_argument('--model', type=str, default=None)
     parser.add_argument('--fi_model', type=str, default=None)
     parser.add_argument('--config', type=str, default='test_real_data')
+    parser.add_argument('--response_idx', type=str, default=None)
 
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)
