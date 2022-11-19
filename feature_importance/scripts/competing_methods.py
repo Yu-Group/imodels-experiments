@@ -13,7 +13,19 @@ from feature_importance.scripts.mdi_oob import MDI_OOB
 from feature_importance.scripts.mda import MDA
 from sklearn.linear_model import RidgeCV
 
-def tree_mdi(X, y, fit):
+def get_num_splits(X,y,fit):
+    """
+    Gets number of splits per feature in a fitted RF 
+    """
+    num_splits_feature = np.zeros(X.shape[1])
+    for tree in fit.estimators_:
+        tree_features = tree.tree_.feature
+        for i in range(X.shape[1]):
+            num_splits_feature[i] += np.count_nonzero(tree_features == i)
+    num_splits_feature/len(fit.estimators_)
+    return num_splits_feature
+
+def tree_mdi(X, y, fit,include_num_splits = False):
     """
     Extract MDI values for a given tree
     OR
@@ -25,6 +37,7 @@ def tree_mdi(X, y, fit):
                          Var: variable name
                          Importance: MDI or avg MDI
     """
+    av_splits = get_num_splits(X,y,fit)
     results = fit.feature_importances_
     results = pd.DataFrame(data=results, columns=['importance'])
 
@@ -34,6 +47,9 @@ def tree_mdi(X, y, fit):
     results.index.name = 'var'
     results.reset_index(inplace=True)
 
+    if include_num_splits:
+        results['av_splits'] = av_splits
+    
     return results
 
 
