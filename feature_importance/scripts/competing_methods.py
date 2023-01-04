@@ -30,7 +30,17 @@ def GMDI_pipeline(X, y, fit, **kwargs):
     """
 
     gmdi_est = GMDI(rf_model=fit, **kwargs)
-    gmdi_scores = gmdi_est.get_scores(X=X, y=y)
+    try:
+        gmdi_scores = gmdi_est.get_scores(X=X, y=y)
+    except ValueError as e:
+        if str(e) == 'Transformer representation was empty for all trees.':
+            gmdi_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
+            if isinstance(X, pd.DataFrame):
+                gmdi_scores.index = X.columns
+            gmdi_scores.index.name = 'var'
+            gmdi_scores.reset_index(inplace=True)
+        else:
+            raise
 
     return gmdi_scores
 
