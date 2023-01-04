@@ -195,8 +195,16 @@ def reformat_results(results):
 def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args):
     os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
     np.random.seed(i)
-    X = X_dgp(**X_params_dict)
-    y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
+    max_iter = 100
+    iter = 0
+    while iter <= max_iter:  # regenerate data if y is constant
+        X = X_dgp(**X_params_dict)
+        y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
+        if not all(y == y[0]):
+            break
+        iter += 1
+    if iter > max_iter:
+        raise ValueError("Response y is constant.")
     if args.omit_vars is not None:
         omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
         support = np.delete(support, omit_vars)
