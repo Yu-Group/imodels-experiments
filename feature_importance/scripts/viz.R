@@ -56,7 +56,7 @@ reformat_results <- function(results) {
 plot_metrics <- function(results, 
                          metric = c("rocauc", "prauc", "tpr",
                                     "median_signal_rank", "max_signal_rank"), 
-                         x_str, facet_str,
+                         x_str, facet_str, linetype_str = NULL,
                          point_size = 1, line_size = 1, errbar_width = 0,
                          alpha = 0.5, inside_legend = FALSE,
                          manual_color_palette = NULL,
@@ -71,12 +71,12 @@ plot_metrics <- function(results,
   metric_names <- metric
   plt_df <- results %>%
     dplyr::select(rep, method, 
-                  tidyselect::all_of(c(metric, x_str, facet_str))) %>%
+                  tidyselect::all_of(c(metric, x_str, facet_str, linetype_str))) %>%
     tidyr::pivot_longer(
       cols = tidyselect::all_of(metric), names_to = "metric"
     )  %>%
     dplyr::group_by(
-      method, metric, dplyr::across(tidyselect::all_of(c(x_str, facet_str)))
+      method, metric, dplyr::across(tidyselect::all_of(c(x_str, facet_str, linetype_str)))
     ) %>%
     dplyr::summarise(mean = mean(value), 
                      sd = sd(value) / sqrt(dplyr::n()), 
@@ -90,22 +90,42 @@ plot_metrics <- function(results,
       )
     )
   
-  plt <- ggplot2::ggplot(plt_df) +
-    ggplot2::geom_point(
-      ggplot2::aes(x = .data[[x_str]], y = mean, 
-                   color = method, alpha = method, group = method),
-      size = point_size
-    ) +
-    ggplot2::geom_line(
-      ggplot2::aes(x = .data[[x_str]], y = mean, 
-                   color = method, alpha = method, group = method),
-      size = line_size
-    ) +
-    ggplot2::geom_errorbar(
-      ggplot2::aes(x = .data[[x_str]], ymin = mean - sd, ymax = mean + sd,
-                   color = method, alpha = method, group = method),
-      width = errbar_width
-    ) 
+  if (is.null(linetype_str)) {
+    plt <- ggplot2::ggplot(plt_df) +
+      ggplot2::geom_point(
+        ggplot2::aes(x = .data[[x_str]], y = mean, 
+                     color = method, alpha = method, group = method),
+        size = point_size
+      ) +
+      ggplot2::geom_line(
+        ggplot2::aes(x = .data[[x_str]], y = mean, 
+                     color = method, alpha = method, group = method),
+        size = line_size
+      ) +
+      ggplot2::geom_errorbar(
+        ggplot2::aes(x = .data[[x_str]], ymin = mean - sd, ymax = mean + sd,
+                     color = method, alpha = method, group = method),
+        width = errbar_width
+      )
+  } else {
+    plt <- ggplot2::ggplot(plt_df) +
+      ggplot2::geom_point(
+        ggplot2::aes(x = .data[[x_str]], y = mean, 
+                     color = method, alpha = method, group = interaction(method, !!rlang::sym(linetype_str))),
+        size = point_size
+      ) +
+      ggplot2::geom_line(
+        ggplot2::aes(x = .data[[x_str]], y = mean, 
+                     color = method, alpha = method, group = interaction(method, !!rlang::sym(linetype_str)),
+                     linetype = !!rlang::sym(linetype_str)),
+        size = line_size
+      ) +
+      ggplot2::geom_errorbar(
+        ggplot2::aes(x = .data[[x_str]], ymin = mean - sd, ymax = mean + sd,
+                     color = method, alpha = method, group = interaction(method, !!rlang::sym(linetype_str))),
+        width = errbar_width
+      ) 
+  }
   if (!is.null(manual_color_palette)) {
     if (is.null(alpha_values)) {
       alpha_values <- c(1, rep(alpha, length(method_labels) - 1))
