@@ -13,8 +13,8 @@ ESTIMATORS = [
 FI_ESTIMATORS = [
     [FIModelConfig('GMDI_ridge', GMDI_pipeline, model_type='tree', other_params={'task': 'classification', 'partial_prediction_model': RidgePPM(), 'scoring_fns': _fast_r2_score})],
     [FIModelConfig('GMDI_ridge_inbag', GMDI_pipeline, model_type='tree', other_params={'task': 'classification', 'partial_prediction_model': RidgePPM(), 'scoring_fns': _fast_r2_score, "sample_split": "inbag"})],
-    [FIModelConfig('GMDI_logistic_logloss', GMDI_pipeline, model_type='tree', ascending=False, other_params={'task': 'classification'})],
-    [FIModelConfig('GMDI_logistic_logloss_inbag', GMDI_pipeline, model_type='tree', ascending=False, other_params={'task': 'classification', "sample_split": "inbag"})],
+    [FIModelConfig('GMDI_logistic_logloss', GMDI_pipeline, model_type='tree', other_params={'task': 'classification'})],
+    [FIModelConfig('GMDI_logistic_logloss_inbag', GMDI_pipeline, model_type='tree', other_params={'task': 'classification', "sample_split": "inbag"})],
     [FIModelConfig('MDI', tree_mdi, model_type='tree')],
     [FIModelConfig('MDI_with_splits', tree_mdi, model_type='tree', other_params={"include_num_splits": True})],
     [FIModelConfig('MDI-oob', tree_mdi_OOB, model_type='tree')],

@@ -80,6 +80,19 @@ sims=(
   "gmdi.other_regression_sims.varying_sparsity.splicing_linear_lss_3m_2r_dgp"
   "gmdi.other_regression_sims.varying_sparsity.splicing_linear_dgp"
   "gmdi.other_regression_sims.varying_sparsity.splicing_lss_3m_2r_dgp"
+  
+  # GMDI Modeling Choices: Enhancer (min_samples_per_leaf = 5)
+  "gmdi.other_regression_sims.modeling_choices_min_samples5.enhancer_hier_poly_3m_2r_dgp"
+  "gmdi.other_regression_sims.modeling_choices_min_samples5.enhancer_linear_dgp"
+  # GMDI Modeling Choices: CCLE (min_samples_per_leaf = 5)
+  "gmdi.other_regression_sims.modeling_choices_min_samples5.ccle_rnaseq_hier_poly_3m_2r_dgp"
+  "gmdi.other_regression_sims.modeling_choices_min_samples5.ccle_rnaseq_linear_dgp"
+  # GMDI Modeling Choices: Enhancer (min_samples_per_leaf = 1)
+  "gmdi.other_regression_sims.modeling_choices_min_samples1.enhancer_hier_poly_3m_2r_dgp"
+  "gmdi.other_regression_sims.modeling_choices_min_samples1.enhancer_linear_dgp"
+  # GMDI Modeling Choices: CCLE (min_samples_per_leaf = 1)
+  "gmdi.other_regression_sims.modeling_choices_min_samples1.ccle_rnaseq_hier_poly_3m_2r_dgp"
+  "gmdi.other_regression_sims.modeling_choices_min_samples1.ccle_rnaseq_linear_dgp"
 )
 
 for sim in "${sims[@]}"

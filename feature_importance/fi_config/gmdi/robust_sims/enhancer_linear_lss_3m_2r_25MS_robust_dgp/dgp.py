@@ -6,7 +6,7 @@ X_DGP = sample_real_X
 X_PARAMS_DICT = {
     "fpath": "/global/scratch/users/tiffanytang/feature_importance/data/X_enhancer_uncorrelated_log_transformed.csv",
     "sample_row_n": None,
-    "sample_col_n": 1000
+    "sample_col_n": None
 }
 Y_DGP = partial_linear_lss_model
 Y_PARAMS_DICT = {
