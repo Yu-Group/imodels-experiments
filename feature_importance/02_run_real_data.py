@@ -136,6 +136,13 @@ def run_comparison(path: str,
 
     df = pd.DataFrame.from_dict(results)
     df['split_seed'] = args.split_seed
+    if args.nosave_cols is not None:
+        nosave_cols = np.unique([x.strip() for x in args.nosave_cols.split(",")])
+    else:
+        nosave_cols = []
+    for col in args.nosave_cols:
+        if col in df.columns:
+            df = df.drop(columns=[col])
 
     for model_comparison_file, fi_estimator in zip(model_comparison_files, fi_estimators):
         output_dict = {
@@ -206,6 +213,7 @@ if __name__ == '__main__':
     parser.add_argument('--fi_model', type=str, default=None)
     parser.add_argument('--config', type=str, default='test_real_data')
     parser.add_argument('--response_idx', type=str, default=None)
+    parser.add_argument('--nosave_cols', type=str, default=None)
 
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)

@@ -123,6 +123,13 @@ def run_comparison(rep: int,
 
     df = pd.DataFrame.from_dict(results)
     df['split_seed'] = args.split_seed + rep
+    if args.nosave_cols is not None:
+        nosave_cols = np.unique([x.strip() for x in args.nosave_cols.split(",")])
+    else:
+        nosave_cols = []
+    for col in args.nosave_cols:
+        if col in df.columns:
+            df = df.drop(columns=[col])
 
     output_dict = {
         # metadata
@@ -230,6 +237,7 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default='gmdi.prediction_sims.ccle_rnaseq_regression-')
     parser.add_argument('--response_idx', type=str, default=None)
     parser.add_argument('--subsample_n', type=int, default=None)
+    parser.add_argument('--nosave_cols', type=str, default=None)
 
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)
