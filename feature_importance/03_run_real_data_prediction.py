@@ -127,7 +127,7 @@ def run_comparison(rep: int,
         nosave_cols = np.unique([x.strip() for x in args.nosave_cols.split(",")])
     else:
         nosave_cols = []
-    for col in args.nosave_cols:
+    for col in nosave_cols:
         if col in df.columns:
             df = df.drop(columns=[col])
 
