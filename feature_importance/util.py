@@ -9,9 +9,10 @@ from typing import Any, Dict, Tuple
 import numpy as np
 import pandas as pd
 from sklearn import model_selection
-from sklearn.metrics import confusion_matrix, precision_recall_curve, auc, roc_auc_score, average_precision_score
+from sklearn.metrics import confusion_matrix, precision_recall_curve, auc, average_precision_score
 from sklearn.preprocessing import label_binarize
 from sklearn.utils._encode import _unique
+from sklearn import metrics
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
@@ -107,7 +108,7 @@ def specificity_score(y_true, y_pred):
     return conf_mat[0][0] / (conf_mat[0][0] + conf_mat[0][1])
 
 
-def pr_auc_score(y_true, y_score, multi_class="raise"):
+def auprc_score(y_true, y_score, multi_class="raise"):
     assert multi_class in ["raise", "ovr"]
     n_classes = len(np.unique(y_true))
     if n_classes <= 2:
@@ -115,9 +116,25 @@ def pr_auc_score(y_true, y_score, multi_class="raise"):
         return auc(recall, precision)
     else:
         # ovr is same as multi-label
+        if multi_class == "raise":
+            raise ValueError("Must set multi_class='ovr' to evaluate multi-class predictions.")
         classes = _unique(y_true)
         y_true_multilabel = label_binarize(y_true, classes=classes)
         return average_precision_score(y_true_multilabel, y_score)
+      
+      
+def auroc_score(y_true, y_score, multi_class="raise", **kwargs):
+    assert multi_class in ["raise", "ovr"]
+    n_classes = len(np.unique(y_true))
+    if n_classes <= 2:
+        return metrics.roc_auc_score(y_true, y_score, multi_class=multi_class, **kwargs)
+    else:
+        # ovr is same as multi-label
+        if multi_class == "raise":
+            raise ValueError("Must set multi_class='ovr' to evaluate multi-class predictions.")
+        classes = _unique(y_true)
+        y_true_multilabel = label_binarize(y_true, classes=classes)
+        return metrics.roc_auc_score(y_true_multilabel, y_score, **kwargs)
 
 
 def restricted_roc_auc_score(y_true, y_score, ignored_indices=[]):
@@ -131,7 +148,7 @@ def restricted_roc_auc_score(y_true, y_score, ignored_indices=[]):
     """
     n_examples = len(y_true)
     mask = [i for i in range(n_examples) if i not in ignored_indices]
-    restricted_auc = roc_auc_score(np.array(y_true)[mask], np.array(y_score)[mask])
+    restricted_auc = metrics.roc_auc_score(np.array(y_true)[mask], np.array(y_score)[mask])
     return restricted_auc
 
 

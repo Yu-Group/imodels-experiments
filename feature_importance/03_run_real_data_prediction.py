@@ -27,9 +27,9 @@ sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../..")
 import fi_config
-from util import ModelConfig, apply_splitting_strategy, pr_auc_score
+from util import ModelConfig, apply_splitting_strategy, auroc_score, auprc_score
 
-from sklearn.metrics import roc_auc_score, accuracy_score, f1_score, recall_score, \
+from sklearn.metrics import accuracy_score, f1_score, recall_score, \
     precision_score, average_precision_score, r2_score, explained_variance_score, \
     mean_squared_error, mean_absolute_error, log_loss
 
@@ -155,8 +155,8 @@ def reformat_results(results):
 def get_metrics(mode: str = 'regression'):
     if mode == 'binary_classification':
         return [
-            ('rocauc', roc_auc_score),
-            ('prauc', pr_auc_score),
+            ('rocauc', auroc_score),
+            ('prauc', auprc_score),
             ('logloss', log_loss),
             ('accuracy', accuracy_score),
             ('f1', f1_score),
@@ -166,8 +166,8 @@ def get_metrics(mode: str = 'regression'):
         ]
     elif mode == 'multiclass_classification':
         return [
-            ('rocauc', partial(roc_auc_score, multi_class="ovr")),
-            ('prauc', partial(pr_auc_score, multi_class="ovr")),
+            ('rocauc', partial(auroc_score, multi_class="ovr")),
+            ('prauc', partial(auprc_score, multi_class="ovr")),
             ('logloss', log_loss),
             ('accuracy', accuracy_score),
             ('f1', partial(f1_score, average='micro')),

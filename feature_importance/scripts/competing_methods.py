@@ -3,15 +3,16 @@ import sys
 import pandas as pd
 import numpy as np
 import sklearn.base
+from sklearn.base import RegressorMixin, ClassifierMixin
 from functools import reduce
 
 import shap
-from imodels.importance import GMDI
+from imodels.importance.rf_plus import RandomForestPlusRegressor, RandomForestPlusClassifier
 from feature_importance.scripts.mdi_oob import MDI_OOB
 from feature_importance.scripts.mda import MDA
 
 
-def GMDI_pipeline(X, y, fit, **kwargs):
+def tree_gmdi(X, y, fit, scoring_fns="auto", **kwargs):
     """
     Wrapper around GMDI object to get feature importance scores
     
@@ -29,9 +30,16 @@ def GMDI_pipeline(X, y, fit, **kwargs):
                          Importance: GMDI score
     """
 
-    gmdi_est = GMDI(rf_model=fit, **kwargs)
+    if isinstance(fit, RegressorMixin):
+        RFPlus = RandomForestPlusRegressor
+    elif isinstance(fit, ClassifierMixin):
+        RFPlus = RandomForestPlusClassifier
+    else:
+        raise ValueError("Unknown task.")
+    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
+    rf_plus_model.fit(X, y)
     try:
-        gmdi_scores = gmdi_est.get_scores(X=X, y=y)
+        gmdi_scores = rf_plus_model.get_gmdi_scores(X=X, y=y, scoring_fns=scoring_fns)
     except ValueError as e:
         if str(e) == 'Transformer representation was empty for all trees.':
             gmdi_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
@@ -41,6 +49,7 @@ def GMDI_pipeline(X, y, fit, **kwargs):
             gmdi_scores.reset_index(inplace=True)
         else:
             raise
+    gmdi_scores["prediction_score"] = rf_plus_model.prediction_score_
 
     return gmdi_scores
 

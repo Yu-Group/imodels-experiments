@@ -27,7 +27,7 @@ sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../..")
 import fi_config
-from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, pr_auc_score, compute_nsg_feat_corr_w_sig_subspace, apply_splitting_strategy
+from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, auroc_score, auprc_score, compute_nsg_feat_corr_w_sig_subspace, apply_splitting_strategy
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
@@ -188,7 +188,7 @@ def run_comparison(path: str,
 
 
 def get_metrics():
-    return [('rocauc', roc_auc_score), ('prauc', pr_auc_score)]
+    return [('rocauc', auroc_score), ('prauc', auprc_score)]
 
 
 def reformat_results(results):
