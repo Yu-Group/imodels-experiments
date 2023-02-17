@@ -9,7 +9,9 @@ from typing import Any, Dict, Tuple
 import numpy as np
 import pandas as pd
 from sklearn import model_selection
-from sklearn.metrics import confusion_matrix, precision_recall_curve, auc, roc_auc_score
+from sklearn.metrics import confusion_matrix, precision_recall_curve, auc, roc_auc_score, average_precision_score
+from sklearn.preprocessing import label_binarize
+from sklearn.utils._encode import _unique
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
@@ -105,9 +107,17 @@ def specificity_score(y_true, y_pred):
     return conf_mat[0][0] / (conf_mat[0][0] + conf_mat[0][1])
 
 
-def pr_auc_score(y_true, y_score):
-    precision, recall, _ = precision_recall_curve(y_true, y_score)
-    return auc(recall, precision)
+def pr_auc_score(y_true, y_score, multi_class="raise"):
+    assert multi_class in ["raise", "ovr"]
+    n_classes = len(np.unique(y_true))
+    if n_classes <= 2:
+        precision, recall, _ = precision_recall_curve(y_true, y_score)
+        return auc(recall, precision)
+    else:
+        # ovr is same as multi-label
+        classes = _unique(y_true)
+        y_true_multilabel = label_binarize(y_true, classes=classes)
+        return average_precision_score(y_true_multilabel, y_score)
 
 
 def restricted_roc_auc_score(y_true, y_score, ignored_indices=[]):
