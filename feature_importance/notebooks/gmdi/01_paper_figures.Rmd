@@ -1259,7 +1259,6 @@ out <- plot_top_stability(
   varnames = colnames(X),
   base_method = "GMDI (ridge)",
   return_df = TRUE,
-  descending_methods = NULL,
   manual_color_palette = rev(manual_color_palette),
   show_methods = rev(show_methods),
   method_labels = rev(method_labels)
@@ -1417,7 +1416,6 @@ if (params$for_paper) {
       varnames = colnames(X),
       base_method = "GMDI",
       return_df = FALSE,
-      descending_methods = NULL,
       manual_color_palette = manual_color_palette,
       show_methods = show_methods,
       method_labels = method_labels
@@ -1496,7 +1494,6 @@ out <- plot_top_stability(
   varnames = colnames(X),
   base_method = "GMDI (ridge)", 
   return_df = TRUE,
-  descending_methods = "GMDI (logistic)",
   manual_color_palette = manual_color_palette,
   show_methods = show_methods,
   method_labels = method_labels

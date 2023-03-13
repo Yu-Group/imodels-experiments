@@ -1,8 +1,8 @@
 from sklearn.ensemble import RandomForestClassifier
 from feature_importance.util import ModelConfig, FIModelConfig
-from feature_importance.scripts.competing_methods import GMDI_pipeline, tree_mdi, tree_mdi_OOB, tree_mda, tree_shap
-from imodels.importance.gmdi import _fast_r2_score
-from imodels.importance.ppms import RidgePPM
+from feature_importance.scripts.competing_methods import tree_gmdi, tree_mdi, tree_mdi_OOB, tree_mda, tree_shap
+from imodels.importance.rf_plus import _fast_r2_score
+from imodels.importance.ppms import RidgeClassifierPPM
 
 
 ESTIMATORS = [
@@ -11,8 +11,8 @@ ESTIMATORS = [
 ]
 
 FI_ESTIMATORS = [
-    [FIModelConfig('GMDI_ridge', GMDI_pipeline, model_type='tree', other_params={'task': 'classification', 'partial_prediction_model': RidgePPM(), 'scoring_fns': _fast_r2_score})],
-    [FIModelConfig('GMDI_logistic_logloss', GMDI_pipeline, model_type='tree', other_params={'task': 'classification'})],
+    [FIModelConfig('GMDI_ridge', tree_gmdi, model_type='tree', other_params={'prediction_model': RidgeClassifierPPM(), 'scoring_fns': _fast_r2_score})],
+    [FIModelConfig('GMDI_logistic_logloss', tree_gmdi, model_type='tree')],
     [FIModelConfig('MDI', tree_mdi, model_type='tree')],
     [FIModelConfig('MDI-oob', tree_mdi_OOB, model_type='tree')],
     [FIModelConfig('MDA', tree_mda, model_type='tree')],
