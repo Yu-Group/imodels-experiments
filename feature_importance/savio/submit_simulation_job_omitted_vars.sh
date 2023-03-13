@@ -10,4 +10,4 @@ module load r
 
 source activate r2f
 
-python ../01_run_simulations.py --nreps 50 --config ${1} --split_seed 12345 --omit_vars 0,1 --parallel
+python ../01_run_importance_simulations.py --nreps 50 --config ${1} --split_seed 12345 --omit_vars 0,1 --parallel --nosave_cols "prediction_model"

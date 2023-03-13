@@ -32,8 +32,13 @@ chunk_idx <- 1
 results_dir <- params$results_dir
 seed <- params$seed
 figures_dir <- file.path("figures")
-if (!dir.exists(file.path(figures_dir, "appendix"))) {
-  dir.create(file.path(figures_dir, "appendix"), recursive = TRUE)
+figures_subdirs <- c("regression_sims", "classification_sims", "robust_sims",
+                     "misspecified_regression_sims", "varying_sparsity", "varying_p",
+                     "modeling_choices", "glm_metric_choices")
+for (figures_subdir in figures_subdirs) {
+  if (!dir.exists(file.path(figures_dir, figures_subdir))) {
+    dir.create(file.path(figures_dir, figures_subdir), recursive = TRUE)
+  }
 }
 
 # miscellaneous helper variables
@@ -197,8 +202,8 @@ for (y_model in y_models) {
       }
       plt <- patchwork::wrap_plots(plt_ls, nrow = 1)
       ggplot2::ggsave(
-        file.path(figures_dir, sprintf("regression_sims_%s_%s_%s_errbars.pdf",
-                                     y_model, x_model, metric)),
+        file.path(figures_dir, "regression_sims",
+                  sprintf("regression_sims_%s_%s_%s_errbars.pdf", y_model, x_model, metric)),
         plot = plt, units = "in", width = 14, height = height
       )
     } else {
@@ -321,8 +326,8 @@ for (y_model in y_models) {
       }
       plt <- patchwork::wrap_plots(plt_ls, nrow = 1)
       ggplot2::ggsave(
-        file.path(figures_dir, sprintf("classification_sims_%s_%s_%s_errbars.pdf",
-                                     y_model, x_model, metric)),
+        file.path(figures_dir, "classification_sims",
+                  sprintf("classification_sims_%s_%s_%s_errbars.pdf", y_model, x_model, metric)),
         plot = plt, units = "in", width = 14, height = height
       )
     } else {
@@ -383,10 +388,6 @@ for (y_model in y_models) {
       x_model == "enhancer" ~ "Enhancer",
       x_model == "juvenile" ~ "Juvenile"
     )
-    metric_name <- dplyr::case_when(
-      metric == "rocauc" ~ "AUROC",
-      metric == "prauc" ~ "PRAUC"
-    )
     for (mean_shift in mean_shifts) {
       cat(sprintf("\n\n#### Mean Shift = %s \n\n", mean_shift))
       plt_ls <- list()
@@ -406,12 +407,17 @@ for (y_model in y_models) {
           reformat_results()
         saveRDS(results, sprintf("%s.rds", fname))
       }
+      metric_name <- dplyr::case_when(
+        metric == "rocauc" ~ "AUROC",
+        metric == "prauc" ~ "PRAUC",
+        TRUE ~ metric
+      )
       if (params$for_paper) {
         tmp <- results %>%
           dplyr::filter(corrupt_size_name %in% corrupt_sizes,
                         method %in% show_methods) %>%
           dplyr::group_by(sample_row_n, corrupt_size_name, method) %>%
-          dplyr::summarise(mean = mean(.data[[metric]]))
+          dplyr::summarise(mean = mean(.data[[m]]))
         min_y <- min(tmp$mean)
         max_y <- max(tmp$mean)
         for (h in corrupt_sizes) {
@@ -455,8 +461,8 @@ for (y_model in y_models) {
         }
         plt <- patchwork::wrap_plots(plt_ls, nrow = 1)
         ggplot2::ggsave(
-          file.path(figures_dir, sprintf("robust_sims_%s_%s_%sMS_%s_errbars.pdf",
-                                       y_model, x_model, mean_shift, metric)),
+          file.path(figures_dir, "robust_sims",
+                    sprintf("robust_sims_%s_%s_%sMS_%s_errbars.pdf", y_model, x_model, mean_shift, metric)),
           plot = plt, units = "in", width = 14, height = height
         )
       } else {
@@ -784,7 +790,7 @@ for (idx in 1:length(keep_heritabilities)) {
   plt_wide <- patchwork::wrap_plots(plt_ls, guides = "collect", nrow = 1)
   if (params$for_paper) {
     ggplot2::ggsave(plt_wide, 
-                    filename = file.path(figures_dir, "appendix", sprintf("correlation_sim_pve%s_wide_appendix.pdf", h)),
+                    filename = file.path(figures_dir, sprintf("correlation_sim_pve%s_wide_appendix.pdf", h)),
                     # height = fig_height * .55, width = fig_width * .25 * length(show_methods))
                     height = fig_height * .55, width = fig_width * .37 * length(show_methods))
   } else {
@@ -846,8 +852,8 @@ plt_regression <- plt_df %>%
   ggplot2::aes(x = n_name, y = .mean, color = fi, alpha = fi) +
   ggplot2::geom_line(size = line_size) +
   ggplot2::labs(
-    x = "Sample Size", 
-    y = expression("Average Rank of "*X[1]), 
+    x = "Sample Size",
+    y = expression("Average Rank of "*X[1]),
     color = "Method",
     title = "Regression"
   ) +
@@ -919,7 +925,6 @@ plt_base <- plot_perturbation_stability(
   facet_rows = "c_name",
   facet_cols = "n_name", 
   group_fun = custom_group_fun, 
-  descending_methods = "GMDI (logistic)",
   param_name = NULL,
   plot_types = "errbar",
   manual_color_palette = manual_color_palette,
@@ -1166,7 +1171,6 @@ plt_base <- plot_perturbation_stability(
   facet_rows = "c_name",
   facet_cols = "n_name", 
   group_fun = custom_group_fun, 
-  descending_methods = c("GMDI (logistic, LOO)", "GMDI (logistic, in-bag)"),
   param_name = NULL,
   plot_types = "errbar",
   manual_color_palette = manual_color_palette,
@@ -1217,8 +1221,7 @@ plt_classification <- plt_df %>%
 cat("\n\n### Average Rank \n\n")
 plt <- plt_regression + plt_classification
 if (params$for_paper) {
-  ggplot2::ggsave(plt, filename = file.path(figures_dir, "appendix",
-                                            "entropy_sims_appendix.pdf"), 
+  ggplot2::ggsave(plt, filename = file.path(figures_dir, "entropy_sims_appendix.pdf"), 
                   width = fig_width * 1.35, height = fig_height * .65)
 } else {
   vthemes::subchunkify(
@@ -1460,7 +1463,7 @@ if (params$for_paper) {
           panel.grid.major = ggplot2::element_line(color = "grey95", size = ggplot2::rel(0.25))
         )
       ggplot2::ggsave(plt, 
-                      filename = file.path(figures_dir, "appendix", sprintf("ccle_rnaseq_stability_select_features_%s.pdf", id)),
+                      filename = file.path(figures_dir, sprintf("ccle_rnaseq_stability_select_features_%s.pdf", id)),
                       width = fig_width * 1, height = fig_height * 2)
     }
   }
@@ -1655,7 +1658,7 @@ for (y_model in y_models) {
       }
       plt <- patchwork::wrap_plots(plt_ls, nrow = 1)
       ggplot2::ggsave(
-        file.path(figures_dir, "appendix", 
+        file.path(figures_dir, "misspecified_regression_sims", 
                   sprintf("misspecified_regression_sims_%s_%s_%s_errbars.pdf",
                           y_model, x_model, metric)),
         plot = plt, units = "in", width = 14, height = height
@@ -1781,7 +1784,7 @@ for (y_model in y_models) {
       }
       plt <- patchwork::wrap_plots(plt_ls, nrow = 1)
       ggplot2::ggsave(
-        file.path(figures_dir, "appendix", 
+        file.path(figures_dir, "varying_sparsity", 
                   sprintf("regression_sims_sparsity_%s_%s_%s_errbars.pdf",
                           y_model, x_model, metric)),
         plot = plt, units = "in", width = 14, height = 3
@@ -1906,7 +1909,7 @@ for (y_model in y_models) {
       }
       plt <- patchwork::wrap_plots(plt_ls, nrow = 1)
       ggplot2::ggsave(
-        file.path(figures_dir, "appendix", 
+        file.path(figures_dir, "varying_p", 
                   sprintf("regression_sims_vary_p_%s_%s_%s_errbars.pdf",
                           y_model, x_model, metric)),
         plot = plt, units = "in", width = 14, height = height
@@ -1941,7 +1944,139 @@ for (y_model in y_models) {
 ```
 
 
-# GMDI Modeling Choices {.tabset .tabset-vmodern}
+# Prediction Results {.tabset .tabset-vmodern}
+
+```{r eval = TRUE, results = "asis"}
+fpaths <- c(
+  "gmdi.prediction_sims.ccle_rnaseq_regression-",
+  "gmdi.prediction_sims.enhancer_classification-",
+  "gmdi.prediction_sims.splicing_classification-",
+  "gmdi.prediction_sims.juvenile_classification-",
+  "gmdi.prediction_sims.tcga_brca_classification-"
+)
+
+keep_models <- c("RF", "RF-ridge", "RF-lasso", "RF-logistic")
+prediction_metrics <- c(
+  "r2", "explained_variance", "mean_squared_error", "mean_absolute_error",
+  "rocauc", "prauc", "accuracy", "f1", "recall", "precision", "avg_precision", "logloss"
+)
+
+results_ls <- list()
+for (fpath in fpaths) {
+  fname <- file.path(
+    results_dir, 
+    fpath,
+    sprintf("seed%s", seed),
+    "results.csv"
+  )
+  results <- data.table::fread(fname) %>%
+    reformat_results(prediction = TRUE)
+  
+  if (!("y_task" %in% colnames(results))) {
+    results <- results %>%
+      dplyr::mutate(y_task = "Results")
+  }
+  
+  plt_df <- results %>%
+    tidyr::pivot_longer(
+      cols = tidyselect::any_of(prediction_metrics), 
+      names_to = "metric", values_to = "value"
+    ) %>% 
+    dplyr::group_by(y_task, model, metric) %>%
+    dplyr::summarise(
+      mean = mean(value),
+      sd = sd(value),
+      n = dplyr::n()
+    ) %>%
+    dplyr::mutate(
+      se = sd / sqrt(n)
+    )
+  
+  if (fpath != "gmdi.prediction_sims.ccle_rnaseq_regression-") {
+    results_ls[[fpath]] <- plt_df %>%
+      dplyr::filter(model %in% c("RF", "RF-logistic")) %>%
+      dplyr::select(model, metric, mean) %>%
+      tidyr::pivot_wider(id_cols = metric, names_from = "model", values_from = "mean") %>%
+      dplyr::mutate(diff = `RF-logistic` - RF,
+                    percent_diff = (`RF-logistic` - RF) / abs(RF) * 100)
+  } else {
+    results_ls[[fpath]] <- plt_df %>%
+      dplyr::filter(model %in% c("RF", "RF-ridge")) %>%
+      dplyr::select(y_task, model, metric, mean) %>%
+      tidyr::pivot_wider(id_cols = c(y_task, metric), names_from = "model", values_from = "mean") %>%
+      dplyr::mutate(diff = `RF-ridge` - RF,
+                    percent_diff = (`RF-ridge` - RF) / abs(RF) * 100)
+  }
+}
+
+plt_reg <- results_ls$`gmdi.prediction_sims.ccle_rnaseq_regression-` %>%
+  dplyr::filter(metric == "r2") %>%
+  dplyr::filter(RF > 0.1) %>%
+  dplyr::mutate(
+    metric = ifelse(metric == "r2", "R-squared", metric)
+  ) %>%
+  ggplot2::ggplot() +
+  ggplot2::aes(x = RF, y = percent_diff, label = y_task) +
+  ggplot2::labs(x = "RF Test R-squared", y = "% Change Using RF+") +
+  ggplot2::geom_point(size = 3) +
+  ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
+  ggrepel::geom_label_repel(fill = "white") +
+  ggplot2::facet_wrap(~ metric, scales = "free") +
+  custom_theme
+
+plt_ls <- list(reg = plt_reg)
+for (m in c("f1", "prauc")) {
+  plt_df <- dplyr::bind_rows(results_ls, .id = "dataset") %>%
+    dplyr::filter(metric == m) %>%
+    dplyr::mutate(
+      dataset = stringr::str_remove(dataset, "^gmdi\\.prediction_sims\\.") %>%
+        stringr::str_remove("_classification-$") %>%
+        stringr::str_to_title() %>%
+        stringr::str_replace("Tcga_brca", "TCGA BRCA"),
+      diff = ifelse(metric == "logloss", -diff, diff),
+      percent_diff = ifelse(metric == "logloss", -percent_diff, percent_diff),
+      metric = forcats::fct_recode(metric,
+                                   "Accuracy" = "accuracy",
+                                   "F1" = "f1",
+                                   "Negative Log-loss" = "logloss",
+                                   "AUPRC" = "prauc",
+                                   "AUROC" = "rocauc")
+    )
+  plt_ls[[m]] <- plt_df %>%
+    ggplot2::ggplot() +
+    ggplot2::aes(x = RF, y = percent_diff, label = dataset) +
+    ggplot2::labs(x = sprintf("RF Test %s", plt_df$metric[1]), 
+                  y = "% Change Using RF+") +
+    ggplot2::geom_point(size = 3) +
+    ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
+    ggrepel::geom_label_repel(point.padding = 0.5, fill = "white") +
+    ggplot2::facet_wrap(~ metric, scales = "free", nrow = 1) +
+    custom_theme
+}
+
+plt_ls[[3]] <- plt_ls[[3]] +
+  ggplot2::theme(axis.title.y = ggplot2::element_blank())
+
+plt <- plt_ls[[1]] + patchwork::plot_spacer() + plt_ls[[2]] + plt_ls[[3]] +
+  patchwork::plot_layout(nrow = 1, widths = c(1, 0.3, 1, 1))
+
+# plt
+# grid::grid.draw(
+#   grid::linesGrob(x = grid::unit(c(0.36, 0.36), "npc"),
+#                   y = grid::unit(c(0.06, 0.98), "npc"))
+# )
+# ggplot2::ggsave(
+#   file.path(figures_dir, "prediction_results_main.pdf"),
+#   units = "in", width = 14, height = height * 1.5
+# )
+
+vthemes::subchunkify(plt, i = chunk_idx,
+                     fig_height = fig_height, fig_width = fig_width * 1.3)
+chunk_idx <- chunk_idx + 1
+```
+
+
+# GMDI Add-ons {.tabset .tabset-vmodern}
 
 ```{r eval = TRUE, results = "asis"}
 manual_color_palette <- c(manual_color_palette_choices[method_labels_choices == "MDI"],
@@ -2042,7 +2177,7 @@ for (y_model in y_models) {
         }
         plt <- patchwork::wrap_plots(plt_ls, nrow = 1)
         ggplot2::ggsave(
-          file.path(figures_dir, "appendix",
+          file.path(figures_dir, "modeling_choices",
                     sprintf("regression_sims_choices_min_samples%s_%s_%s_%s_errbars.pdf",
                             min_samples_per_leaf, y_model, x_model, metric)),
           plot = plt, units = "in", width = 14, height = height
@@ -2077,3 +2212,455 @@ for (y_model in y_models) {
 
 ```
 
+
+# GMDI GLM/Metric Choices {.tabset .tabset-vmodern}
+
+## Held-out Test Prediction Scores {.tabset .tabset-pills .tabset-square}
+
+```{r eval = TRUE, results = "asis"}
+manual_color_palette <- c("#A5AE9E", "black", "brown")
+show_methods <- c("RF", "RF-ridge", "RF-lasso")
+method_labels <- c("RF", "RF+ridge", "RF+lasso")
+alpha_values <- rep(1, length(method_labels))
+legend_position <- c(0.63, 0.4)
+
+vary_param_name <- "heritability_sample_row_n"
+y_models <- c("linear", "hier_poly_3m_2r")
+x_models <- c("enhancer", "ccle_rnaseq")#, "splicing")
+prediction_metrics <- c(
+  "r2" #, "mean_absolute_error"
+  # "rocauc", "prauc", "accuracy", "f1", "recall", "precision", "avg_precision", "logloss"
+)
+
+remove_x_axis_models <- c("enhancer")
+keep_legend_x_models <- c("enhancer")
+keep_legend_y_models <- c("linear")
+
+for (y_model in y_models) {
+  cat(sprintf("\n\n### %s {.tabset .tabset-pills .tabset-square}\n\n", y_model))
+  for (x_model in x_models) {
+    cat(sprintf("\n\n#### %s {.tabset .tabset-pills .tabset-circle}\n\n", x_model))
+    plt_ls <- list()
+    sim_name <- sprintf("%s_%s_dgp", x_model, y_model)
+    sim_title <- dplyr::case_when(
+      x_model == "ccle_rnaseq" ~ "CCLE",
+      x_model == "splicing" ~ "Splicing",
+      x_model == "enhancer" ~ "Enhancer",
+      x_model == "juvenile" ~ "Juvenile"
+    )
+    fname <- file.path(results_dir, 
+                       sprintf("gmdi.glm_metric_choices_sims.regression_prediction_sims.%s", sim_name), 
+                       paste0("varying_", vary_param_name), 
+                       paste0("seed", seed), "results")
+    if (!file.exists(sprintf("%s.csv", fname))) {
+      next
+    }
+    if (file.exists(sprintf("%s.rds", fname)) & params$use_cached) {
+      results <- readRDS(sprintf("%s.rds", fname))
+      if (length(setdiff(show_methods, unique(results$method))) > 0) {
+        results <- data.table::fread(sprintf("%s.csv", fname)) %>%
+          reformat_results(prediction = TRUE)
+        saveRDS(results, sprintf("%s.rds", fname))
+      }
+    } else {
+      results <- data.table::fread(sprintf("%s.csv", fname)) %>%
+        reformat_results(prediction = TRUE)
+      saveRDS(results, sprintf("%s.rds", fname))
+    }
+    for (m in prediction_metrics) {
+      metric_name <- dplyr::case_when(
+        m == "r2" ~ "R-squared",
+        m == "mae" ~ "Mean Absolute Error"
+      )
+      if (params$for_paper) {
+        for (h in heritabilities) {
+          plt <- results %>%
+            dplyr::filter(heritability == !!h) %>%
+            plot_metrics(
+              metric = m,
+              x_str = "sample_row_n",
+              facet_str = NULL,
+              point_size = point_size,
+              line_size = line_size,
+              errbar_width = errbar_width,
+              manual_color_palette = manual_color_palette,
+              show_methods = show_methods,
+              method_labels = method_labels,
+              alpha_values = alpha_values,
+              legend_position = legend_position,
+              custom_theme = custom_theme,
+              inside_legend = TRUE
+            ) +
+            ggplot2::labs(
+              x = "Sample Size", y = metric_name, 
+              color = "Method", alpha = "Method"
+            ) +
+            ggplot2::theme(
+              legend.text = ggplot2::element_text(size = 12)
+            )
+          if (h != heritabilities[1]) {
+            plt <- plt + ggplot2::theme(axis.title.y = ggplot2::element_blank())
+          }
+          if (x_model %in% remove_x_axis_models) {
+            height <- 2.72
+            plt <- plt + ggplot2::theme(axis.title.x = ggplot2::element_blank())
+          } else {
+            height <- 3
+          }
+          if (!((h == heritabilities[length(heritabilities)]) & 
+                (x_model %in% keep_legend_x_models) & 
+                (y_model %in% keep_legend_y_models))) {
+            plt <- plt + ggplot2::guides(color = "none", alpha = "none")
+          }
+          plt_ls[[as.character(h)]] <- plt
+        }
+        plt <- patchwork::wrap_plots(plt_ls, nrow = 1)
+        ggplot2::ggsave(
+          file.path(figures_dir, "glm_metric_choices",
+                    sprintf("regression_sims_glm_metric_choices_prediction_%s_%s_%s_errbars.pdf",
+                            y_model, x_model, m)),
+          plot = plt, units = "in", width = 14, height = height
+        )
+      } else {
+        plt <- results %>%
+          plot_metrics(
+            metric = m,
+            x_str = "sample_row_n",
+            facet_str = "heritability_name",
+            point_size = point_size,
+            line_size = line_size,
+            errbar_width = errbar_width,
+            manual_color_palette = manual_color_palette,
+            show_methods = show_methods,
+            method_labels = method_labels,
+            alpha_values = alpha_values,
+            custom_theme = custom_theme
+          ) +
+          ggplot2::labs(
+            x = "Sample Size", y = metric_name,
+            color = "Method", alpha = "Method",
+            title = sprintf("%s", sim_title)
+          )
+        vthemes::subchunkify(plot_fun(plt), i = chunk_idx,
+                             fig_height = fig_height, fig_width = fig_width * 1.3)
+        chunk_idx <- chunk_idx + 1
+      }
+    }
+  }
+}
+
+```
+
+## Stability Scores {.tabset .tabset-pills .tabset-square}
+
+```{r eval = TRUE, results = "asis"}
+manual_color_palette <- c("black", "black", "brown", "brown", "gray", 
+                                 manual_color_palette_choices[method_labels_choices == "MDI"],
+                                 manual_color_palette_choices[method_labels_choices == "MDI-oob"])
+show_methods <- c("GMDI_ridge_r2_RF", "GMDI_ridge_neg_mae_RF", "GMDI_lasso_r2_RF", "GMDI_lasso_neg_mae_RF", "GMDI_ensemble_RF", "MDI_RF", "MDI-oob_RF")
+method_labels <- c("GMDI (ridge, r-squared)", "GMDI (ridge, MAE)", "GMDI (lasso, r-squared)", "GMDI (lasso, MAE)", "GMDI (ensemble)", "MDI", "MDI-oob")
+manual_linetype_palette <- c(1, 2, 1, 2, 1, 1, 1)
+alpha_values <- c(rep(1, length(method_labels) - 2), rep(0.4, 2))
+legend_position <- c(0.63, 0.4)
+
+vary_param_name <- "heritability_sample_row_n"
+# y_models <- c("linear", "lss_3m_2r", "hier_poly_3m_2r", "linear_lss_3m_2r")
+# x_models <- c("enhancer", "ccle_rnaseq", "juvenile", "splicing")
+y_models <- c("linear", "hier_poly_3m_2r")
+x_models <- c("enhancer", "ccle_rnaseq")
+# stability_metrics <- c("tauAP", "RBO")
+stability_metrics <- c("RBO")
+
+remove_x_axis_models <- metric
+keep_legend_x_models <- x_models
+keep_legend_y_models <- y_models
+keep_legend_metrics <- metric
+
+for (y_model in y_models) {
+  cat(sprintf("\n\n### %s {.tabset .tabset-pills .tabset-square}\n\n", y_model))
+  for (x_model in x_models) {
+    cat(sprintf("\n\n#### %s {.tabset .tabset-pills .tabset-circle}\n\n", x_model))
+    sim_name <- sprintf("%s_%s_dgp", x_model, y_model)
+    sim_title <- dplyr::case_when(
+      x_model == "ccle_rnaseq" ~ "CCLE",
+      x_model == "splicing" ~ "Splicing",
+      x_model == "enhancer" ~ "Enhancer",
+      x_model == "juvenile" ~ "Juvenile"
+    )
+    fname <- file.path(results_dir, 
+                       sprintf("gmdi.glm_metric_choices_sims.regression_sims.%s", sim_name), 
+                       paste0("varying_", vary_param_name), 
+                       paste0("seed", seed), "results")
+    if (!file.exists(sprintf("%s.csv", fname))) {
+      next
+    }
+    if (file.exists(sprintf("%s.rds", fname)) & params$use_cached) {
+      results <- readRDS(sprintf("%s.rds", fname))
+      if (length(setdiff(show_methods, unique(results$method))) > 0) {
+        results <- data.table::fread(sprintf("%s.csv", fname)) %>%
+          reformat_results()
+        saveRDS(results, sprintf("%s.rds", fname))
+      }
+    } else {
+      results <- data.table::fread(sprintf("%s.csv", fname)) %>%
+        reformat_results()
+      saveRDS(results, sprintf("%s.rds", fname))
+    }
+    plt_ls <- list()
+    for (m in c(metric, stability_metrics)) {
+      metric_name <- dplyr::case_when(
+        m == "rocauc" ~ "AUROC",
+        m == "prauc" ~ "PRAUC",
+        TRUE ~ m
+      )
+      if (params$for_paper) {
+        for (h in heritabilities) {
+          plt <- results %>%
+            dplyr::filter(heritability == !!h) %>%
+            plot_metrics(
+              metric = m,
+              x_str = "sample_row_n",
+              facet_str = NULL,
+              linetype_str = "method",
+              point_size = point_size,
+              line_size = line_size,
+              errbar_width = errbar_width,
+              manual_color_palette = manual_color_palette,
+              show_methods = show_methods,
+              method_labels = method_labels,
+              alpha_values = alpha_values,
+              legend_position = legend_position,
+              custom_theme = custom_theme,
+              inside_legend = FALSE
+            ) +
+            ggplot2::labs(
+              x = "Sample Size", y = metric_name, 
+              color = "Method", alpha = "Method", linetype = "Method"
+            ) +
+            ggplot2::scale_linetype_manual(
+              values = manual_linetype_palette, labels = method_labels
+            ) +
+            ggplot2::theme(
+              legend.text = ggplot2::element_text(size = 12),
+              legend.key.width = ggplot2::unit(1.9, "cm")
+            )
+          if (h != heritabilities[1]) {
+            plt <- plt + ggplot2::theme(axis.title.y = ggplot2::element_blank())
+          }
+          if (m %in% remove_x_axis_models) {
+            height <- 2.72
+            plt <- plt + ggplot2::theme(axis.title.x = ggplot2::element_blank())
+          } else {
+            height <- 3
+          }
+          if (!((h == heritabilities[length(heritabilities)]) & 
+                (x_model %in% keep_legend_x_models) & 
+                (y_model %in% keep_legend_y_models) &
+                (metric %in% keep_legend_metrics))) {
+            plt <- plt + ggplot2::guides(color = "none", alpha = "none", linetype = "none")
+          }
+          plt_ls[[sprintf("%s_%s", as.character(h), m)]] <- plt
+        }
+      } else {
+        plt <- results %>%
+          plot_metrics(
+            metric = m,
+            x_str = "sample_row_n",
+            facet_str = "heritability_name",
+            linetype_str = "method",
+            point_size = point_size,
+            line_size = line_size,
+            errbar_width = errbar_width,
+            manual_color_palette = manual_color_palette,
+            show_methods = show_methods,
+            method_labels = method_labels,
+            alpha_values = alpha_values,
+            custom_theme = custom_theme
+          ) +
+          ggplot2::labs(
+            x = "Sample Size", y = metric_name,
+            color = "Method", alpha = "Method", linetype = "Method",
+            title = sprintf("%s", sim_title)
+          ) +
+          ggplot2::scale_linetype_manual(
+            values = manual_linetype_palette, labels = method_labels
+          ) +
+          ggplot2::theme(
+            legend.key.width = ggplot2::unit(1.9, "cm")
+          )
+        vthemes::subchunkify(plot_fun(plt), i = chunk_idx,
+                             fig_height = fig_height, fig_width = fig_width * 1.5)
+        chunk_idx <- chunk_idx + 1
+      }
+    }
+    if (params$for_paper) {
+      nrows <- length(c(metric, stability_metrics))
+      plt <- patchwork::wrap_plots(plt_ls, nrow = nrows, guides = "collect")
+      ggplot2::ggsave(
+        file.path(figures_dir, "glm_metric_choices",
+                  sprintf("regression_sims_glm_metric_choices_stability_%s_%s_errbars.pdf",
+                          y_model, x_model)),
+        plot = plt, units = "in", width = 14 * 1.2, height = height * nrows
+      )
+    }
+  }
+}
+
+```
+
+## Stability Scores - Classification {.tabset .tabset-pills .tabset-square}
+
+```{r eval = TRUE, results = "asis"}
+manual_color_palette <- c("#9B5DFF", "#9B5DFF", "black",
+                                 manual_color_palette_choices[method_labels_choices == "MDI"],
+                                 manual_color_palette_choices[method_labels_choices == "MDI-oob"])
+show_methods <- c("GMDI_logistic_ridge_logloss_RF", "GMDI_logistic_ridge_auroc_RF", "GMDI_ridge_r2_RF", "MDI_RF", "MDI-oob_RF")
+method_labels <- c("GMDI (logistic, log-loss)", "GMDI (logistic, AUROC)", "GMDI (ridge, r-squared)", "MDI", "MDI-oob")
+manual_linetype_palette <- c(1, 2, 1, 1, 1)
+alpha_values <- c(rep(1, length(method_labels) - 2), rep(0.4, 2))
+legend_position <- c(0.63, 0.4)
+
+vary_param_name <- "frac_label_corruption_sample_row_n"
+# y_models <- c("logistic", "lss_3m_2r_logistic", "hier_poly_3m_2r_logistic", "linear_lss_3m_2r_logistic")
+# x_models <- c("enhancer", "ccle_rnaseq", "juvenile", "splicing")
+y_models <- c("logistic", "hier_poly_3m_2r_logistic")
+x_models <- c("juvenile", "splicing")
+# stability_metrics <- c("tauAP", "RBO")
+stability_metrics <- "RBO"
+
+remove_x_axis_models <- metric
+keep_legend_x_models <- x_models
+keep_legend_y_models <- y_models
+keep_legend_metrics <- metric
+
+for (y_model in y_models) {
+  cat(sprintf("\n\n### %s {.tabset .tabset-pills .tabset-square}\n\n", y_model))
+  for (x_model in x_models) {
+    cat(sprintf("\n\n#### %s {.tabset .tabset-pills .tabset-circle}\n\n", x_model))
+    sim_name <- sprintf("%s_%s_dgp", x_model, y_model)
+    sim_title <- dplyr::case_when(
+      x_model == "ccle_rnaseq" ~ "CCLE",
+      x_model == "splicing" ~ "Splicing",
+      x_model == "enhancer" ~ "Enhancer",
+      x_model == "juvenile" ~ "Juvenile"
+    )
+    fname <- file.path(results_dir, 
+                       sprintf("gmdi.glm_metric_choices_sims.classification_sims.%s", sim_name), 
+                       paste0("varying_", vary_param_name), 
+                       paste0("seed", seed), "results")
+    if (!file.exists(sprintf("%s.csv", fname))) {
+      next
+    }
+    if (file.exists(sprintf("%s.rds", fname)) & params$use_cached) {
+      results <- readRDS(sprintf("%s.rds", fname))
+      if (length(setdiff(show_methods, unique(results$method))) > 0) {
+        results <- data.table::fread(sprintf("%s.csv", fname)) %>%
+          reformat_results()
+        saveRDS(results, sprintf("%s.rds", fname))
+      }
+    } else {
+      results <- data.table::fread(sprintf("%s.csv", fname)) %>%
+        reformat_results()
+      saveRDS(results, sprintf("%s.rds", fname))
+    }
+    plt_ls <- list()
+    for (m in c(metric, stability_metrics)) {
+      metric_name <- dplyr::case_when(
+        m == "rocauc" ~ "AUROC",
+        m == "prauc" ~ "PRAUC",
+        TRUE ~ m
+      )
+      if (params$for_paper) {
+        for (h in frac_label_corruptions) {
+          plt <- results %>%
+            dplyr::filter(frac_label_corruption_name == !!h) %>%
+            plot_metrics(
+              metric = m,
+              x_str = "sample_row_n",
+              facet_str = NULL,
+              linetype_str = "method",
+              point_size = point_size,
+              line_size = line_size,
+              errbar_width = errbar_width,
+              manual_color_palette = manual_color_palette,
+              show_methods = show_methods,
+              method_labels = method_labels,
+              alpha_values = alpha_values,
+              legend_position = legend_position,
+              custom_theme = custom_theme,
+              inside_legend = FALSE
+            ) +
+            ggplot2::labs(
+              x = "Sample Size", y = metric_name, 
+              color = "Method", alpha = "Method", linetype = "Method"
+            ) +
+            ggplot2::scale_linetype_manual(
+              values = manual_linetype_palette, labels = method_labels
+            ) +
+            ggplot2::theme(
+              legend.text = ggplot2::element_text(size = 12),
+              legend.key.width = ggplot2::unit(1.9, "cm")
+            )
+          if (h != frac_label_corruptions[1]) {
+            plt <- plt + ggplot2::theme(axis.title.y = ggplot2::element_blank())
+          }
+          if (m %in% remove_x_axis_models) {
+            height <- 2.72
+            plt <- plt + ggplot2::theme(axis.title.x = ggplot2::element_blank())
+          } else {
+            height <- 3
+          }
+          if (!((h == frac_label_corruptions[length(frac_label_corruptions)]) & 
+                (x_model %in% keep_legend_x_models) & 
+                (y_model %in% keep_legend_y_models) &
+                (metric %in% keep_legend_metrics))) {
+            plt <- plt + ggplot2::guides(color = "none", alpha = "none", linetype = "none")
+          }
+          plt_ls[[sprintf("%s_%s", as.character(h), m)]] <- plt
+        }
+      } else {
+        plt <- results %>%
+          plot_metrics(
+            metric = m,
+            x_str = "sample_row_n",
+            facet_str = "frac_label_corruption_name",
+            linetype_str = "method",
+            point_size = point_size,
+            line_size = line_size,
+            errbar_width = errbar_width,
+            manual_color_palette = manual_color_palette,
+            show_methods = show_methods,
+            method_labels = method_labels,
+            alpha_values = alpha_values,
+            custom_theme = custom_theme
+          ) +
+          ggplot2::labs(
+            x = "Sample Size", y = metric_name,
+            color = "Method", alpha = "Method", linetype = "Method",
+            title = sprintf("%s", sim_title)
+          ) +
+          ggplot2::scale_linetype_manual(
+            values = manual_linetype_palette, labels = method_labels
+          ) +
+          ggplot2::theme(
+            legend.key.width = ggplot2::unit(1.9, "cm")
+          )
+        vthemes::subchunkify(plot_fun(plt), i = chunk_idx,
+                             fig_height = fig_height, fig_width = fig_width * 1.5)
+        chunk_idx <- chunk_idx + 1
+      }
+    }
+    if (params$for_paper) {
+      nrows <- length(c(metric, stability_metrics))
+      plt <- patchwork::wrap_plots(plt_ls, nrow = nrows, guides = "collect")
+      ggplot2::ggsave(
+        file.path(figures_dir, "glm_metric_choices",
+                  sprintf("classification_sims_glm_metric_choices_stability_%s_%s_errbars.pdf",
+                          y_model, x_model)),
+        plot = plt, units = "in", width = 14 * 1.2, height = height * nrows
+      )
+    }
+  }
+}
+
+```

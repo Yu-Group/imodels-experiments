@@ -93,6 +93,17 @@ sims=(
   # GMDI Modeling Choices: CCLE (min_samples_per_leaf = 1)
   "gmdi.other_regression_sims.modeling_choices_min_samples1.ccle_rnaseq_hier_poly_3m_2r_dgp"
   "gmdi.other_regression_sims.modeling_choices_min_samples1.ccle_rnaseq_linear_dgp"
+  
+  # GMDI GLM and Metric Choices: Regression
+  "gmdi.glm_metric_choices_sims.regression_sims.ccle_rnaseq_hier_poly_3m_2r_dgp"
+  "gmdi.glm_metric_choices_sims.regression_sims.ccle_rnaseq_linear_dgp"
+  "gmdi.glm_metric_choices_sims.regression_sims.enhancer_hier_poly_3m_2r_dgp"
+  "gmdi.glm_metric_choices_sims.regression_sims.enhancer_linear_dgp"
+  # GMDI GLM and Metric Choices: Classification
+  "gmdi.glm_metric_choices_sims.classification_sims.juvenile_logistic_dgp"
+  "gmdi.glm_metric_choices_sims.classification_sims.juvenile_hier_poly_3m_2r_logistic_dgp"
+  "gmdi.glm_metric_choices_sims.classification_sims.splicing_logistic_dgp"
+  "gmdi.glm_metric_choices_sims.classification_sims.splicing_hier_poly_3m_2r_logistic_dgp"
 )
 
 for sim in "${sims[@]}"
@@ -169,3 +180,42 @@ done
 # TCGA BRCA
 sim="gmdi.real_data_case_study.tcga_brca_classification-"
 sbatch --job-name=${sim} submit_simulation_job_real_data.sh ${sim}
+
+
+## Prediction Simulations
+
+# Real Data: Binary classification
+sims=(
+  "gmdi.prediction_sims.enhancer_classification-"
+  "gmdi.prediction_sims.juvenile_classification-"
+  "gmdi.prediction_sims.splicing_classification-"
+)
+
+for sim in "${sims[@]}"
+do
+  sbatch --job-name=${sim} submit_simulation_job_real_data_prediction.sh ${sim} "binary_classification"
+done
+
+# Real Data: Multi-class classification
+sim="gmdi.prediction_sims.tcga_brca_classification-"
+sbatch --job-name=${sim} submit_simulation_job_real_data_prediction.sh ${sim} "multiclass_classification"
+
+# Real Data: Regression
+sim="gmdi.prediction_sims.ccle_rnaseq_regression-"
+for drug in "${drugs[@]}"
+do
+  sbatch --job-name=${sim}_${drug} submit_simulation_job_real_data_prediction_multitask.sh ${sim} ${drug} "regression"
+done
+
+# GMDI GLM and Metric Choices: Regression
+sims=(
+  "gmdi.glm_metric_choices_sims.regression_prediction_sims.ccle_rnaseq_hier_poly_3m_2r_dgp"
+  "gmdi.glm_metric_choices_sims.regression_prediction_sims.ccle_rnaseq_linear_dgp"
+  "gmdi.glm_metric_choices_sims.regression_prediction_sims.enhancer_hier_poly_3m_2r_dgp"
+  "gmdi.glm_metric_choices_sims.regression_prediction_sims.enhancer_linear_dgp"
+)
+
+for sim in "${sims[@]}"
+do
+  sbatch --job-name=${sim} submit_simulation_job_prediction.sh ${sim} "regression"
+done

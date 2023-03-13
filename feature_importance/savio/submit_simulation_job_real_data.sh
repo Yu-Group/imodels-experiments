@@ -10,4 +10,4 @@ module load r
 
 source activate r2f
 
-python ../02_run_real_data.py --nreps 32 --config ${1} --split_seed 12345 --parallel
+python ../02_run_importance_real_data.py --nreps 32 --config ${1} --split_seed 12345 --parallel --nosave_cols "prediction_model"

@@ -9,10 +9,11 @@ from typing import Any, Dict, Tuple
 import numpy as np
 import pandas as pd
 from sklearn import model_selection
-from sklearn.metrics import confusion_matrix, precision_recall_curve, auc, average_precision_score
+from sklearn.metrics import confusion_matrix, precision_recall_curve, auc, average_precision_score, mean_absolute_error
 from sklearn.preprocessing import label_binarize
 from sklearn.utils._encode import _unique
 from sklearn import metrics
+from imodels.importance.ppms import huber_loss
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
@@ -135,6 +136,14 @@ def auroc_score(y_true, y_score, multi_class="raise", **kwargs):
         classes = _unique(y_true)
         y_true_multilabel = label_binarize(y_true, classes=classes)
         return metrics.roc_auc_score(y_true_multilabel, y_score, **kwargs)
+      
+      
+def neg_mean_absolute_error(y_true, y_pred, **kwargs):
+    return -mean_absolute_error(y_true, y_pred, **kwargs)
+  
+  
+def neg_huber_loss(y_true, y_pred, **kwargs):
+    return -huber_loss(y_true, y_pred, **kwargs)
 
 
 def restricted_roc_auc_score(y_true, y_score, ignored_indices=[]):

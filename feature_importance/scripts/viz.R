@@ -2,60 +2,58 @@ library(magrittr)
 
 
 # reformat results
-reformat_results <- function(results) {
-  results_grouped <- results %>%
-    dplyr::group_by(index) %>%
-    tidyr::nest(fi_scores = var:(tidyselect::last_col())) %>%
-    dplyr::ungroup() %>%
-    dplyr::select(-index) %>%
-    # join fi+model to get method column
-    tidyr::unite(col = "method", fi, model, na.rm = TRUE, remove = FALSE) %>%
-    dplyr::mutate(
-      # get rid of duplicate RF in r2f method name
-      method = ifelse(stringr::str_detect(method, "^r2f.*RF$"),
-                      stringr::str_remove(method, "\\_RF$"), method)
-    ) %>%
-    #compute additional metrics
-    dplyr::mutate(
-      tpr = purrr::map_dbl(
-        fi_scores, 
-        function(fi_df) {
-          n_signal <- sum(fi_df[["true_support"]])
-          fi_df %>%
-            dplyr::arrange(-importance) %>%
-            dplyr::slice_head(n = n_signal) %>%
-            dplyr::pull(true_support) %>%
-            mean()
-        }
-      ),
-      median_signal_rank = purrr::map_dbl(
-        fi_scores, 
-        function(fi_df) {
-          fi_df %>%
-            dplyr::mutate(rank = rank(-importance)) %>%
-            dplyr::filter(true_support == 1) %>%
-            dplyr::pull(rank) %>%
-            median()
-        }
-      ),
-      max_signal_rank = purrr::map_dbl(
-        fi_scores, 
-        function(fi_df) {
-          fi_df %>%
-            dplyr::mutate(rank = rank(-importance)) %>%
-            dplyr::filter(true_support == 1) %>%
-            dplyr::pull(rank) %>%
-            max()
-        }
+reformat_results <- function(results, prediction = FALSE) {
+  if (!prediction) {
+    results_grouped <- results %>%
+      dplyr::group_by(index) %>%
+      tidyr::nest(fi_scores = var:(tidyselect::last_col())) %>%
+      dplyr::ungroup() %>%
+      dplyr::select(-index) %>%
+      # join fi+model to get method column
+      tidyr::unite(col = "method", fi, model, na.rm = TRUE, remove = FALSE) %>%
+      dplyr::mutate(
+        # get rid of duplicate RF in r2f method name
+        method = ifelse(stringr::str_detect(method, "^r2f.*RF$"),
+                        stringr::str_remove(method, "\\_RF$"), method),
+        # unnest columns
+        prediction_score = purrr::map_dbl(
+          fi_scores,
+          function(x) {
+            ifelse("prediction_score" %in% colnames(x), x$prediction_score[[1]], NA)
+          }
+        ),
+        tauAP = purrr::map_dbl(
+          fi_scores,
+          function(x) {
+            ifelse("tauAP" %in% colnames(x), x$tauAP[[1]], NA)
+          }
+        ),
+        RBO = purrr::map_dbl(
+          fi_scores,
+          function(x) {
+            ifelse("RBO" %in% colnames(x), x$RBO[[1]], NA)
+          }
+        )
       )
-    )
+  } else {
+    results_grouped <- results %>%
+      dplyr::group_by(index) %>%
+      tidyr::nest(predictions = sample_id:(tidyselect::last_col())) %>%
+      dplyr::ungroup() %>%
+      dplyr::select(-index) %>%
+      dplyr::mutate(
+        # get rid of duplicate RF in r2f method name
+        method = ifelse(stringr::str_detect(model, "^r2f.*RF$"),
+                        stringr::str_remove(model, "\\_RF$"), model)
+      )
+  }
   return(results_grouped)
 }
 
 # plot metrics (mean value across repetitions with error bars)
 plot_metrics <- function(results, 
-                         metric = c("rocauc", "prauc", "tpr",
-                                    "median_signal_rank", "max_signal_rank"), 
+                         metric = c("rocauc", "prauc"),# "tpr",
+                                    #"median_signal_rank", "max_signal_rank"), 
                          x_str, facet_str, linetype_str = NULL,
                          point_size = 1, line_size = 1, errbar_width = 0,
                          alpha = 0.5, inside_legend = FALSE,
