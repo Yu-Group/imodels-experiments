@@ -2,7 +2,7 @@ from sklearn.ensemble import RandomForestClassifier
 from feature_importance.util import ModelConfig, FIModelConfig
 from feature_importance.scripts.competing_methods import tree_gmdi, tree_mdi, tree_mdi_OOB, tree_mda, tree_shap
 from imodels.importance.rf_plus import _fast_r2_score
-from imodels.importance.ppms_new import RidgeClassifierPPM, LogisticClassifierPPM
+from imodels.importance.ppms import RidgeClassifierPPM, LogisticClassifierPPM
 
 
 ESTIMATORS = [

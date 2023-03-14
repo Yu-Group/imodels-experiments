@@ -12,7 +12,7 @@ ESTIMATORS = [
 ]
 
 FI_ESTIMATORS = [
-    [FIModelConfig('GMDI_ridge', tree_gmdi, model_type='tree', other_params={'partial_prediction_model': RidgeClassifierPPM(), 'scoring_fns': partial(_fast_r2_score, multiclass=True)})],
+    [FIModelConfig('GMDI_ridge', tree_gmdi, model_type='tree', other_params={'prediction_model': RidgeClassifierPPM(), 'scoring_fns': partial(_fast_r2_score, multiclass=True)})],
     [FIModelConfig('GMDI_logistic_logloss', tree_gmdi, model_type='tree')],
     [FIModelConfig('MDI', tree_mdi, model_type='tree')],
     [FIModelConfig('MDA', tree_mda, model_type='tree')],
