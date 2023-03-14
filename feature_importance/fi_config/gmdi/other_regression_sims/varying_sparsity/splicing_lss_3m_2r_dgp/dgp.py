@@ -4,7 +4,7 @@ from feature_importance.scripts.simulations_util import *
 
 X_DGP = sample_real_X
 X_PARAMS_DICT = {
-    "fpath": "/global/scratch/users/tiffanytang/feature_importance/data/X_splicing_cleaned.csv",
+    "fpath": "data/X_splicing_cleaned.csv",
     "sample_row_n": 1000,
     "sample_col_n": 100
 }

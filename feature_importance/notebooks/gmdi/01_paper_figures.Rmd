@@ -6,7 +6,7 @@ output: vthemes::vmodern
 params:
   results_dir: 
     label: "Results directory"
-    value: "/global/scratch/users/tiffanytang/feature_importance/results_final/"
+    value: "./results/"
   seed:
     label: "Seed"
     value: 12345
@@ -1247,7 +1247,7 @@ fname <- file.path(
   sprintf("seed%s", seed),
   "results.csv"
 )
-X <- data.table::fread("/global/scratch/users/tiffanytang/feature_importance/data/X_ccle_rnaseq_log_transformed_filtered5000.csv")
+X <- data.table::fread("data/X_ccle_rnaseq_cleaned_filtered5000.csv")
 X_columns <- colnames(X)
 results <- data.table::fread(fname)
 
@@ -1399,7 +1399,7 @@ if (params$for_paper) {
     sprintf("seed%s", seed),
     "results.csv"
   )
-  X <- data.table::fread("/global/scratch/users/tiffanytang/feature_importance/data/X_ccle_rnaseq_log_transformed_filtered5000.csv")
+  X <- data.table::fread("data/X_ccle_rnaseq_cleaned_filtered5000.csv")
   results <- data.table::fread(fname)
   
   for (id in names(keep_methods_list)) {
@@ -1484,7 +1484,7 @@ fname <- file.path(
   sprintf("seed%s", seed),
   "results.csv"
 )
-X <- data.table::fread("/global/scratch/users/tiffanytang/feature_importance/data/X_tcga_var_filtered_log_transformed.csv")
+X <- data.table::fread("data/X_tcga_cleaned.csv")
 results <- data.table::fread(fname)
 out <- plot_top_stability(
   results,

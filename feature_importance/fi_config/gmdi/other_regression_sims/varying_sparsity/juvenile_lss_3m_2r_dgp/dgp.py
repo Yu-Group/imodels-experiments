@@ -4,7 +4,7 @@ from feature_importance.scripts.simulations_util import *
 
 X_DGP = sample_real_X
 X_PARAMS_DICT = {
-    "fpath": "/global/scratch/users/tiffanytang/feature_importance/data/X_juvenile_cleaned.csv",
+    "fpath": "data/X_juvenile_cleaned.csv",
     "sample_row_n": 1000,
     "sample_col_n": None
 }

@@ -1,2 +1,2 @@
-X_PATH = "/global/scratch/users/tiffanytang/feature_importance/data/X_enhancer_all.csv"
-Y_PATH = "/global/scratch/users/tiffanytang/feature_importance/data/y_enhancer.csv"
+X_PATH = "data/X_enhancer_all.csv"
+Y_PATH = "data/y_enhancer.csv"
