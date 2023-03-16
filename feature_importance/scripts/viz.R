@@ -103,7 +103,7 @@ plot_metrics <- function(results,
       ggplot2::geom_errorbar(
         ggplot2::aes(x = .data[[x_str]], ymin = mean - sd, ymax = mean + sd,
                      color = method, alpha = method, group = method),
-        width = errbar_width
+        width = errbar_width, show_guide = FALSE
       )
   } else {
     plt <- ggplot2::ggplot(plt_df) +
@@ -121,7 +121,7 @@ plot_metrics <- function(results,
       ggplot2::geom_errorbar(
         ggplot2::aes(x = .data[[x_str]], ymin = mean - sd, ymax = mean + sd,
                      color = method, alpha = method, group = interaction(method, !!rlang::sym(linetype_str))),
-        width = errbar_width
+        width = errbar_width, show_guide = FALSE
       ) 
   }
   if (!is.null(manual_color_palette)) {
@@ -259,7 +259,7 @@ plot_restricted_metrics <- function(results, metric = c("rocauc", "prauc"),
     ggplot2::geom_errorbar(
       ggplot2::aes(x = .data[[x_str]], ymin = mean - sd, ymax = mean + sd,
                    color = method, alpha = method, group = method),
-      width = errbar_width
+      width = errbar_width, show_guide = FALSE
     ) 
   if (!is.null(manual_color_palette)) {
     plt <- plt + 
@@ -496,7 +496,7 @@ plot_perturbation_stability <- function(results,
             ggplot2::aes(x = group, ymin = .mean - .sd, ymax = .mean + .sd, 
                          color = fi, group = fi),
             position = ggplot2::position_dodge2(width = 0, padding = 0.5), 
-            width = 0.5
+            width = 0.5, show_guide = FALSE
           )
       }
       plt <- plt +

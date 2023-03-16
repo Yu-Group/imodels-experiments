@@ -1,12 +1,12 @@
 ---
-title: "GMDI Simulation Results Summary"
+title: "MDI+ Simulation Results Summary"
 author: ""
 date: "`r format(Sys.time(), '%B %d, %Y')`"
 output: vthemes::vmodern
 params:
   results_dir: 
     label: "Results directory"
-    value: "./results/"
+    value: "results/"
   seed:
     label: "Seed"
     value: 12345
@@ -67,7 +67,7 @@ show_methods_choices <- c(
   "MDA_RF", "MDI_RF", "MDI-oob_RF", "TreeSHAP_RF"
 )
 method_labels_choices <- c(
-  "GMDI (ridge)", "GMDI (ridge)", "GMDI (logistic)", "GMDI (Huber)",
+  "MDI+ (ridge)", "MDI+ (ridge)", "MDI+ (logistic)", "MDI+ (Huber)",
   "MDA", "MDI", "MDI-oob", "TreeSHAP"
 )
 color_df <- tibble::tibble(
@@ -503,7 +503,7 @@ for (y_model in y_models) {
 ```{r eval = TRUE, results = "asis"}
 manual_color_palette <- c("black", "#218a1e", "orange", "#71beb7", "#cc3399")
 show_methods <- c("GMDI", "MDI-oob", "MDA", "MDI",  "TreeSHAP")
-method_labels <- c("GMDI (ridge)", "MDI-oob", "MDA", "MDI", "TreeSHAP")
+method_labels <- c("MDI+ (ridge)", "MDI-oob", "MDA", "MDI", "TreeSHAP")
 
 custom_color_palette <- c("#38761d", "#9dc89b", "#991500")
 keep_heritabilities <- c(0.1, 0.4)
@@ -701,7 +701,7 @@ if (params$for_paper) {
 ```{r eval = TRUE, results = "asis"}
 manual_color_palette <- c("black", "gray")
 show_methods <- c("GMDI", "GMDI_inbag")
-method_labels <- c("GMDI (LOO)", "GMDI (in-bag)")
+method_labels <- c("MDI+ (LOO)", "MDI+ (in-bag)")
 
 custom_color_palette <- c("#38761d", "#9dc89b", "#991500")
 keep_heritabilities <- c(0.1, 0.4)
@@ -811,7 +811,7 @@ for (idx in 1:length(keep_heritabilities)) {
 #### Entropy Regression Results ####
 manual_color_palette <- rev(c("black", "orange", "#71beb7", "#218a1e", "#cc3399"))
 show_methods <- rev(c("GMDI", "MDA", "MDI", "MDI-oob", "TreeSHAP"))
-method_labels <- rev(c("GMDI (ridge)", "MDA", "MDI", "MDI-oob", "TreeSHAP"))
+method_labels <- rev(c("MDI+ (ridge)", "MDA", "MDI", "MDI-oob", "TreeSHAP"))
 alpha_values <- rev(c(1, rep(0.7, length(method_labels) - 1)))
 y_limits <- c(1, 4.5)
 
@@ -902,7 +902,7 @@ regression_num_splits_df <- results %>%
 #### Entropy Classification Results ####
 manual_color_palette <- rev(c("black", "#9B5DFF", "orange", "#71beb7", "#218a1e", "#cc3399"))
 show_methods <- rev(c("GMDI_ridge", "GMDI_logistic_logloss", "MDA", "MDI", "MDI-oob", "TreeSHAP"))
-method_labels <- rev(c("GMDI (ridge)", "GMDI (logistic)", "MDA", "MDI", "MDI-oob", "TreeSHAP"))
+method_labels <- rev(c("MDI+ (ridge)", "MDI+ (logistic)", "MDA", "MDI", "MDI-oob", "TreeSHAP"))
 alpha_values <- rev(c(1, 1, rep(0.7, length(method_labels) - 2)))
 
 metric_name <- "AUROC"
@@ -1074,7 +1074,7 @@ if (params$for_paper) {
 #### Entropy Regression Results ####
 manual_color_palette <- rev(c("black", "black", "#71beb7"))
 show_methods <- rev(c("GMDI", "GMDI_inbag", "MDI"))
-method_labels <- rev(c("GMDI (ridge, LOO)", "GMDI (ridge, in-bag)", "MDI"))
+method_labels <- rev(c("MDI+ (ridge, LOO)", "MDI+ (ridge, in-bag)", "MDI"))
 alpha_values <- rev(c(1, 1, rep(1, length(method_labels) - 2)))
 linetype_values <- c("solid", "dashed", "solid")
 y_limits <- c(1, 5)
@@ -1147,7 +1147,7 @@ plt_regression <- plt_df %>%
 #### Entropy Classification Results ####
 manual_color_palette <- rev(c("black", "black", "#9B5DFF", "#9B5DFF", "#71beb7"))
 show_methods <- rev(c("GMDI_ridge", "GMDI_ridge_inbag", "GMDI_logistic_logloss", "GMDI_logistic_logloss_inbag", "MDI"))
-method_labels <- rev(c("GMDI (ridge, LOO)", "GMDI (ridge, in-bag)", "GMDI (logistic, LOO)", "GMDI (logistic, in-bag)", "MDI"))
+method_labels <- rev(c("MDI+ (ridge, LOO)", "MDI+ (ridge, in-bag)", "MDI+ (logistic, LOO)", "MDI+ (logistic, in-bag)", "MDI"))
 alpha_values <- rev(c(1, 1, 1, 1, rep(1, length(method_labels) - 4)))
 linetype_values <- c("solid", "dashed", "solid", "dashed", "solid")
 
@@ -1238,7 +1238,7 @@ if (params$for_paper) {
 ```{r eval = TRUE, results = "asis"}
 manual_color_palette <- c("black", "orange", "#71beb7", "#218a1e", "#cc3399")
 show_methods <- c("GMDI", "MDA", "MDI", "MDI-oob", "TreeSHAP")
-method_labels <- c("GMDI (ridge)", "MDA", "MDI", "MDI-oob", "TreeSHAP")
+method_labels <- c("MDI+ (ridge)", "MDA", "MDI", "MDI-oob", "TreeSHAP")
 
 fpath <- "gmdi.real_data_case_study.ccle_rnaseq_regression-"
 fname <- file.path(
@@ -1257,7 +1257,7 @@ out <- plot_top_stability(
   top_r = 10,
   show_max_features = 5,
   varnames = colnames(X),
-  base_method = "GMDI (ridge)",
+  base_method = "MDI+ (ridge)",
   return_df = TRUE,
   manual_color_palette = rev(manual_color_palette),
   show_methods = rev(show_methods),
@@ -1385,7 +1385,7 @@ for (plt_id in names(plt_ls)) {
 if (params$for_paper) {
   manual_color_palette_full <- c("black", "orange", "#71beb7", "#218a1e", "#cc3399")
   show_methods_full <- c("GMDI", "MDA", "MDI", "MDI-oob", "TreeSHAP")
-  method_labels_full <- c("GMDI (ridge)", "MDA", "MDI", "MDI-oob", "TreeSHAP")
+  method_labels_full <- c("MDI+ (ridge)", "MDA", "MDI", "MDI-oob", "TreeSHAP")
   keep_methods_list <- list(
     all = c("GMDI", "MDA", "MDI", "MDI-oob", "TreeSHAP"),
     no_mdioob = c("GMDI", "MDA", "MDI", "TreeSHAP"),
@@ -1475,7 +1475,7 @@ if (params$for_paper) {
 ```{r eval = TRUE, results = "asis"}
 manual_color_palette <- c("black", "#9B5DFF", "orange", "#71beb7", "#cc3399")
 show_methods <- c("GMDI_ridge", "GMDI_logistic_logloss", "MDA", "MDI", "TreeSHAP")
-method_labels <- c("GMDI (ridge)", "GMDI (logistic)", "MDA", "MDI", "TreeSHAP")
+method_labels <- c("MDI+ (ridge)", "MDI+ (logistic)", "MDA", "MDI", "TreeSHAP")
 
 fpath <- "gmdi.real_data_case_study.tcga_brca_classification-"
 fname <- file.path(
@@ -1492,7 +1492,7 @@ out <- plot_top_stability(
   top_r = 10,
   show_max_features = 20,
   varnames = colnames(X),
-  base_method = "GMDI (ridge)", 
+  base_method = "MDI+ (ridge)", 
   return_df = TRUE,
   manual_color_palette = manual_color_palette,
   show_methods = show_methods,
@@ -2073,14 +2073,14 @@ chunk_idx <- chunk_idx + 1
 ```
 
 
-# GMDI Add-ons {.tabset .tabset-vmodern}
+# MDI+ Add-ons {.tabset .tabset-vmodern}
 
 ```{r eval = TRUE, results = "asis"}
 manual_color_palette <- c(manual_color_palette_choices[method_labels_choices == "MDI"],
                           manual_color_palette_choices[method_labels_choices == "MDI-oob"],
                           "#AF4D98", "#FFD92F", "#FC8D62", "black")
 show_methods <- c("MDI_RF", "MDI-oob_RF", "GMDI_raw_RF", "GMDI_loo_RF", "GMDI_ols_raw_loo_RF", "GMDI_ridge_raw_loo_RF")
-method_labels <- c("MDI", "MDI-oob", "GMDI (raw only)", "GMDI (loo only)", "GMDI (raw+loo only)", "GMDI (ridge+raw+loo)")
+method_labels <- c("MDI", "MDI-oob", "MDI+ (raw only)", "MDI+ (loo only)", "MDI+ (raw+loo only)", "MDI+ (ridge+raw+loo)")
 alpha_values <- rep(1, length(method_labels))
 legend_position <- c(0.63, 0.4)
 
@@ -2210,7 +2210,7 @@ for (y_model in y_models) {
 ```
 
 
-# GMDI GLM/Metric Choices {.tabset .tabset-vmodern}
+# MDI+ GLM/Metric Choices {.tabset .tabset-vmodern}
 
 ## Held-out Test Prediction Scores {.tabset .tabset-pills .tabset-square}
 
@@ -2355,7 +2355,7 @@ manual_color_palette <- c("black", "black", "brown", "brown", "gray",
                                  manual_color_palette_choices[method_labels_choices == "MDI"],
                                  manual_color_palette_choices[method_labels_choices == "MDI-oob"])
 show_methods <- c("GMDI_ridge_r2_RF", "GMDI_ridge_neg_mae_RF", "GMDI_lasso_r2_RF", "GMDI_lasso_neg_mae_RF", "GMDI_ensemble_RF", "MDI_RF", "MDI-oob_RF")
-method_labels <- c("GMDI (ridge, r-squared)", "GMDI (ridge, MAE)", "GMDI (lasso, r-squared)", "GMDI (lasso, MAE)", "GMDI (ensemble)", "MDI", "MDI-oob")
+method_labels <- c("MDI+ (ridge, r-squared)", "MDI+ (ridge, MAE)", "MDI+ (lasso, r-squared)", "MDI+ (lasso, MAE)", "MDI+ (ensemble)", "MDI", "MDI-oob")
 manual_linetype_palette <- c(1, 2, 1, 2, 1, 1, 1)
 alpha_values <- c(rep(1, length(method_labels) - 2), rep(0.4, 2))
 legend_position <- c(0.63, 0.4)
@@ -2512,7 +2512,7 @@ manual_color_palette <- c("#9B5DFF", "#9B5DFF", "black",
                                  manual_color_palette_choices[method_labels_choices == "MDI"],
                                  manual_color_palette_choices[method_labels_choices == "MDI-oob"])
 show_methods <- c("GMDI_logistic_ridge_logloss_RF", "GMDI_logistic_ridge_auroc_RF", "GMDI_ridge_r2_RF", "MDI_RF", "MDI-oob_RF")
-method_labels <- c("GMDI (logistic, log-loss)", "GMDI (logistic, AUROC)", "GMDI (ridge, r-squared)", "MDI", "MDI-oob")
+method_labels <- c("MDI+ (logistic, log-loss)", "MDI+ (logistic, AUROC)", "MDI+ (ridge, r-squared)", "MDI", "MDI-oob")
 manual_linetype_palette <- c(1, 2, 1, 1, 1)
 alpha_values <- c(rep(1, length(method_labels) - 2), rep(0.4, 2))
 legend_position <- c(0.63, 0.4)
