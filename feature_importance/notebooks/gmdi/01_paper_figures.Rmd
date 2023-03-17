@@ -2021,6 +2021,28 @@ plt_reg <- results_ls$`gmdi.prediction_sims.ccle_rnaseq_regression-` %>%
   ggplot2::facet_wrap(~ metric, scales = "free") +
   custom_theme
 
+plt_reg_all <- results_ls$`gmdi.prediction_sims.ccle_rnaseq_regression-` %>%
+  dplyr::filter(metric == "r2") %>%
+  dplyr::mutate(
+    metric = ifelse(metric == "r2", "R-squared", metric)
+  ) %>%
+  ggplot2::ggplot() +
+  ggplot2::aes(x = RF, y = percent_diff, label = y_task) +
+  ggplot2::labs(x = "RF Test R-squared", y = "% Change Using RF+") +
+  ggplot2::geom_point(size = 3) +
+  ggplot2::geom_hline(yintercept = 0, linetype = "dashed") +
+  ggrepel::geom_label_repel(fill = "white") +
+  ggplot2::facet_wrap(~ metric, scales = "free") +
+  custom_theme
+
+if (params$for_paper) {
+  ggplot2::ggsave(
+    plot = plt_reg_all, 
+    file.path(figures_dir, "prediction_results_appendix.pdf"),
+    units = "in", width = 8, height = height * 1.5
+  )
+}
+
 plt_ls <- list(reg = plt_reg)
 for (m in c("f1", "prauc")) {
   plt_df <- dplyr::bind_rows(results_ls, .id = "dataset") %>%
