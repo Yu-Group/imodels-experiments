@@ -234,7 +234,7 @@ if __name__ == '__main__':
     parser.add_argument('--nreps', type=int, default=2)
     parser.add_argument('--mode', type=str, default='regression')
     parser.add_argument('--model', type=str, default=None)
-    parser.add_argument('--config', type=str, default='gmdi.prediction_sims.ccle_rnaseq_regression-')
+    parser.add_argument('--config', type=str, default='mdi_plus.prediction_sims.ccle_rnaseq_regression-')
     parser.add_argument('--response_idx', type=str, default=None)
     parser.add_argument('--subsample_n', type=int, default=None)
     parser.add_argument('--nosave_cols', type=str, default=None)

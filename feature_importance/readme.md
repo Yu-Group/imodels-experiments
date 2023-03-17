@@ -44,7 +44,7 @@ For a starter template, see the `fi_config/test` folder. There are two necessary
     - Note that by default, higher values from the feature importance method are assumed to indicate higher importance. If higher values indicate lower importance, set `ascending=False` in `FIModelConfig()`.
     - If a feature importance estimator requires sample splitting (outside of the feature importance function call), use the `splitting_strategy` argument to specify the type of splitting strategy (e.g., `train-test`).
 
-For an example of the fi_config files used for real data case studies, see the `fi_config/gmdi/real_data_case_study/ccle_rnaseq_regression-/` folder. Like before, there are two necessary files: `dgp.py` and `models.py`. `models.py` follows the same structure and requirements as above. `dgp.py` is a script that defines two variables, `X_PATH` and `Y_PATH`, specifying the file paths of the covariate/feature data `X` and the response data `y`, respectively.
+For an example of the fi_config files used for real data case studies, see the `fi_config/mdi_plus/real_data_case_study/ccle_rnaseq_regression-/` folder. Like before, there are two necessary files: `dgp.py` and `models.py`. `models.py` follows the same structure and requirements as above. `dgp.py` is a script that defines two variables, `X_PATH` and `Y_PATH`, specifying the file paths of the covariate/feature data `X` and the response data `y`, respectively.
 
 
 ## Running the simulations (step 3)
@@ -119,7 +119,7 @@ python 02_run_simulations.py --nreps 1 --config test --split_seed 331 --ignore_c
     - `--results_path`: Path to save results. Default is `./results`.
 - Example usage in command line: 
 ```
-python 03_run_prediction_simulations.py --nreps 100 --config gmdi.glm_metric_choices_sims.regression_prediction_sims.enhancer_linear_dgp --mode regression --split_seed 331 --ignore_cache --nosave_cols prediction_model
+python 03_run_prediction_simulations.py --nreps 100 --config mdi_plus.glm_metric_choices_sims.regression_prediction_sims.enhancer_linear_dgp --mode regression --split_seed 331 --ignore_cache --nosave_cols prediction_model
 ```
 
 **For running prediction methods on real data:** `04_run_prediction_real_data.py`
@@ -144,5 +144,5 @@ python 03_run_prediction_simulations.py --nreps 100 --config gmdi.glm_metric_cho
     - `--results_path`: Path to save results. Default is `./results`.
 - Example usage in command line: 
 ```
-python 04_run_prediction_real_data.py --nreps 10 --config gmdi.prediction_sims.enhancer_classification- --mode binary_classification --split_seed 331 --ignore_cache --nosave_cols prediction_model
+python 04_run_prediction_real_data.py --nreps 10 --config mdi_plus.prediction_sims.enhancer_classification- --mode binary_classification --split_seed 331 --ignore_cache --nosave_cols prediction_model
 ```

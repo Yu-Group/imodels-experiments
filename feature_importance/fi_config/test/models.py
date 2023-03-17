@@ -1,6 +1,6 @@
 from sklearn.ensemble import RandomForestRegressor
 from feature_importance.util import ModelConfig, FIModelConfig
-from feature_importance.scripts.competing_methods import GMDI_pipeline, tree_mdi, tree_mdi_OOB, tree_mda, tree_shap
+from feature_importance.scripts.competing_methods import tree_mdi_plus, tree_mdi, tree_mdi_OOB, tree_mda, tree_shap
 
 # N_ESTIMATORS=[50, 100, 500, 1000]
 ESTIMATORS = [
@@ -11,7 +11,7 @@ ESTIMATORS = [
 ]
 
 FI_ESTIMATORS = [
-    [FIModelConfig('GMDI', GMDI_pipeline, model_type='tree', other_params={"task": "regression"})],
+    [FIModelConfig('MDI+', tree_mdi_plus, model_type='tree')],
     [FIModelConfig('MDI', tree_mdi, model_type='tree')],
     [FIModelConfig('MDI-oob', tree_mdi_OOB, model_type='tree')],
     [FIModelConfig('MDA', tree_mda, model_type='tree')],

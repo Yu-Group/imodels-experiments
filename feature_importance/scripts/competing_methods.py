@@ -12,9 +12,9 @@ from feature_importance.scripts.mdi_oob import MDI_OOB
 from feature_importance.scripts.mda import MDA
 
 
-def tree_gmdi_ensemble(X, y, fit, scoring_fns="auto", **kwargs):
+def tree_mdi_plus_ensemble(X, y, fit, scoring_fns="auto", **kwargs):
     """
-    Wrapper around GMDI object to get feature importance scores
+    Wrapper around MDI+ object to get feature importance scores
 
     :param X: ndarray of shape (n_samples, n_features)
         The covariate matrix. If a pd.DataFrame object is supplied, then
@@ -24,10 +24,11 @@ def tree_gmdi_ensemble(X, y, fit, scoring_fns="auto", **kwargs):
     :param rf_model: scikit-learn random forest object or None
         The RF model to be used for interpretation. If None, then a new
         RandomForestRegressor or RandomForestClassifier is instantiated.
-    :param kwargs: additional arguments to pass to GMDI class.
+    :param kwargs: additional arguments to pass to
+        RandomForestPlusRegressor or RandomForestPlusClassifier class.
     :return: dataframe - [Var, Importance]
                          Var: variable name
-                         Importance: GMDI score
+                         Importance: MDI+ score
     """
 
     if isinstance(fit, RegressorMixin):
@@ -37,36 +38,36 @@ def tree_gmdi_ensemble(X, y, fit, scoring_fns="auto", **kwargs):
     else:
         raise ValueError("Unknown task.")
 
-    gmdi_scores_dict = {}
+    mdi_plus_scores_dict = {}
     for rf_plus_name, rf_plus_args in kwargs.items():
         rf_plus_model = RFPlus(rf_model=fit, **rf_plus_args)
         rf_plus_model.fit(X, y)
         try:
-            gmdi_scores = rf_plus_model.get_gmdi_scores(X=X, y=y, scoring_fns=scoring_fns)
+            mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, scoring_fns=scoring_fns)
         except ValueError as e:
             if str(e) == 'Transformer representation was empty for all trees.':
-                gmdi_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
+                mdi_plus_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
                 if isinstance(X, pd.DataFrame):
-                    gmdi_scores.index = X.columns
-                gmdi_scores.index.name = 'var'
-                gmdi_scores.reset_index(inplace=True)
+                    mdi_plus_scores.index = X.columns
+                mdi_plus_scores.index.name = 'var'
+                mdi_plus_scores.reset_index(inplace=True)
             else:
                 raise
-        for col in gmdi_scores.columns:
+        for col in mdi_plus_scores.columns:
             if col != "var":
-                gmdi_scores = gmdi_scores.rename(columns={col: col + "_" + rf_plus_name})
-        gmdi_scores_dict[rf_plus_name] = gmdi_scores
+                mdi_plus_scores = mdi_plus_scores.rename(columns={col: col + "_" + rf_plus_name})
+        mdi_plus_scores_dict[rf_plus_name] = mdi_plus_scores
 
-    gmdi_scores_df = pd.concat([df.set_index('var') for df in gmdi_scores_dict.values()], axis=1)
-    gmdi_ranks_df = gmdi_scores_df.rank(ascending=False).median(axis=1)
-    gmdi_ranks_df = pd.DataFrame(gmdi_ranks_df, columns=["importance"]).reset_index()
+    mdi_plus_scores_df = pd.concat([df.set_index('var') for df in mdi_plus_scores_dict.values()], axis=1)
+    mdi_plus_ranks_df = mdi_plus_scores_df.rank(ascending=False).median(axis=1)
+    mdi_plus_ranks_df = pd.DataFrame(mdi_plus_ranks_df, columns=["importance"]).reset_index()
 
-    return gmdi_ranks_df
+    return mdi_plus_ranks_df
 
 
-def tree_gmdi(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
+def tree_mdi_plus(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
     """
-    Wrapper around GMDI object to get feature importance scores
+    Wrapper around MDI+ object to get feature importance scores
     
     :param X: ndarray of shape (n_samples, n_features)
         The covariate matrix. If a pd.DataFrame object is supplied, then
@@ -76,10 +77,11 @@ def tree_gmdi(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kw
     :param rf_model: scikit-learn random forest object or None
         The RF model to be used for interpretation. If None, then a new
         RandomForestRegressor or RandomForestClassifier is instantiated.
-    :param kwargs: additional arguments to pass to GMDI class.
+    :param kwargs: additional arguments to pass to
+        RandomForestPlusRegressor or RandomForestPlusClassifier class.
     :return: dataframe - [Var, Importance]
                          Var: variable name
-                         Importance: GMDI score
+                         Importance: MDI+ score
     """
 
     if isinstance(fit, RegressorMixin):
@@ -91,24 +93,24 @@ def tree_gmdi(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kw
     rf_plus_model = RFPlus(rf_model=fit, **kwargs)
     rf_plus_model.fit(X, y)
     try:
-        gmdi_scores = rf_plus_model.get_gmdi_scores(X=X, y=y, scoring_fns=scoring_fns)
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, scoring_fns=scoring_fns)
         if return_stability_scores:
-            stability_scores = rf_plus_model.get_gmdi_stability_scores(B=25)
+            stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
     except ValueError as e:
         if str(e) == 'Transformer representation was empty for all trees.':
-            gmdi_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
+            mdi_plus_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
             if isinstance(X, pd.DataFrame):
-                gmdi_scores.index = X.columns
-            gmdi_scores.index.name = 'var'
-            gmdi_scores.reset_index(inplace=True)
+                mdi_plus_scores.index = X.columns
+            mdi_plus_scores.index.name = 'var'
+            mdi_plus_scores.reset_index(inplace=True)
             stability_scores = None
         else:
             raise
-    gmdi_scores["prediction_score"] = rf_plus_model.prediction_score_
+    mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_
     if return_stability_scores:
-        gmdi_scores = pd.concat([gmdi_scores, stability_scores], axis=1)
+        mdi_plus_scores = pd.concat([mdi_plus_scores, stability_scores], axis=1)
 
-    return gmdi_scores
+    return mdi_plus_scores
 
 
 def tree_mdi(X, y, fit, include_num_splits=False):

@@ -243,7 +243,7 @@ if __name__ == '__main__':
     parser.add_argument('--fi_model', type=str, default=None)  # , default='c4')
     parser.add_argument('--config', type=str, default='test')
     parser.add_argument('--omit_vars', type=str, default=None)  # comma-separated string of variables to omit
-    parser.add_argument('--nosave_cols', type=str, default=None)
+    parser.add_argument('--nosave_cols', type=str, default="prediction_model")
 
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)
