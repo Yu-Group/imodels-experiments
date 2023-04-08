@@ -7,6 +7,7 @@ from os.path import dirname
 from os.path import join as oj
 from typing import List, Dict, Any, Union, Tuple
 import warnings
+from copy import deepcopy
 
 # import adjustText
 import dvu
@@ -17,7 +18,6 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 from tqdm import tqdm
-import dataframe_image as dfi
 
 from config.figs_interactions.datasets import DATASETS_REGRESSION
 from util import remove_x_axis_duplicates, merge_overlapping_curves
@@ -213,6 +213,7 @@ def plot_bests(metric='rocauc', datasets=[],
                color_legend=True,
                seed=None,
                eps_legend_sep=0.01,
+               plot=True,
                save_name='fig', show_train=False, xlim=20):
     """Plot bests for different models as a function of complexity
     Note: for best legends, pass models_to_include from top to bottom
@@ -236,6 +237,7 @@ def plot_bests(metric='rocauc', datasets=[],
         'RF': '#ff6600',
     }
 
+    results_all = []
     # iterate over datasets
     for i, dset in enumerate(tqdm(datasets)):
         if isinstance(dset, str):
@@ -256,6 +258,9 @@ def plot_bests(metric='rocauc', datasets=[],
         vals = []
         names = []
         errs = []
+        results = {
+            'dset': dset_name,
+        }
         for name in models_to_include:
             try:
                 g = df.groupby('estimator').get_group(name)
@@ -267,30 +272,42 @@ def plot_bests(metric='rocauc', datasets=[],
             x = g['complexity' + suffix].values
             y = g[f'{metric}_test' + suffix].values[0]
             yerr = g[f'{metric}_test' + '_std'].values[0]
+            name = name.replace('RandomForest', 'RF')
+            
             vals.append(y)
             errs.append(yerr)
-            names.append(name.replace('RandomForest', 'RF'))
-        plt.bar(names, vals,
-                yerr=yerr,
-                color=[COLORS.get(name, 'grey') for name in names])
-        #         plt.grid(zorder=100000)
+            names.append(name)
+            results.update({
+                'complexity': x,
+                f'{metric}_test': y,
+                f'{metric}_test_std': yerr,
+                'name': name,
+            })
+            results_all.append(deepcopy(results))
+        
+        if plot:
+            plt.bar(names, vals,
+                    yerr=yerr,
+                    color=[COLORS.get(name, 'grey') for name in names])
+            #         plt.grid(zorder=100000)
 
-        plt.xticks(rotation=15)
-        #         plt.bar(np.arange(len(vals)), vals)
+            plt.xticks(rotation=20)
+            #         plt.bar(np.arange(len(vals)), vals)
 
-        # plot editing
-        plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA.get(dset_name, (-1))[0]}$)',
-                  fontsize='medium')
-        if i % C == 0:  # left col
-            plt.ylabel(metric.upper()
-                       .replace('ROC', '')
-                       .replace('R2', '$R^2$')
-                       )
-        if metric.upper() == 'ROCAUC':
-            plt.ylim(bottom=0.5)
-
+            # plot editing
+            plt.title(dset_name.capitalize().replace('-', ' ') + f' ($n={DSET_METADATA.get(dset_name, (-1))[0]}$)',
+                      fontsize='medium')
+            if i % C == 0:  # left col
+                plt.ylabel(metric.upper()
+                           .replace('ROC', '')
+                           .replace('R2', '$R^2$')
+                           )
+            if metric.upper() == 'ROCAUC':
+                plt.ylim(bottom=0.5)
+        
     #         plt.legend()
     savefig(save_name)
+    return results_all
 
 
 def savefig(fname):
@@ -421,6 +438,7 @@ def viz_interactions(datasets=[],
                      models_to_include=[],
                      config_name='figs_interactions',
                      save_path="") -> None:
+    import dataframe_image as dfi
     for i, dset in enumerate(tqdm(datasets)):
         if isinstance(dset, str):
             dset_name = dset

@@ -9,7 +9,9 @@ matplotlib
 slurmpy
 tqdm
 pmlb
+pygam
 dataframe-image
+xgboost
 
 # testing
 pytest
