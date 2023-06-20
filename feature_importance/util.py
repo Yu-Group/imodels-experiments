@@ -68,7 +68,9 @@ class FIModelConfig:
         """
 
         assert splitting_strategy in {
-            'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata', None}
+            'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata',
+            'train-test-prediction', None
+        }
 
         self.name = name
         self.cls = cls

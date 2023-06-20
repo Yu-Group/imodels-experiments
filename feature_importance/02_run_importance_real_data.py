@@ -21,12 +21,17 @@ import sys
 from collections import defaultdict
 from typing import Callable, List, Tuple
 import itertools
+from functools import partial
 
 sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../..")
 import fi_config
-from util import ModelConfig, FIModelConfig, apply_splitting_strategy
+from util import ModelConfig, FIModelConfig, apply_splitting_strategy, auroc_score, auprc_score
+
+from sklearn.metrics import accuracy_score, f1_score, recall_score, \
+    precision_score, average_precision_score, r2_score, explained_variance_score, \
+    mean_squared_error, mean_absolute_error, log_loss
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
@@ -62,6 +67,11 @@ def compare_estimators(estimators: List[ModelConfig],
             # implement provided splitting strategy
             if splitting_strategy is not None:
                 X_train, X_tune, X_test, y_train, y_tune, y_test = apply_splitting_strategy(X, y, splitting_strategy, args.split_seed)
+                if splitting_strategy == "train-test-prediction":
+                    X_test_pred = copy.deepcopy(X_test)
+                    y_test_pred = copy.deepcopy(y_test)
+                    X_test = X_train
+                    y_test = y_train
             else:
                 X_train = X
                 X_tune = X
@@ -85,6 +95,41 @@ def compare_estimators(estimators: List[ModelConfig],
                 end = time.time()
                 metric_results['fi_scores'] = copy.deepcopy(fi_score)
                 metric_results['time'] = end - start
+
+                if splitting_strategy == "train-test-prediction" and args.eval_top_ks is not None:
+                    fi_rankings = fi_score.sort_values("importance", ascending=not fi_est.ascending)
+                    pred_est = copy.deepcopy(est)
+                    metrics = get_metrics(args.mode)
+                    if args.eval_top_ks == "auto":
+                        eval_top_ks = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15,
+                                       20, 25, 30, 35, 40, 45, 50, 60, 70, 80, 90, 100]
+                    else:
+                        eval_top_ks = [int(k.strip()) for k in args.eval_top_ks.split(",")]
+                    pred_metrics_out = []
+                    for k in eval_top_ks:
+                        top_k_features = fi_rankings["var"][:k]
+                        Xk_train = X_train[:, top_k_features]
+                        Xk_test_pred = X_test_pred[:, top_k_features]
+                        pred_est.fit(Xk_train, y_train)
+                        y_pred = pred_est.predict(Xk_test_pred)
+                        if args.mode != 'regression':
+                            y_pred_proba = pred_est.predict_proba(Xk_test_pred)
+                            if args.mode == 'binary_classification':
+                                y_pred_proba = y_pred_proba[:, 1]
+                        else:
+                            y_pred_proba = y_pred
+                        for met_name, met in metrics:
+                            if met is not None:
+                                if args.mode == 'regression' \
+                                        or met_name in ['accuracy', 'f1', 'precision', 'recall']:
+                                    pred_metrics_out.append({
+                                        "k": k, "metric": met_name, "metric_value": met(y_test_pred, y_pred)
+                                    })
+                                else:
+                                    pred_metrics_out.append({
+                                        "k": k, "metric": met_name, "metric_value": met(y_test_pred, y_pred_proba)
+                                    })
+                    metric_results["pred_metrics"] = copy.deepcopy(pd.DataFrame(pred_metrics_out))
 
                 # initialize results with metadata and results
                 kwargs: dict = model.kwargs  # dict
@@ -162,8 +207,48 @@ def reformat_results(results):
     results = results.reset_index().drop(columns=['index'])
     fi_scores = pd.concat(results.pop('fi_scores').to_dict()). \
         reset_index(level=0).rename(columns={'level_0': 'index'})
+    if "pred_metrics" in results.columns:
+        pred_metrics = pd.concat(results.pop('pred_metrics').to_dict()). \
+            reset_index(level=0).rename(columns={'level_0': 'index'})
+    else:
+        pred_metrics = None
     results_df = pd.merge(results, fi_scores, left_index=True, right_on="index")
-    return results_df
+    if pred_metrics is not None:
+        pred_results_df = pd.merge(results, pred_metrics, left_index=True, right_on="index")
+    else:
+        pred_results_df = None
+    return results_df, pred_results_df
+
+
+def get_metrics(mode: str = 'regression'):
+    if mode == 'binary_classification':
+        return [
+            ('rocauc', auroc_score),
+            ('prauc', auprc_score),
+            ('logloss', log_loss),
+            ('accuracy', accuracy_score),
+            ('f1', f1_score),
+            ('recall', recall_score),
+            ('precision', precision_score),
+            ('avg_precision', average_precision_score)
+        ]
+    elif mode == 'multiclass_classification':
+        return [
+            ('rocauc', partial(auroc_score, multi_class="ovr")),
+            ('prauc', partial(auprc_score, multi_class="ovr")),
+            ('logloss', log_loss),
+            ('accuracy', accuracy_score),
+            ('f1', partial(f1_score, average='micro')),
+            ('recall', partial(recall_score, average='micro')),
+            ('precision', partial(precision_score, average='micro'))
+        ]
+    elif mode == 'regression':
+        return [
+            ('r2', r2_score),
+            ('explained_variance', explained_variance_score),
+            ('mean_squared_error', mean_squared_error),
+            ('mean_absolute_error', mean_absolute_error),
+        ]
 
 
 def run_simulation(i, path, Xpath, ypath, ests, fi_ests, args):
@@ -209,11 +294,13 @@ if __name__ == '__main__':
         default_dir = oj(os.path.dirname(os.path.realpath(__file__)), 'results')
 
     parser.add_argument('--nreps', type=int, default=1)
+    parser.add_argument('--mode', type=str, default='binary_classification')
     parser.add_argument('--model', type=str, default=None)
     parser.add_argument('--fi_model', type=str, default=None)
     parser.add_argument('--config', type=str, default='test_real_data')
     parser.add_argument('--response_idx', type=str, default=None)
     parser.add_argument('--nosave_cols', type=str, default=None)
+    parser.add_argument('--eval_top_ks', type=str, default="auto")
 
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)
@@ -225,6 +312,8 @@ if __name__ == '__main__':
     parser.add_argument('--results_path', type=str, default=default_dir)
 
     args = parser.parse_args()
+
+    assert args.mode in {'regression', 'binary_classification', 'multiclass_classification'}
 
     if args.parallel:
         if args.n_cores is None:
@@ -303,8 +392,10 @@ if __name__ == '__main__':
 
     results_merged = pd.concat(results_list, axis=0)
     pkl.dump(results_merged, open(oj(path, 'results.pkl'), 'wb'))
-    results_df = reformat_results(results_merged)
+    results_df, pred_results_df = reformat_results(results_merged)
     results_df.to_csv(oj(path, 'results.csv'), index=False)
+    if pred_results_df is not None:
+        pred_results_df.to_csv(oj(path, 'pred_results.csv'), index=False)
 
     print('merged and saved all experiment results successfully!')
 
