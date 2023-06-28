@@ -84,7 +84,7 @@ plot_metrics <- function(results,
       method = factor(method, levels = show_methods),
       metric = forcats::fct_recode(
         factor(metric, levels = metric_names),
-        AUROC = "rocauc", AUPRC = "prauc"
+        AUROC = "rocauc", AUPRC = "prauc", Accuracy = "accuracy"
       )
     )
   
@@ -676,12 +676,12 @@ plot_top_stability <- function(results,
       dplyr::pull(color)
     
     plt <- vdocs::plot_horizontal_dotplot(
-      n_nonzero_stability_df, 
-      x_str = "n_features", y_str = group_id, color_str = "fi", 
+      n_nonzero_stability_df,
+      x_str = "n_features", y_str = group_id, color_str = "fi",
       theme_options = list(size_preset = "xlarge")
     ) +
       ggplot2::labs(
-        x = sprintf("Number of Distinct Features in Top 10 Across %s RF Fits", 
+        x = sprintf("Number of Distinct Features in Top 10 Across %s RF Fits",
                     length(unique(results$rep))),
         color = "Method"
       ) +
@@ -689,14 +689,14 @@ plot_top_stability <- function(results,
       ggplot2::theme(
         axis.text.y = ggplot2::element_text(color = rev(ytext_label_colors))
       )
-    
+
     if (!is.null(manual_color_palette)) {
       plt <- plt +
         ggplot2::scale_color_manual(values = manual_color_palette,
                                     labels = method_labels,
                                     guide = ggplot2::guide_legend(reverse = TRUE))
     }
-    
+
     plt_ls[["Summary"]] <- plt
     
   } else {

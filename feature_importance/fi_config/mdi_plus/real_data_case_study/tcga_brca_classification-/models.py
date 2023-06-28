@@ -12,9 +12,9 @@ ESTIMATORS = [
 ]
 
 FI_ESTIMATORS = [
-    [FIModelConfig('MDI+_ridge', tree_mdi_plus, model_type='tree', other_params={'prediction_model': RidgeClassifierPPM(), 'scoring_fns': partial(_fast_r2_score, multiclass=True)})],
-    [FIModelConfig('MDI+_logistic_logloss', tree_mdi_plus, model_type='tree')],
-    [FIModelConfig('MDI', tree_mdi, model_type='tree')],
-    [FIModelConfig('MDA', tree_mda, model_type='tree')],
-    [FIModelConfig('TreeSHAP', tree_shap, model_type='tree')]
+    [FIModelConfig('MDI+_ridge', tree_mdi_plus, model_type='tree', splitting_strategy="train-test-prediction", other_params={'prediction_model': RidgeClassifierPPM(), 'scoring_fns': partial(_fast_r2_score, multiclass=True)})],
+    [FIModelConfig('MDI+_logistic_logloss', tree_mdi_plus, model_type='tree', splitting_strategy="train-test-prediction")],
+    [FIModelConfig('MDI', tree_mdi, model_type='tree', splitting_strategy="train-test-prediction")],
+    [FIModelConfig('MDA', tree_mda, model_type='tree', splitting_strategy="train-test-prediction")],
+    [FIModelConfig('TreeSHAP', tree_shap, model_type='tree', splitting_strategy="train-test-prediction")]
 ]

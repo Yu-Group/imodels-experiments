@@ -9,9 +9,9 @@ ESTIMATORS = [
 ]
 
 FI_ESTIMATORS = [
-    [FIModelConfig('MDI+', tree_mdi_plus, model_type='tree')],
-    [FIModelConfig('MDI', tree_mdi, model_type='tree')],
-    [FIModelConfig('MDI-oob', tree_mdi_OOB, model_type='tree')],
-    [FIModelConfig('MDA', tree_mda, model_type='tree')],
-    [FIModelConfig('TreeSHAP', tree_shap, model_type='tree')]
+    [FIModelConfig('MDI+', tree_mdi_plus, model_type='tree', splitting_strategy="train-test-prediction")],
+    [FIModelConfig('MDI', tree_mdi, model_type='tree', splitting_strategy="train-test-prediction")],
+    [FIModelConfig('MDI-oob', tree_mdi_OOB, model_type='tree', splitting_strategy="train-test-prediction")],
+    [FIModelConfig('MDA', tree_mda, model_type='tree', splitting_strategy="train-test-prediction")],
+    [FIModelConfig('TreeSHAP', tree_shap, model_type='tree', splitting_strategy="train-test-prediction")]
 ]
