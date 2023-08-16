@@ -1,11 +1,11 @@
 <p align="center">
 	<img align="center" width=75% src="https://yu-group.github.io/imodels-experiments/logo_experiments.svg?sanitize=True"> </img> 	 <br/>
-	Scripts for easily comparing different aspects of the <a href="https://github.com/csinva/imodels">imodels package.</a> Contains code to reproduce <a href="https://arxiv.org/abs/2201.11931">FIGS</a> + <a href="https://arxiv.org/abs/2202.00858">Hierarchical shrinkage</a> + <a href="https://arxiv.org/abs/2205.15135">G-FIGS</a>.
+	Scripts for easily comparing different aspects of the <a href="https://github.com/csinva/imodels">imodels package.</a> Contains code to reproduce <a href="https://arxiv.org/abs/2201.11931">FIGS</a> + <a href="https://arxiv.org/abs/2202.00858">Hierarchical shrinkage</a> + <a href="https://arxiv.org/abs/2205.15135">G-FIGS</a> + <a href="https://arxiv.org/pdf/2307.01932.pdf">MDI+</a>.
 </p>
 
 # Documentation
 
-Follow these steps to benchmark a new (supervised) model. If you want to benchmark something like feature importance or unsupervised learning, you will have to make more substantial changes (mostly in `01_fit_models.py`)
+Follow these steps to benchmark a new (supervised) model. 
 
 1. Write the sklearn-compliant model (init, fit, predict, predict_proba for classifiers) and add it somewhere in a local folder or in `imodels`
 2. Update configs - create a new folder mimicking an existing folder (e.g. `config.interactions`)
@@ -20,6 +20,8 @@ Follow these steps to benchmark a new (supervised) model. If you want to benchma
 4. run `02_aggregate_results.py` (which just combines the output of `01_run_comparisons.py` into a `combined.pkl` file across datasets) for plotting
 5. put scripts/notebooks into a subdirectory of the `notebooks` folder (e.g. `notebooks/interactions`)
 
+
+Note: If you want to benchmark feature importances, go to [feature_importance/](https://github.com/Yu-Group/imodels-experiments/tree/master/feature_importance). For benchmarking other tasks such as unsupervised learning, you will have to make more substantial changes (mostly in `01_fit_models.py`).
 
 ## Config
 - When running multiple seeds, we want to aggregate over all keys that are not the split_seed
@@ -77,3 +79,10 @@ Machine learning in high-stakes domains, such as healthcare, faces two critical 
 <p align="center">	
 	<i>G-FIGS 2-step process explained.</i>
 </p>
+
+
+### MDI+: A Flexible Random Forest-Based Feature Importance Framework
+
+[📄 Paper](https://arxiv.org/pdf/2307.01932.pdf), [📌 Citation](https://scholar.google.com/scholar?hl=en&as_sdt=0%2C23&q=MDI%2B%3A+A+Flexible+Random+Forest-Based+Feature+Importance+Framework&btnG=#d=gs_cit&t=1690399844081&u=%2Fscholar%3Fq%3Dinfo%3Axc0LcHXE_lUJ%3Ascholar.google.com%2F%26output%3Dcite%26scirp%3D0%26hl%3Den)
+
+MDI+ is a novel feature importance framework, which generalizes the popular mean decrease in impurity (MDI) importance score for random forests. At its core, MDI+ expands upon a recently discovered connection between linear regression and decision trees. In doing so, MDI+ enables practitioners to (1) tailor the feature importance computation to the data/problem structure and (2) incorporate additional features or knowledge to mitigate known biases of decision trees. In both real data case studies and extensive real-data-inspired simulations, MDI+ outperforms commonly used feature importance measures (e.g., MDI, permutation-based scores, and TreeSHAP) by substantional margins.
