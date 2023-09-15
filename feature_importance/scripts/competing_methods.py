@@ -4,10 +4,12 @@ import pandas as pd
 import numpy as np
 import sklearn.base
 from sklearn.base import RegressorMixin, ClassifierMixin
+from sksurv.base import SurvivalAnalysisMixin
 from functools import reduce
 
 import shap
-from imodels.importance.rf_plus import RandomForestPlusRegressor, RandomForestPlusClassifier
+from imodels.importance.rf_plus import RandomForestPlusRegressor, \
+    RandomForestPlusClassifier, RandomForestPlusSurvival
 from feature_importance.scripts.mdi_oob import MDI_OOB
 from feature_importance.scripts.mda import MDA
 
@@ -21,9 +23,10 @@ def tree_mdi_plus_ensemble(X, y, fit, scoring_fns="auto", **kwargs):
         the column names are used in the output
     :param y: ndarray of shape (n_samples, n_targets)
         The observed responses.
-    :param rf_model: scikit-learn random forest object or None
-        The RF model to be used for interpretation. If None, then a new
-        RandomForestRegressor or RandomForestClassifier is instantiated.
+    :param fit: scikit-learn random forest object, RandomForestPlus object, or None
+        The RF(+) model to be used for interpretation. If None, then a new
+        RandomForestPlus object is instantiated.
+    :param scoring_fns: list of scoring functions to use for MDI+ scoring
     :param kwargs: additional arguments to pass to
         RandomForestPlusRegressor or RandomForestPlusClassifier class.
     :return: dataframe - [Var, Importance]
@@ -35,6 +38,8 @@ def tree_mdi_plus_ensemble(X, y, fit, scoring_fns="auto", **kwargs):
         RFPlus = RandomForestPlusRegressor
     elif isinstance(fit, ClassifierMixin):
         RFPlus = RandomForestPlusClassifier
+    elif isinstance(fit, SurvivalAnalysisMixin):
+        RFPlus = RandomForestPlusSurvival
     else:
         raise ValueError("Unknown task.")
 
@@ -65,7 +70,8 @@ def tree_mdi_plus_ensemble(X, y, fit, scoring_fns="auto", **kwargs):
     return mdi_plus_ranks_df
 
 
-def tree_mdi_plus(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
+def tree_mdi_plus(X, y, fit, scoring_fns="auto", refit=True, mdiplus_kwargs=None,
+                  return_stability_scores=False, **kwargs):
     """
     Wrapper around MDI+ object to get feature importance scores
     
@@ -74,26 +80,36 @@ def tree_mdi_plus(X, y, fit, scoring_fns="auto", return_stability_scores=False, 
         the column names are used in the output
     :param y: ndarray of shape (n_samples, n_targets)
         The observed responses.
-    :param rf_model: scikit-learn random forest object or None
-        The RF model to be used for interpretation. If None, then a new
-        RandomForestRegressor or RandomForestClassifier is instantiated.
-    :param kwargs: additional arguments to pass to
-        RandomForestPlusRegressor or RandomForestPlusClassifier class.
+    :param fit: scikit-learn random forest object, RandomForestPlus object, or None
+        The RF(+) model to be used for interpretation. If None, then a new
+        RandomForestPlus object is instantiated.
+    :param scoring_fns: list of scoring functions to use for MDI+ scoring
+    :param refit: whether to refit the model
+    :param return_stability_scores: whether to return stability scores
+    :param mdiplus_kwargs: kwargs to pass to RandomForestPlus.get_mdi_plus_scores()
+    :param kwargs: additional arguments to pass to RandomForestPlus* class.
     :return: dataframe - [Var, Importance]
                          Var: variable name
                          Importance: MDI+ score
     """
 
-    if isinstance(fit, RegressorMixin):
-        RFPlus = RandomForestPlusRegressor
-    elif isinstance(fit, ClassifierMixin):
-        RFPlus = RandomForestPlusClassifier
+    if refit:
+        if isinstance(fit, RegressorMixin):
+            RFPlus = RandomForestPlusRegressor
+        elif isinstance(fit, ClassifierMixin):
+            RFPlus = RandomForestPlusClassifier
+        elif isinstance(fit, SurvivalAnalysisMixin):
+            RFPlus = RandomForestPlusSurvival
+        else:
+            raise ValueError("Unknown task.")
+        rf_plus_model = RFPlus(rf_model=fit, **kwargs)
+        rf_plus_model.fit(X, y)
     else:
-        raise ValueError("Unknown task.")
-    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
-    rf_plus_model.fit(X, y)
+        rf_plus_model = fit
     try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, scoring_fns=scoring_fns)
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(
+            X=X, y=y, scoring_fns=scoring_fns, **mdiplus_kwargs
+        )
         if return_stability_scores:
             stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
     except ValueError as e:
@@ -106,7 +122,10 @@ def tree_mdi_plus(X, y, fit, scoring_fns="auto", return_stability_scores=False, 
             stability_scores = None
         else:
             raise
-    mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_
+    if isinstance(rf_plus_model, SurvivalAnalysisMixin):
+        mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_["cindex_ipcw"]
+    else:
+        mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_
     if return_stability_scores:
         mdi_plus_scores = pd.concat([mdi_plus_scores, stability_scores], axis=1)
 

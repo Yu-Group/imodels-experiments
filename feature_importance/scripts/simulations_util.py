@@ -1005,6 +1005,17 @@ def entropy_y(X, c=3, return_support=False):
         return y
 
 
+def load_X_data(data_fn):
+    X = data_fn()[0]
+    categorical_columns = X.select_dtypes(include=['category']).columns
+    X = X.drop(columns=categorical_columns)
+    return X
+
+
+def load_y_data(X, data_fn, return_support=False):
+    return data_fn()[1], None, None
+
+
 class IndexedArray(np.ndarray):
     def __new__(cls, input_array, index=None):
         obj = np.asarray(input_array).view(cls)
