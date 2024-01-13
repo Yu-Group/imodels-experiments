@@ -223,7 +223,91 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         return y_train, support, beta
     else:
         return y_train
+    
 
+def linear_model_two_groups(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
+                 frac_corrupt=None, corrupt_how='permute', corrupt_size=None, 
+                 corrupt_mean=None, return_support=False):
+    """
+    This method is used to crete responses for two groups from a linear model with hard sparsity
+    Parameters:
+    X: X matrix
+    s: sparsity
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+    sigma: s.d. of added noise
+    Returns:
+    numpy array of shape (n)
+    """
+    n, p = X.shape
+
+    ### Update start for local MDI+
+    def create_y(x, s, beta, group_index):
+        assert group_index in [0, 1]
+        linear_term = 0
+        start = group_index * s
+        for j in range(s):
+            linear_term += x[start+j] * beta[j]
+        return linear_term
+
+    # Generate two coefficient vectors for each subgroup
+    beta_group1 = generate_coef(beta, s)
+    beta_group2 = generate_coef(beta, s)
+    # Generate two response vectors for each subgroup
+    y_train_group1 = np.array([create_y(X[i, :], s, beta_group1, 0) for i in range(n//2)])
+    y_train_group2 = np.array([create_y(X[i, :], s, beta_group2, 1) for i in range(n//2, n)])
+    y_train = np.concatenate((y_train_group1, y_train_group2))
+    ### Update for local MDI+ done
+
+    if heritability is not None:
+        sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
+    if snr is not None:
+        sigma = (np.var(y_train) / snr) ** 0.5
+    if error_fun is None:
+        error_fun = np.random.randn
+    if frac_corrupt is None and corrupt_size is None:
+        y_train = y_train + sigma * error_fun(n)
+    else:
+        if frac_corrupt is None:
+            frac_corrupt = 0
+        num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
+        corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
+        if corrupt_how == 'permute':
+            corrupt_array = y_train[corrupt_indices]
+            corrupt_array = random.sample(list(corrupt_array), len(corrupt_array))
+            for i,index in enumerate(corrupt_indices):
+                y_train[index] = corrupt_array[i]
+            y_train = y_train + sigma * error_fun(n)           
+        elif corrupt_how == 'cauchy':
+            for i in range(len(y_train)):
+                if i in corrupt_indices:
+                    y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
+                else:
+                     y_train[i] = y_train[i] + sigma*error_fun()
+        elif corrupt_how == "leverage_constant":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
+            y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(s, p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
+        elif corrupt_how == "leverage_normal":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
+            y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(s, p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
+
+    ### Update start for local MDI+
+    if return_support:
+        support_group1 = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
+        support_group2 = np.concatenate((np.zeros(s), np.ones(s), np.zeros(X.shape[1] - 2*s)))
+        return y_train, support_group1, support_group2, beta_group1, beta_group2
+    else:
+        return y_train
+    ### Update for local MDI+ done
 
 def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None, min_active=None,
               frac_corrupt=None, corrupt_how='permute', corrupt_size=None, corrupt_mean=None,
