@@ -5,7 +5,7 @@ from feature_importance.scripts.simulations_util import *
 
 X_DGP = sample_real_X
 X_PARAMS_DICT = {
-    "fpath": "data/X_splicing_cleaned.csv",
+    "fpath": "/mnt/d/local_MDI+/imodels-experiments/data/X_splicing_cleaned.csv",
     "sample_row_n": None,
     "sample_col_n": None
 }

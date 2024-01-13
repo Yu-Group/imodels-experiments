@@ -159,7 +159,7 @@ def compare_estimators(estimators: List[ModelConfig],
 
 
 def run_comparison(path: str,
-                   X, y, support_gorup1: List,
+                   X, y, support_group1: List,
                    support_group2: List,
                    metrics: List[Tuple[str, Callable]],
                    estimators: List[ModelConfig],
@@ -189,7 +189,7 @@ def run_comparison(path: str,
 
     results = compare_estimators(estimators=estimators,
                                  fi_estimators=fi_estimators,
-                                 X=X, y=y, support_gorup1=support_gorup1,
+                                 X=X, y=y, support_group1=support_group1,
                                  support_group2=support_group2,
                                  metrics=metrics,
                                  args=args)

@@ -16,6 +16,7 @@ env
 venv
 imodels_env
 .vscode/**
+results.csv
 # Compiled python modules.
 *.pyc
 
