@@ -253,8 +253,8 @@ def linear_model_two_groups(X, sigma, s, beta, heritability=None, snr=None, erro
     beta_group1 = generate_coef(beta, s)
     beta_group2 = generate_coef(beta, s)
     # Generate two response vectors for each subgroup
-    y_train_group1 = np.array([create_y(X[i, :], s, beta_group1, 0) for i in range(n//2)])
-    y_train_group2 = np.array([create_y(X[i, :], s, beta_group2, 1) for i in range(n//2, n)])
+    y_train_group1 = np.array([create_y(X[i, :], s, beta_group1, group_index=0) for i in range(n//2)])
+    y_train_group2 = np.array([create_y(X[i, :], s, beta_group2, group_index=1) for i in range(n//2, n)])
     y_train = np.concatenate((y_train_group1, y_train_group2))
     ### Update for local MDI+ done
 

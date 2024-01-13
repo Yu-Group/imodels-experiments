@@ -9,13 +9,15 @@ X_PARAMS_DICT = {
     "sample_row_n": None,
     "sample_col_n": None
 }
-Y_DGP = linear_model
+### Update start for local MDI+
+Y_DGP = linear_model_two_groups
 Y_PARAMS_DICT = {
     "beta": 1,
     "sigma": None,
     "heritability": 0.4,
     "s": 5
 }
+### Update for local MDI+ done
 
 # # vary one parameter
 # VARY_PARAM_NAME = "sample_row_n"

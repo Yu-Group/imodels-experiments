@@ -223,7 +223,7 @@ def run_comparison(path: str,
 
 
 def get_metrics():
-    return [('rocauc', auroc_score), ('prauc', auprc_score)]
+    return [('rocauc', auroc_score)]#, ('prauc', auprc_score)]
 
 
 def reformat_results(results):
@@ -414,3 +414,99 @@ if __name__ == '__main__':
             assert all(results)
 
     print('completed all experiments successfully!')
+
+# get model file names
+    model_comparison_files_all = []
+    for est in ests:
+        estimator_name = est[0].name.split(' - ')[0]
+        fi_estimators_all = [fi_estimator for fi_estimator in itertools.chain(*fi_ests) \
+                             if fi_estimator.model_type in est[0].model_type]
+        model_comparison_files = [f'{estimator_name}_{fi_estimator.name}_comparisons.pkl' for fi_estimator in
+                                  fi_estimators_all]
+        model_comparison_files_all += model_comparison_files
+
+    # aggregate results
+    results_list = []
+    if isinstance(vary_param_name, list):
+        for vary_param_dict in vary_param_dicts:
+            val_name = "_".join(vary_param_dict.values())
+
+            for i in range(args.nreps):
+                all_files = glob.glob(oj(path, val_name, 'rep' + str(i), '*'))
+                model_files = sorted([f for f in all_files if os.path.basename(f) in model_comparison_files_all])
+
+                if len(model_files) == 0:
+                    print('No files found at ', oj(path, val_name, 'rep' + str(i)))
+                    continue
+
+                results = pd.concat(
+                    [pkl.load(open(f, 'rb'))['df'] for f in model_files],
+                    axis=0
+                )
+
+                for param_name, param_val in vary_param_dict.items():
+                    val = vary_param_vals[param_name][param_val]
+                    if vary_type[param_name] == "dgp":
+                        if np.isscalar(val):
+                            results.insert(0, param_name, val)
+                        else:
+                            results.insert(0, param_name, [val for i in range(results.shape[0])])
+                        results.insert(1, param_name + "_name", param_val)
+                    elif vary_type[param_name] == "est" or vary_type[param_name] == "fi_est":
+                        results.insert(0, param_name + "_name", copy.deepcopy(results[param_name]))
+                results.insert(0, 'rep', i)
+                results_list.append(results)
+    else:
+        for val_name, val in vary_param_vals.items():
+            for i in range(args.nreps):
+                all_files = glob.glob(oj(path, val_name, 'rep' + str(i), '*'))
+                model_files = sorted([f for f in all_files if os.path.basename(f) in model_comparison_files_all])
+
+                if len(model_files) == 0:
+                    print('No files found at ', oj(path, val_name, 'rep' + str(i)))
+                    continue
+
+                results = pd.concat(
+                    [pkl.load(open(f, 'rb'))['df'] for f in model_files],
+                    axis=0
+                )
+                if vary_type == "dgp":
+                    if np.isscalar(val):
+                        results.insert(0, vary_param_name, val)
+                    else:
+                        results.insert(0, vary_param_name, [val for i in range(results.shape[0])])
+                    results.insert(1, vary_param_name + "_name", val_name)
+                    results.insert(2, 'rep', i)
+                elif vary_type == "est" or vary_type == "fi_est":
+                    results.insert(0, vary_param_name + "_name", copy.deepcopy(results[vary_param_name]))
+                    results.insert(1, 'rep', i)
+                results_list.append(results)
+    results_merged = pd.concat(results_list, axis=0)
+    pkl.dump(results_merged, open(oj(path, 'results.pkl'), 'wb'))
+    results_df = reformat_results(results_merged)
+    results_df.to_csv(oj(path, 'results.csv'), index=False)
+
+    print('merged and saved all experiment results successfully!')
+
+    # create R markdown summary of results
+    if args.create_rmd:
+        if args.show_vars is None:
+            show_vars = 'NULL'
+        else:
+            show_vars = args.show_vars
+
+        if isinstance(vary_param_name, list):
+            vary_param_name = "; ".join(vary_param_name)
+
+        sim_rmd = os.path.basename(results_dir) + '_simulation_results.Rmd'
+        os.system(
+            'cp {} \'{}\''.format(oj("rmd", "simulation_results.Rmd"), sim_rmd)
+        )
+        os.system(
+            'Rscript -e "rmarkdown::render(\'{}\', params = list(results_dir = \'{}\', vary_param_name = \'{}\', seed = {}, keep_vars = {}), output_file = \'{}\', quiet = TRUE)"'.format(
+                sim_rmd,
+                results_dir, vary_param_name, str(args.split_seed), str(show_vars),
+                oj(path, "simulation_results.html"))
+        )
+        os.system('rm \'{}\''.format(sim_rmd))
+        print("created rmd of simulation results successfully!")
