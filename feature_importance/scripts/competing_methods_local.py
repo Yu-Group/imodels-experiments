@@ -64,13 +64,10 @@ def permutation_local(X, y, fit, num_permutations=100):
             y_pred_permuted = fit.predict(X_permuted)
 
             # Calculate MSE for each sample
-            mse_values = mean_squared_error(y, y_pred_permuted)
+            for i in range(num_samples):
+                lpi[i, k] += (y[i]-y_pred_permuted[i])**2
 
-            # Store MSE values in the array
-            lpi[:, k] += mse_values
-
-        # Average MSE values across permutations for each sample
-        lpi[:, k] /= num_permutations
+    lpi /= num_permutations
 
     # Convert the array to a DataFrame
     result_table = pd.DataFrame(lpi, columns=[f'Feature_{i}' for i in range(num_features)])
