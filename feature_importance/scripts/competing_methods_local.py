@@ -77,6 +77,7 @@ def permutation_local(X, y, fit, num_permutations=100):
 
     return result_table
 
+##########To Do for Zach: Please add the implementation of local MDI and MDI+ below##########
 def MDI_plus_local(X, y, fit):
     """
     Compute local MDI+ importance for each feature and sample.
@@ -88,6 +89,28 @@ def MDI_plus_local(X, y, fit):
     """
 
     ## To Do for Zach: Please add the implementation of local MDI+ below
+    num_samples, num_features = X.shape
+
+
+    result = None
+
+    # Convert the array to a DataFrame
+    result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
+
+    return result_table
+
+
+def MDI_local(X, y, fit):
+    """
+    Compute local MDI importance for each feature and sample.
+    :param X: design matrix
+    :param y: response
+    :param fit: fitted model of interest (tree-based)
+    :return: dataframe of shape: (n_samples, n_features)
+
+    """
+
+    ## To Do for Zach: Please add the implementation of local MDI below
     num_samples, num_features = X.shape
 
 
