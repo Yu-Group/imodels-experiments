@@ -106,7 +106,7 @@ def MDI_local_sub_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=
     rf_plus_model.fit(X, y)
 
     try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, local_scoring_fns=mean_squared_error)
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, local_scoring_fns=mean_squared_error, version = "zach")
         if return_stability_scores:
             stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
     except ValueError as e:
@@ -123,6 +123,7 @@ def MDI_local_sub_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=
     # if return_stability_scores:
     #     mdi_plus_scores = pd.concat([mdi_plus_scores, stability_scores], axis=1)
     result = mdi_plus_scores["local"]
+    print(result)
     # Convert the array to a DataFrame
     result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
 
@@ -146,6 +147,7 @@ def MDI_local_all_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=
                          Var: variable name
                          Importance: MDI+ score
     """
+    num_samples, num_features = X.shape
 
     if isinstance(fit, RegressorMixin):
         RFPlus = RandomForestPlusRegressor
@@ -157,7 +159,7 @@ def MDI_local_all_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=
     rf_plus_model = RFPlus(rf_model=fit, **kwargs)
     rf_plus_model.fit(X, y)
     try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, local_scoring_fns=mean_squared_error)
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, local_scoring_fns=mean_squared_error, version = "tiffany")
         if return_stability_scores:
             stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
     except ValueError as e:
@@ -174,6 +176,7 @@ def MDI_local_all_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=
     # if return_stability_scores:
     #     mdi_plus_scores = pd.concat([mdi_plus_scores, stability_scores], axis=1)
     result = mdi_plus_scores["local"]
+    print(result)
     # Convert the array to a DataFrame
     result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
 

@@ -2,14 +2,14 @@ import sys
 sys.path.append("../..")
 from feature_importance.scripts.simulations_util import *
 
-
-X_DGP = sample_real_X
-X_PARAMS_DICT = {
-    "fpath": "/mnt/d/local_MDI+/imodels-experiments/data/X_splicing_cleaned.csv",
-    "sample_row_n": None,
-    "sample_col_n": None
-}
 ### Update start for local MDI+
+X_DGP = sample_normal_X
+X_PARAMS_DICT = {
+    "n": 1200,
+    "d": 50,
+    "mean": 0,
+    "scale": 1
+}
 Y_DGP = linear_model_two_groups
 Y_PARAMS_DICT = {
     "beta": 1,

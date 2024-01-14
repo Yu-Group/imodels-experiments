@@ -10,7 +10,7 @@ ESTIMATORS = [
 ]
 
 FI_ESTIMATORS = [
-    # [FIModelConfig('MDI_all_stumps', MDI_local_all_stumps, model_type='tree')],
+    [FIModelConfig('MDI_all_stumps', MDI_local_all_stumps, model_type='tree')],
     [FIModelConfig('MDI_sub_stumps', MDI_local_sub_stumps, model_type='tree')],
     [FIModelConfig('TreeSHAP', tree_shap_local, model_type='tree')],
     [FIModelConfig('Permutation', permutation_local, model_type='tree')],
