@@ -1,7 +1,6 @@
 from sklearn.ensemble import RandomForestRegressor
 from feature_importance.util import ModelConfig, FIModelConfig
-from feature_importance.scripts.competing_methods_local import tree_shap_local, permutation_local
-
+from feature_importance.scripts.competing_methods_local import tree_shap_local, permutation_local, lime_local, MDI_local_all_stumps, MDI_local_sub_stumps
 # N_ESTIMATORS=[50, 100, 500, 1000]
 ESTIMATORS = [
     [ModelConfig('RF', RandomForestRegressor, model_type='tree',
@@ -13,4 +12,6 @@ ESTIMATORS = [
 FI_ESTIMATORS = [
     [FIModelConfig('TreeSHAP', tree_shap_local, model_type='tree')],
     [FIModelConfig('Permutation', permutation_local, model_type='tree')],
+    [FIModelConfig('LIME', lime_local, model_type='tree')],
+    [FIModelConfig('MDI_all_stumps', MDI_local_all_stumps, model_type='tree')],
 ]
