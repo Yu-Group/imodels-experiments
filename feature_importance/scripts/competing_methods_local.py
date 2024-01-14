@@ -111,19 +111,19 @@ def MDI_local_sub_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=
             stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
     except ValueError as e:
         if str(e) == 'Transformer representation was empty for all trees.':
-            mdi_plus_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
-            if isinstance(X, pd.DataFrame):
-                mdi_plus_scores.index = X.columns
-            mdi_plus_scores.index.name = 'var'
-            mdi_plus_scores.reset_index(inplace=True)
+            mdi_plus_scores = np.zeros((num_samples, num_features)) ### Not sure if this is right
+            # mdi_plus_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
+            # if isinstance(X, pd.DataFrame):
+            #     mdi_plus_scores.index = X.columns
+            # mdi_plus_scores.index.name = 'var'
+            # mdi_plus_scores.reset_index(inplace=True)
             stability_scores = None
         else:
             raise
     # mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_
     # if return_stability_scores:
     #     mdi_plus_scores = pd.concat([mdi_plus_scores, stability_scores], axis=1)
-    result = mdi_plus_scores["local"]
-    print(result)
+    result = mdi_plus_scores["local"].values
     # Convert the array to a DataFrame
     result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
 
@@ -164,19 +164,19 @@ def MDI_local_all_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=
             stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
     except ValueError as e:
         if str(e) == 'Transformer representation was empty for all trees.':
-            mdi_plus_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
-            if isinstance(X, pd.DataFrame):
-                mdi_plus_scores.index = X.columns
-            mdi_plus_scores.index.name = 'var'
-            mdi_plus_scores.reset_index(inplace=True)
+            mdi_plus_scores = np.zeros((num_samples, num_features)) ### Not sure if this is right
+            # mdi_plus_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
+            # if isinstance(X, pd.DataFrame):
+            #     mdi_plus_scores.index = X.columns
+            # mdi_plus_scores.index.name = 'var'
+            # mdi_plus_scores.reset_index(inplace=True)
             stability_scores = None
         else:
             raise
     # mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_
     # if return_stability_scores:
     #     mdi_plus_scores = pd.concat([mdi_plus_scores, stability_scores], axis=1)
-    result = mdi_plus_scores["local"]
-    print(result)
+    result = mdi_plus_scores["local"].values
     # Convert the array to a DataFrame
     result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
 

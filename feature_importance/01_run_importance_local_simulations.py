@@ -94,6 +94,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 }
                 start = time.time()
                 local_fi_score = fi_est.cls(X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
+                print(local_fi_score)
                 assert local_fi_score.shape == X_test.shape
                 n_local_fi_score = len(local_fi_score)
                 local_fi_score_group1 = local_fi_score.iloc[range(n_local_fi_score // 2)].values

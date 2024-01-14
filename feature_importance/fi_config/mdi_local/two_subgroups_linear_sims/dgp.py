@@ -6,7 +6,7 @@ from feature_importance.scripts.simulations_util import *
 X_DGP = sample_normal_X
 X_PARAMS_DICT = {
     "n": 1200,
-    "d": 50,
+    "d": 20,
     "mean": 0,
     "scale": 1
 }
@@ -26,7 +26,7 @@ Y_PARAMS_DICT = {
 # vary two parameters in a grid
 VARY_PARAM_NAME = ["heritability", "sample_row_n"]
 VARY_PARAM_VALS = {"heritability": {"0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
-                   "sample_row_n": {"100": 100, "250": 250, "500": 500, "1000": 1000}}
+                   "n": {"100": 100, "250": 250, "500": 500, "1000": 1000}}
 
 # # vary over n_estimators in RF model in models.py
 # VARY_PARAM_NAME = "n_estimators"
