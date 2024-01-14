@@ -11,7 +11,15 @@ import shap
 import lime
 import lime.lime_tabular
 from imodels.importance.rf_plus import RandomForestPlusRegressor, RandomForestPlusClassifier
+from imodels.importance.rf_plus import _fast_r2_score
+from sklearn.metrics import r2_score, mean_absolute_error, accuracy_score, roc_auc_score, mean_squared_error
 
+
+def neg_mae(y_true, y_pred, **kwargs):
+    """
+    Evaluates negative mean absolute error
+    """
+    return -mean_absolute_error(y_true, y_pred, **kwargs)
 
 def tree_shap_local(X, y, fit):
     """
@@ -89,8 +97,17 @@ def MDI_local_sub_stumps(X, y, fit):
     """
     num_samples, num_features = X.shape
 
+    if isinstance(fit, RegressorMixin):
+        RFPlus = RandomForestPlusRegressor
+    elif isinstance(fit, ClassifierMixin):
+        RFPlus = RandomForestPlusClassifier
+    else:
+        raise ValueError("Unknown task.")
+    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
+    rf_plus_model.fit(X, y)
 
-    result = None
+    mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X, y, scoring_fns={"r2_score": _fast_r2_score, "negative_mae": neg_mae}, local_scoring_fns=True)
+    result = mdi_plus_scores["local"]["negative_mae"]
 
     # Convert the array to a DataFrame
     result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
@@ -124,25 +141,28 @@ def MDI_local_all_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=
         raise ValueError("Unknown task.")
     rf_plus_model = RFPlus(rf_model=fit, **kwargs)
     rf_plus_model.fit(X, y)
-    try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, scoring_fns=scoring_fns)
-        if return_stability_scores:
-            stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
-    except ValueError as e:
-        if str(e) == 'Transformer representation was empty for all trees.':
-            mdi_plus_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
-            if isinstance(X, pd.DataFrame):
-                mdi_plus_scores.index = X.columns
-            mdi_plus_scores.index.name = 'var'
-            mdi_plus_scores.reset_index(inplace=True)
-            stability_scores = None
-        else:
-            raise
-    mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_
-    if return_stability_scores:
-        mdi_plus_scores = pd.concat([mdi_plus_scores, stability_scores], axis=1)
+    # try:
+    mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, local_scoring_fns=mean_squared_error)
+    result = mdi_plus_scores["local"]
+    #     if return_stability_scores:
+    #         stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
+    # except ValueError as e:
+    #     if str(e) == 'Transformer representation was empty for all trees.':
+    #         mdi_plus_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
+    #         if isinstance(X, pd.DataFrame):
+    #             mdi_plus_scores.index = X.columns
+    #         mdi_plus_scores.index.name = 'var'
+    #         mdi_plus_scores.reset_index(inplace=True)
+    #         stability_scores = None
+    #     else:
+    #         raise
+    # mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_
+    # if return_stability_scores:
+    #     mdi_plus_scores = pd.concat([mdi_plus_scores, stability_scores], axis=1)
 
-    return mdi_plus_scores
+    result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
+
+    return result_table
 
 def lime_local(X, y, fit):
     """

@@ -14,4 +14,5 @@ FI_ESTIMATORS = [
     [FIModelConfig('Permutation', permutation_local, model_type='tree')],
     [FIModelConfig('LIME', lime_local, model_type='tree')],
     [FIModelConfig('MDI_all_stumps', MDI_local_all_stumps, model_type='tree')],
+    [FIModelConfig('MDI_sub_stumps', MDI_local_sub_stumps, model_type='tree')],
 ]
