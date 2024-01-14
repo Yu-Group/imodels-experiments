@@ -124,10 +124,10 @@ def compare_estimators(estimators: List[ModelConfig],
                             imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
                             if fi_est.ascending:
                                 imp_vals[np.isnan(imp_vals)] = -sys.maxsize - 1
-                                metric_results[met_name + " group1"] = met(support_group1, imp_vals)
+                                metric_results[met_name + "_group1"] = met(support_group1, imp_vals)
                             else:
                                 imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
-                                metric_results[met_name+ " group1"] = met(support_group1, -imp_vals)
+                                metric_results[met_name+ "_group1"] = met(support_group1, -imp_vals)
 
 
                 if np.max(support_group2) != np.min(support_group2):
@@ -138,10 +138,10 @@ def compare_estimators(estimators: List[ModelConfig],
                             imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
                             if fi_est.ascending:
                                 imp_vals[np.isnan(imp_vals)] = -sys.maxsize - 1
-                                metric_results[met_name+ " group2"] = met(support_group2, imp_vals)
+                                metric_results[met_name+ "_group2"] = met(support_group2, imp_vals)
                             else:
                                 imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
-                                metric_results[met_name+ " group2"] = met(support_group2, -imp_vals)
+                                metric_results[met_name+ "_group2"] = met(support_group2, -imp_vals)
                 metric_results['time'] = end - start
 
                 # initialize results with metadata and metric results

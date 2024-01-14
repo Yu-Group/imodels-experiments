@@ -117,3 +117,24 @@ def MDI_local(X, y, fit):
     result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
 
     return result_table
+
+def LIME(X, y, fit):
+    """
+    Compute LIME local importance for each feature and sample.
+    :param X: design matrix
+    :param y: response
+    :param fit: fitted model of interest (tree-based)
+    :return: dataframe of shape: (n_samples, n_features)
+
+    """
+
+    ## To Do for Zach: Please add the implementation of local MDI below
+    num_samples, num_features = X.shape
+
+
+    result = None
+
+    # Convert the array to a DataFrame
+    result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
+
+    return result_table
