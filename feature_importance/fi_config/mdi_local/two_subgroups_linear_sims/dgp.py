@@ -24,7 +24,8 @@ Y_PARAMS_DICT = {
 # VARY_PARAM_VALS = {"100": 100, "250": 250, "500": 500, "1000": 1000}
 
 # vary two parameters in a grid
-VARY_PARAM_NAME = ["heritability", "sample_row_n"]
+### "sample_row_n"
+VARY_PARAM_NAME = ["heritability", "n"]
 VARY_PARAM_VALS = {"heritability": {"0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
                    "n": {"100": 100, "250": 250, "500": 500, "1000": 1000}}
 

@@ -10,9 +10,12 @@ ESTIMATORS = [
 ]
 
 FI_ESTIMATORS = [
-    [FIModelConfig('MDI_all_stumps', MDI_local_all_stumps, ascending = False, model_type='tree')],
-    [FIModelConfig('MDI_sub_stumps', MDI_local_sub_stumps, ascending = False, model_type='tree')],
+    [FIModelConfig('MDI_all_stumps_with_raw', MDI_local_all_stumps, ascending = False, model_type='tree')],
+    [FIModelConfig('MDI_sub_stumps_with_raw', MDI_local_sub_stumps, ascending = False, model_type='tree')],
+    [FIModelConfig('MDI_all_stumps_without_raw', MDI_local_all_stumps, ascending = False, model_type='tree', include_raw=False)],
+    [FIModelConfig('MDI_sub_stumps_without_raw', MDI_local_sub_stumps, ascending = False, model_type='tree', include_raw=False)],
     [FIModelConfig('TreeSHAP', tree_shap_local, model_type='tree')],
-    [FIModelConfig('Permutation', permutation_local, model_type='tree')],
     [FIModelConfig('LIME', lime_local, model_type='tree')],
 ]
+
+# [FIModelConfig('Permutation', permutation_local, model_type='tree')],

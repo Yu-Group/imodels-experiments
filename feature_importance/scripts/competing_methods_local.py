@@ -15,76 +15,6 @@ from imodels.importance.rf_plus import _fast_r2_score
 from sklearn.metrics import r2_score, mean_absolute_error, accuracy_score, roc_auc_score, mean_squared_error
 
 
-def neg_mae(y_true, y_pred, **kwargs):
-    """
-    Evaluates negative mean absolute error
-    """
-    return -mean_absolute_error(y_true, y_pred, **kwargs)
-
-def tree_shap_local(X, y, fit):
-    """
-    Compute average treeshap value across observations
-    :param X: design matrix
-    :param y: response
-    :param fit: fitted model of interest (tree-based)
-    :return: dataframe of shape: (n_samples, n_features)
-    """
-    explainer = shap.TreeExplainer(fit)
-    shap_values = explainer.shap_values(X, check_additivity=False)
-    if sklearn.base.is_classifier(fit):
-        def add_abs(a, b):
-            return abs(a) + abs(b)
-        results = reduce(add_abs, shap_values)
-    else:
-        results = abs(shap_values)
-    result_table = pd.DataFrame(results, columns=[f'Feature_{i}' for i in range(X.shape[1])])
-    # results = results.mean(axis=0)
-    # results = pd.DataFrame(data=results, columns=['importance'])
-    # # Use column names from dataframe if possible
-    # if isinstance(X, pd.DataFrame):
-    #     results.index = X.columns
-    # results.index.name = 'var'
-    # results.reset_index(inplace=True)
-
-    return result_table
-
-def permutation_local(X, y, fit, num_permutations=100):
-    """
-    Compute local permutation importance for each feature and sample.
-    :param X: design matrix
-    :param y: response
-    :param fit: fitted model of interest (tree-based)
-    :num_permutations: Number of permutations for each feature (default is 100)
-    :return: dataframe of shape: (n_samples, n_features)
-    """
-
-    # Get the number of samples and features
-    num_samples, num_features = X.shape
-
-    # Initialize array to store local permutation importance
-    lpi = np.zeros((num_samples, num_features))
-
-    # For each feature
-    for k in range(num_features):
-        # Permute X_k num_permutations times
-        for b in range(num_permutations):
-            X_permuted = X.copy()
-            X_permuted[:, k] = np.random.permutation(X[:, k])
-            
-            # Feed permuted data through the fitted model
-            y_pred_permuted = fit.predict(X_permuted)
-
-            # Calculate MSE for each sample
-            for i in range(num_samples):
-                lpi[i, k] += (y[i]-y_pred_permuted[i])**2
-
-    lpi /= num_permutations
-
-    # Convert the array to a DataFrame
-    result_table = pd.DataFrame(lpi, columns=[f'Feature_{i}' for i in range(num_features)])
-
-    return result_table
-
 def MDI_local_sub_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
     """
     Compute local MDI importance for each feature and sample.
@@ -106,26 +36,19 @@ def MDI_local_sub_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=
     rf_plus_model.fit(X, y)
 
     try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, local_scoring_fns=mean_squared_error, version = "zach")
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, local_scoring_fns=mean_squared_error, version = "sub", lfi=True)["lfi"]
         if return_stability_scores:
+            raise NotImplementedError
             stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
     except ValueError as e:
         if str(e) == 'Transformer representation was empty for all trees.':
-            mdi_plus_scores = np.zeros((num_samples, num_features)) ### Not sure if this is right
-            # mdi_plus_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
-            # if isinstance(X, pd.DataFrame):
-            #     mdi_plus_scores.index = X.columns
-            # mdi_plus_scores.index.name = 'var'
-            # mdi_plus_scores.reset_index(inplace=True)
+            mdi_plus_scores = np.zeros((num_samples, num_features))
             stability_scores = None
         else:
             raise
-    # mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_
-    # if return_stability_scores:
-    #     mdi_plus_scores = pd.concat([mdi_plus_scores, stability_scores], axis=1)
-    result = mdi_plus_scores["local"].values
+
     # Convert the array to a DataFrame
-    result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
+    result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
 
     return result_table
 
@@ -159,32 +82,26 @@ def MDI_local_all_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=
     rf_plus_model = RFPlus(rf_model=fit, **kwargs)
     rf_plus_model.fit(X, y)
     try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, local_scoring_fns=mean_squared_error, version = "tiffany")
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, local_scoring_fns=mean_squared_error, version = "all", lfi=True)["lfi"]
         if return_stability_scores:
+            raise NotImplementedError
             stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
     except ValueError as e:
         if str(e) == 'Transformer representation was empty for all trees.':
-            mdi_plus_scores = np.zeros((num_samples, num_features)) ### Not sure if this is right
-            # mdi_plus_scores = pd.DataFrame(data=np.zeros(X.shape[1]), columns=['importance'])
-            # if isinstance(X, pd.DataFrame):
-            #     mdi_plus_scores.index = X.columns
-            # mdi_plus_scores.index.name = 'var'
-            # mdi_plus_scores.reset_index(inplace=True)
+            mdi_plus_scores = np.zeros((num_samples, num_features))
             stability_scores = None
         else:
             raise
-    # mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_
-    # if return_stability_scores:
-    #     mdi_plus_scores = pd.concat([mdi_plus_scores, stability_scores], axis=1)
-    result = mdi_plus_scores["local"].values
+
     # Convert the array to a DataFrame
-    result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
+    result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
 
     return result_table
 
 def lime_local(X, y, fit):
     """
     Compute LIME local importance for each feature and sample.
+    Larger values indicate more important features.
     :param X: design matrix
     :param y: response
     :param fit: fitted model of interest (tree-based)
@@ -204,5 +121,65 @@ def lime_local(X, y, fit):
             result[i,j] = abs(sorted_feature_importance[j][1])
     # Convert the array to a DataFrame
     result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
+
+    return result_table
+
+def tree_shap_local(X, y, fit):
+    """
+    Compute average treeshap value across observations.
+    Larger absolute values indicate more important features.
+    :param X: design matrix
+    :param y: response
+    :param fit: fitted model of interest (tree-based)
+    :return: dataframe of shape: (n_samples, n_features)
+    """
+    explainer = shap.TreeExplainer(fit)
+    shap_values = explainer.shap_values(X, check_additivity=False)
+    if sklearn.base.is_classifier(fit):
+        # Shape values are returned as a list of arrays, one for each class
+        def add_abs(a, b):
+            return abs(a) + abs(b)
+        results = reduce(add_abs, shap_values)
+    else:
+        results = abs(shap_values)
+    result_table = pd.DataFrame(results, columns=[f'Feature_{i}' for i in range(X.shape[1])])
+
+    return result_table
+
+def permutation_local(X, y, fit, num_permutations=100):
+    """
+    Compute local permutation importance for each feature and sample.
+    Larger values indicate more important features.
+    :param X: design matrix
+    :param y: response
+    :param fit: fitted model of interest (tree-based)
+    :num_permutations: Number of permutations for each feature (default is 100)
+    :return: dataframe of shape: (n_samples, n_features)
+    """
+
+    # Get the number of samples and features
+    num_samples, num_features = X.shape
+
+    # Initialize array to store local permutation importance
+    lpi = np.zeros((num_samples, num_features))
+
+    # For each feature
+    for k in range(num_features):
+        # Permute X_k num_permutations times
+        for b in range(num_permutations):
+            X_permuted = X.copy()
+            X_permuted[:, k] = np.random.permutation(X[:, k])
+            
+            # Feed permuted data through the fitted model
+            y_pred_permuted = fit.predict(X_permuted)
+
+            # Calculate MSE for each sample
+            for i in range(num_samples):
+                lpi[i, k] += (y[i]-y_pred_permuted[i])**2
+
+    lpi /= num_permutations
+
+    # Convert the array to a DataFrame
+    result_table = pd.DataFrame(lpi, columns=[f'Feature_{i}' for i in range(num_features)])
 
     return result_table
