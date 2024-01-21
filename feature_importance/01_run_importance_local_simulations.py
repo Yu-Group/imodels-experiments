@@ -115,8 +115,8 @@ def compare_estimators(estimators: List[ModelConfig],
                 
                 metric_results['fi_scores'] = pd.merge(local_fi_score_summary, support_df, on="var", how="left")
 
-
                 if np.max(support_group1) != np.min(support_group1):
+                    # Compute metrics using the average prediction and the true support
                     for i, (met_name, met) in enumerate(metrics):
                         if met is not None:
                             imp_vals = local_fi_score_group1_mean
@@ -124,13 +124,29 @@ def compare_estimators(estimators: List[ModelConfig],
                             imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
                             if fi_est.ascending:
                                 imp_vals[np.isnan(imp_vals)] = -sys.maxsize - 1
-                                metric_results[met_name + "_group1"] = met(support_group1, imp_vals)
+                                metric_results[met_name + "_group1_avg_prediction"] = met(support_group1, imp_vals)
                             else:
                                 imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
-                                metric_results[met_name+ "_group1"] = met(support_group1, -imp_vals)
-
+                                metric_results[met_name+ "_group1_avg_prediction"] = met(support_group1, -imp_vals)
+                    
+                    # Compute metrics using the each prediction and the true support then average
+                    for i, (met_name, met) in enumerate(metrics):
+                        if met is not None:
+                            results_group1 = 0
+                            for j in range(n_local_fi_score // 2):
+                                imp_vals = local_fi_score_group1[j]
+                                imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
+                                imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
+                                if fi_est.ascending:
+                                    imp_vals[np.isnan(imp_vals)] = -sys.maxsize - 1
+                                    results_group1 += met(support_group1, imp_vals)
+                                else:
+                                    imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
+                                    results_group1 += met(support_group1, -imp_vals)
+                            metric_results[met_name + "_group1_avg_metric"] = results_group1 / (n_local_fi_score // 2)
 
                 if np.max(support_group2) != np.min(support_group2):
+                    # Compute metrics using the average prediction and the true support
                     for i, (met_name, met) in enumerate(metrics):
                         if met is not None:
                             imp_vals = local_fi_score_group2_mean
@@ -138,10 +154,27 @@ def compare_estimators(estimators: List[ModelConfig],
                             imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
                             if fi_est.ascending:
                                 imp_vals[np.isnan(imp_vals)] = -sys.maxsize - 1
-                                metric_results[met_name+ "_group2"] = met(support_group2, imp_vals)
+                                metric_results[met_name+ "_group2_avg_prediction"] = met(support_group2, imp_vals)
                             else:
                                 imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
-                                metric_results[met_name+ "_group2"] = met(support_group2, -imp_vals)
+                                metric_results[met_name+ "_group2_avg_prediction"] = met(support_group2, -imp_vals)
+                    
+                    # Compute metrics using the each prediction and the true support then average
+                    for i, (met_name, met) in enumerate(metrics):
+                        if met is not None:
+                            results_group2 = 0
+                            for j in range(n_local_fi_score // 2):
+                                imp_vals = local_fi_score_group2[j]
+                                imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
+                                imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
+                                if fi_est.ascending:
+                                    imp_vals[np.isnan(imp_vals)] = -sys.maxsize - 1
+                                    results_group2 += met(support_group2, imp_vals)
+                                else:
+                                    imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
+                                    results_group2 += met(support_group2, -imp_vals)
+                            metric_results[met_name + "_group2_avg_metric"] = results_group2 / (n_local_fi_score - n_local_fi_score // 2)
+
                 metric_results['time'] = end - start
 
                 # initialize results with metadata and metric results
