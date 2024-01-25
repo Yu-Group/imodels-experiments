@@ -93,7 +93,7 @@ def MDI_local_all_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=
     return result_table
 
 
-def LFI_sum_absolute_all_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
+def LFI_sum_absolute(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
     num_samples, num_features = X.shape
     if isinstance(fit, RegressorMixin):
         RFPlus = RandomForestPlusRegressor
@@ -105,7 +105,7 @@ def LFI_sum_absolute_all_stumps(X, y, fit, scoring_fns="auto", return_stability_
     rf_plus_model.fit(X, y)
 
     try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, version="all", lfi=True, lfi_type="loo",lfi_abs="inside")["lfi"].values
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, lfi=True, lfi_abs="inside")["lfi"].values
         if return_stability_scores:
             raise NotImplementedError
             stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
@@ -120,7 +120,7 @@ def LFI_sum_absolute_all_stumps(X, y, fit, scoring_fns="auto", return_stability_
     return result_table
 
 
-def LFI_absolute_sum_all_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
+def LFI_absolute_sum(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
     num_samples, num_features = X.shape
     if isinstance(fit, RegressorMixin):
         RFPlus = RandomForestPlusRegressor
@@ -132,7 +132,7 @@ def LFI_absolute_sum_all_stumps(X, y, fit, scoring_fns="auto", return_stability_
     rf_plus_model.fit(X, y)
 
     try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, version="all", lfi=True, lfi_type="loo",lfi_abs="outside")["lfi"].values
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, lfi=True, lfi_abs="outside")["lfi"].values
         if return_stability_scores:
             raise NotImplementedError
             stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
@@ -145,64 +145,6 @@ def LFI_absolute_sum_all_stumps(X, y, fit, scoring_fns="auto", return_stability_
     result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
 
     return result_table
-
-
-def LFI_sum_absolute_sub_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
-    num_samples, num_features = X.shape
-    if isinstance(fit, RegressorMixin):
-        RFPlus = RandomForestPlusRegressor
-    elif isinstance(fit, ClassifierMixin):
-        RFPlus = RandomForestPlusClassifier
-    else:
-        raise ValueError("Unknown task.")
-    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
-    rf_plus_model.fit(X, y)
-
-    try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, version="sub", lfi=True, lfi_type="loo",lfi_abs="inside")["lfi"].values
-        if return_stability_scores:
-            raise NotImplementedError
-            stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
-    except ValueError as e:
-        if str(e) == 'Transformer representation was empty for all trees.':
-            mdi_plus_scores = np.zeros((num_samples, num_features)) 
-            stability_scores = None
-        else:
-            raise
-    result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
-
-    return result_table
-
-
-def LFI_absolute_sum_sub_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
-    num_samples, num_features = X.shape
-    if isinstance(fit, RegressorMixin):
-        RFPlus = RandomForestPlusRegressor
-    elif isinstance(fit, ClassifierMixin):
-        RFPlus = RandomForestPlusClassifier
-    else:
-        raise ValueError("Unknown task.")
-    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
-    rf_plus_model.fit(X, y)
-
-    try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, version="sub", lfi=True, lfi_type="loo",lfi_abs="outside")["lfi"].values
-        if return_stability_scores:
-            raise NotImplementedError
-            stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
-    except ValueError as e:
-        if str(e) == 'Transformer representation was empty for all trees.':
-            mdi_plus_scores = np.zeros((num_samples, num_features)) 
-            stability_scores = None
-        else:
-            raise
-    result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
-
-    return result_table
-
-
-
-
 
 
 def lime_local(X, y, fit):

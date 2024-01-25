@@ -26,10 +26,8 @@ Y_PARAMS_DICT = {
 # vary two parameters in a grid
 ### "sample_row_n"
 VARY_PARAM_NAME = ["heritability", "n"]
-VARY_PARAM_VALS = {"heritability": {"0.1": 0.1, "0.4": 0.4, "0.8": 0.8},
+VARY_PARAM_VALS = {"heritability": {"0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
                    "n": {"100": 100, "250": 250, "500": 500, "1000": 1000}}
-# VARY_PARAM_VALS = {"heritability": {"0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
-#                    "n": {"100": 100, "250": 250, "500": 500, "1000": 1000}}
 
 # # vary over n_estimators in RF model in models.py
 # VARY_PARAM_NAME = "n_estimators"
