@@ -89,6 +89,25 @@ def sample_normal_X(n, d, mean=0, scale=1, corr=0, Sigma=None):
     return X
 
 
+def sample_normal_X_subgroups(n, d, mean, scale):
+    """
+    :param n: Number of samples
+    :param d: Number of features
+    :param mean: Nested list of mean of normal distribution for each subgroup
+    :param scale: Nested ist of scale of normal distribution for each subgroup
+    :return:
+    """
+    assert len(mean[0]) == len(scale[0]) == d
+    num_groups = len(mean)
+    result = []
+    group_size = n // num_groups
+    for i in range(num_groups):
+        X = np.zeros((group_size, d))
+        for j in range(d):
+            X[:, j] = np.random.normal(mean[i][j], scale[i][j], size=group_size)
+        result.append(X)
+    return np.vstack(result)
+
 def sample_block_cor_X(n, d, rho, n_blocks, mean=0):
     """
     Sample X from N(mean, Sigma) where Sigma is a block diagonal covariance matrix

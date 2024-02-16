@@ -16,7 +16,7 @@ import sys
 from collections import defaultdict
 from typing import Callable, List, Tuple
 import itertools
-from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score, mean_squared_error
+from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score
 
 sys.path.append(".")
 sys.path.append("..")
@@ -26,39 +26,10 @@ from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score
 
 warnings.filterwarnings("ignore", message="Bins whose width")
 
-#RUN THE FILE
-# python 01_run_importance_local_simulations.py --nreps 2 --config mdi_local.two_subgroups_linear_sims --split_seed 331 --ignore_cache --create_rmd --result_name no_standardization
-
-
-def generate_random_shuffle(data, seed):
-    """
-    Randomly shuffle each column of the data.
-    """
-    np.random.seed(seed)
-    return np.array([np.random.permutation(data[:, i]) for i in range(data.shape[1])]).T
-
-
-def ablation(data, feature_importance, mode, num_features, seed):
-    """
-    Replace the top num_features max feature importance data with random shuffle for each sample
-    """
-    assert mode in ["max", "min"]
-    fi = feature_importance.to_numpy()
-    shuffle = generate_random_shuffle(data, seed)
-    if mode == "max":
-        indices = np.argsort(-fi)
-    else:
-        indices = np.argsort(fi)
-    data_copy = data.copy()
-    for i in range(data.shape[0]):
-        for j in range(num_features):
-            data_copy[i, indices[i,j]] = shuffle[i, indices[i,j]]
-    return data_copy
-
-
 def compare_estimators(estimators: List[ModelConfig],
                        fi_estimators: List[FIModelConfig],
-                       X, y, support: List,
+                       X, y, support_group1: List,
+                       support_group2: List,
                        metrics: List[Tuple[str, Callable]],
                        args, ) -> Tuple[dict, dict]:
     """Calculates results given estimators, feature importance estimators, datasets, and metrics.
@@ -104,9 +75,14 @@ def compare_estimators(estimators: List[ModelConfig],
             est.fit(X_train, y_train)
 
             # compute correlation between signal and nonsignal features
-            x_cor = np.empty(len(support))
-            x_cor[:] = np.NaN
-            x_cor[support == 0] = compute_nsg_feat_corr_w_sig_subspace(X_train[:, support == 1], X_train[:, support == 0])
+            n = X_train.shape[0]
+            x_cor_group1 = np.empty(len(support_group1))
+            x_cor_group1[:] = np.NaN
+            x_cor_group1[support_group1 == 0] = compute_nsg_feat_corr_w_sig_subspace(X_train[:n//2, support_group1 == 1], X_train[:n//2, support_group1 == 0])
+
+            x_cor_group2 = np.empty(len(support_group2))
+            x_cor_group2[:] = np.NaN
+            x_cor_group2[support_group2 == 0] = compute_nsg_feat_corr_w_sig_subspace(X_train[n//2:, support_group2 == 1], X_train[n//2:, support_group2 == 0])
 
             # loop over fi estimators
             for fi_est in fi_ests:
@@ -117,25 +93,93 @@ def compare_estimators(estimators: List[ModelConfig],
                 }
                 start = time.time()
                 local_fi_score = fi_est.cls(X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
-                y_pred = est.predict(X_test)
                 feature_importance_list.append(local_fi_score)
+                assert local_fi_score.shape == X_test.shape
+                n_local_fi_score = len(local_fi_score)
+                local_fi_score_group1 = local_fi_score.iloc[range(n_local_fi_score // 2)].values
+                local_fi_score_group2 = local_fi_score.iloc[range(n_local_fi_score // 2, n_local_fi_score)].values
+                local_fi_score_group1_mean = np.mean(local_fi_score_group1, axis=0)
+                local_fi_score_group2_mean = np.mean(local_fi_score_group2, axis=0)
+
+                local_fi_score_summary = pd.DataFrame({
+                "var": range(len(local_fi_score_group1_mean)),
+                "local_fi_score_group1_mean": local_fi_score_group1_mean,
+                "local_fi_score_group2_mean": local_fi_score_group2_mean})
+
+                support_df = pd.DataFrame({"var": np.arange(len(support_group1)),
+                                           "true_support_group1": support_group1,
+                                            "true_support_group2": support_group2,
+                                           "cor_with_signal_group1": x_cor_group1,
+                                           "cor_with_signal_group2": x_cor_group2})
+                
+                metric_results['fi_scores'] = pd.merge(local_fi_score_summary, support_df, on="var", how="left")
                 end = time.time()
-                support_df = pd.DataFrame({"var": np.arange(len(support)),
-                                           "true_support": support,
-                                           "cor_with_signal": x_cor})
-                metric_results['fi_scores'] = support_df
-                if np.max(support) != np.min(support):
-                    metric_results['MSE_before_ablation'] = mean_squared_error(y_test, y_pred)
-                    imp_vals = copy.deepcopy(local_fi_score)
-                    imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
-                    imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
-                    for i in range(X_test.shape[1]:
-                        if fi_est.ascending:
-                            ablation_X_test = ablation(X_test, imp_vals, "max", i, 3407)
-                        else:
-                            ablation_X_test = ablation(X_test, imp_vals, "min", i, 3407)
-                        metric_results[f'MSE_after_ablation{i}'] = mean_squared_error(y_test, est.predict(ablation_X_test))
-                metric_results['time'] = end - start
+                print(f"Time to compute {fi_est.name} for {model.name} with sample size {n}: {end - start}")
+
+                eval_start = time.time()
+                if np.max(support_group1) != np.min(support_group1):
+                    # Compute metrics using the average prediction and the true support
+                    # for i, (met_name, met) in enumerate(metrics):
+                    #     if met is not None:
+                    #         imp_vals = local_fi_score_group1_mean
+                    #         imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
+                    #         imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
+                    #         if fi_est.ascending:
+                    #             imp_vals[np.isnan(imp_vals)] = -sys.maxsize - 1
+                    #             metric_results[met_name + "_group1_avg_prediction"] = met(support_group1, imp_vals)
+                    #         else:
+                    #             imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
+                    #             metric_results[met_name+ "_group1_avg_prediction"] = met(support_group1, -imp_vals)
+                    
+                    # Compute metrics using the each prediction and the true support then average
+                    for i, (met_name, met) in enumerate(metrics):
+                        if met is not None:
+                            results_group1 = 0
+                            for j in range(n_local_fi_score // 2):
+                                imp_vals = local_fi_score_group1[j]
+                                imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
+                                imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
+                                if fi_est.ascending:
+                                    imp_vals[np.isnan(imp_vals)] = -sys.maxsize - 1
+                                    results_group1 += met(support_group1, imp_vals)
+                                else:
+                                    imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
+                                    results_group1 += met(support_group1, -imp_vals)
+                            metric_results[met_name + "_group1_avg_metric"] = results_group1 / (n_local_fi_score // 2)
+
+                if np.max(support_group2) != np.min(support_group2):
+                    # Compute metrics using the average prediction and the true support
+                    # for i, (met_name, met) in enumerate(metrics):
+                    #     if met is not None:
+                    #         imp_vals = local_fi_score_group2_mean
+                    #         imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
+                    #         imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
+                    #         if fi_est.ascending:
+                    #             imp_vals[np.isnan(imp_vals)] = -sys.maxsize - 1
+                    #             metric_results[met_name+ "_group2_avg_prediction"] = met(support_group2, imp_vals)
+                    #         else:
+                    #             imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
+                    #             metric_results[met_name+ "_group2_avg_prediction"] = met(support_group2, -imp_vals)
+                    
+                    # Compute metrics using the each prediction and the true support then average
+                    for i, (met_name, met) in enumerate(metrics):
+                        if met is not None:
+                            results_group2 = 0
+                            for j in range(n_local_fi_score - n_local_fi_score // 2):
+                                imp_vals = local_fi_score_group2[j]
+                                imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
+                                imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
+                                if fi_est.ascending:
+                                    imp_vals[np.isnan(imp_vals)] = -sys.maxsize - 1
+                                    results_group2 += met(support_group2, imp_vals)
+                                else:
+                                    imp_vals[np.isnan(imp_vals)] = sys.maxsize - 1
+                                    results_group2 += met(support_group2, -imp_vals)
+                            metric_results[met_name + "_group2_avg_metric"] = results_group2 / (n_local_fi_score - n_local_fi_score // 2)
+                eval_end = time.time()
+                print(f"Time to evaluate {fi_est.name} for {model.name} with sample size {n}: {eval_end - eval_start}")
+
+                # metric_results['time'] = end - start
 
                 # initialize results with metadata and metric results
                 kwargs: dict = model.kwargs  # dict
@@ -152,7 +196,8 @@ def compare_estimators(estimators: List[ModelConfig],
 
 
 def run_comparison(path: str,
-                   X, y, support: List,
+                   X, y, support_group1: List,
+                   support_group2: List,
                    metrics: List[Tuple[str, Callable]],
                    estimators: List[ModelConfig],
                    fi_estimators: List[FIModelConfig],
@@ -163,6 +208,7 @@ def run_comparison(path: str,
     model_comparison_files_all = [oj(path, f'{estimator_name}_{fi_estimator.name}_comparisons.pkl') \
                                   for fi_estimator in fi_estimators_all]
     
+    ####### Update by saving pickle files for feature importance
     feature_importance_all = [oj(path, f'{estimator_name}_{fi_estimator.name}_feature_importance.pkl') \
                                   for fi_estimator in fi_estimators_all]
 
@@ -181,12 +227,14 @@ def run_comparison(path: str,
             fi_estimators.append(fi_estimator)
             model_comparison_files.append(model_comparison_file)
 
+    #######
     if len(fi_estimators) == 0:
         return
 
     results, fi_lst = compare_estimators(estimators=estimators,
                                  fi_estimators=fi_estimators,
-                                 X=X, y=y, support=support,
+                                 X=X, y=y, support_group1=support_group1,
+                                 support_group2=support_group2,
                                  metrics=metrics,
                                  args=args)
 
@@ -202,7 +250,7 @@ def run_comparison(path: str,
     for col in nosave_cols:
         if col in df.columns:
             df = df.drop(columns=[col])
-
+    
     for i in range(len(feature_importance_all)):
         pkl.dump(fi_lst[i], open(feature_importance_all[i], 'wb'))
 
@@ -222,7 +270,7 @@ def run_comparison(path: str,
 
 
 def get_metrics():
-    return [('rocauc', auroc_score), ('prauc', auprc_score)]
+    return [('rocauc', auroc_score)]#, ('prauc', auprc_score)]
 
 
 def reformat_results(results):
@@ -240,26 +288,30 @@ def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp
     iter = 0
     while iter <= max_iter:  # regenerate data if y is constant
         X = X_dgp(**X_params_dict)
-        y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
+        y, support_group1, support_group2, beta_group1, beta_group2 = y_dgp(X, **y_params_dict, return_support=True)
         if not all(y == y[0]):
             break
         iter += 1
     if iter > max_iter:
         raise ValueError("Response y is constant.")
     if args.omit_vars is not None:
-        omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
-        support = np.delete(support, omit_vars)
-        X = np.delete(X, omit_vars, axis=1)
-        del beta  # note: beta is not currently supported when using omit_vars
+        assert False, "omit_vars not currently supported"
+        # omit_vars = np.unique([int(x.strip()) for x in args.omit_vars.split(",")])
+        # support = np.delete(support, omit_vars)
+        # X = np.delete(X, omit_vars, axis=1)
+        # del beta  # note: beta is not currently supported when using omit_vars
 
     for est in ests:
         results = run_comparison(path=oj(path, val_name, "rep" + str(i)),
-                                 X=X, y=y, support=support,
+                                 X=X, y=y, support_group1=support_group1,
+                                 support_group2=support_group2,
                                  metrics=metrics,
                                  estimators=est,
                                  fi_estimators=fi_ests,
                                  args=args)
     return True
+
+
 
 
 if __name__ == '__main__':
@@ -278,7 +330,6 @@ if __name__ == '__main__':
     parser.add_argument('--config', type=str, default='test')
     parser.add_argument('--omit_vars', type=str, default=None)  # comma-separated string of variables to omit
     parser.add_argument('--nosave_cols', type=str, default="prediction_model")
-
     ### Newly added arguments
     parser.add_argument('--result_name', type=str, default=None)
 
@@ -415,7 +466,7 @@ if __name__ == '__main__':
 
     print('completed all experiments successfully!')
 
-    # get model file names
+# get model file names
     model_comparison_files_all = []
     for est in ests:
         estimator_name = est[0].name.split(' - ')[0]
