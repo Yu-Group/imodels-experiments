@@ -27,7 +27,7 @@ from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score
 warnings.filterwarnings("ignore", message="Bins whose width")
 
 #RUN THE FILE
-# python 01_run_importance_local_simulations.py --nreps 2 --config mdi_local.two_subgroups_linear_sims --split_seed 331 --ignore_cache --create_rmd --result_name no_standardization
+# python 01_run_importance_local_simulations.py --nreps 2 --config mdi_local.two_subgroups_covariate_shift_sims --split_seed 331 --ignore_cache --create_rmd --result_name no_standardization
 
 
 def generate_random_shuffle(data, seed):
@@ -109,6 +109,7 @@ def compare_estimators(estimators: List[ModelConfig],
             x_cor[support == 0] = compute_nsg_feat_corr_w_sig_subspace(X_train[:, support == 1], X_train[:, support == 0])
 
             # loop over fi estimators
+            seed = np.random.randint(0, 100000)
             for fi_est in fi_ests:
                 metric_results = {
                     'model': model.name,
@@ -117,25 +118,29 @@ def compare_estimators(estimators: List[ModelConfig],
                 }
                 start = time.time()
                 local_fi_score = fi_est.cls(X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
-                y_pred = est.predict(X_test)
-                feature_importance_list.append(local_fi_score)
                 end = time.time()
+                metric_results['fi_time'] = end - start
+                feature_importance_list.append(local_fi_score)
                 support_df = pd.DataFrame({"var": np.arange(len(support)),
                                            "true_support": support,
                                            "cor_with_signal": x_cor})
                 metric_results['fi_scores'] = support_df
+                start = time.time()
                 if np.max(support) != np.min(support):
+                    y_pred = est.predict(X_test)
                     metric_results['MSE_before_ablation'] = mean_squared_error(y_test, y_pred)
                     imp_vals = copy.deepcopy(local_fi_score)
                     imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
                     imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
-                    for i in range(X_test.shape[1]:
+                    for i in range(X_test.shape[1]):
                         if fi_est.ascending:
-                            ablation_X_test = ablation(X_test, imp_vals, "max", i, 3407)
+                            ablation_X_test = ablation(X_test, imp_vals, "max", i+1, seed)
                         else:
-                            ablation_X_test = ablation(X_test, imp_vals, "min", i, 3407)
-                        metric_results[f'MSE_after_ablation{i}'] = mean_squared_error(y_test, est.predict(ablation_X_test))
-                metric_results['time'] = end - start
+                            ablation_X_test = ablation(X_test, imp_vals, "min", i+1, seed)
+                        metric_results[f'MSE_after_ablation_{i+1}'] = mean_squared_error(y_test, est.predict(ablation_X_test))
+                end = time.time()
+                metric_results['ablation_time'] = end - start
+                print(f"data_size: {X_test.shape[0]}, fi: {fi_est.name}, done with time: {end - start}")
 
                 # initialize results with metadata and metric results
                 kwargs: dict = model.kwargs  # dict
