@@ -93,33 +93,6 @@ def MDI_local_all_stumps(X, y, fit, scoring_fns="auto", return_stability_scores=
     return result_table
 
 
-def LFI_sum_absolute(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
-    num_samples, num_features = X.shape
-    if isinstance(fit, RegressorMixin):
-        RFPlus = RandomForestPlusRegressor
-    elif isinstance(fit, ClassifierMixin):
-        RFPlus = RandomForestPlusClassifier
-    else:
-        raise ValueError("Unknown task.")
-    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
-    rf_plus_model.fit(X, y)
-
-    try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, lfi=True, lfi_abs="inside")["lfi"].values
-        if return_stability_scores:
-            raise NotImplementedError
-            stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
-    except ValueError as e:
-        if str(e) == 'Transformer representation was empty for all trees.':
-            mdi_plus_scores = np.zeros((num_samples, num_features)) 
-            stability_scores = None
-        else:
-            raise
-    result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
-
-    return result_table
-
-
 def LFI_absolute_sum(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
     num_samples, num_features = X.shape
     if isinstance(fit, RegressorMixin):
@@ -145,7 +118,6 @@ def LFI_absolute_sum(X, y, fit, scoring_fns="auto", return_stability_scores=Fals
     result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
 
     return result_table
-
 
 def lime_local(X, y, fit):
     """
@@ -230,5 +202,165 @@ def permutation_local(X, y, fit, num_permutations=100):
 
     # Convert the array to a DataFrame
     result_table = pd.DataFrame(lpi, columns=[f'Feature_{i}' for i in range(num_features)])
+
+    return result_table
+
+
+########## Use the following methods if evaluate on a separate test set
+
+
+def MDI_local_sub_stumps_evaluate(X_train, y_train, X_test, y_test, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
+    """
+    Compute local MDI importance for each feature and sample.
+    :param X: design matrix
+    :param y: response
+    :param fit: fitted model of interest (tree-based)
+    :return: dataframe of shape: (n_samples, n_features)
+
+    """
+    num_samples, num_features = X_test.shape
+    if isinstance(fit, RegressorMixin):
+        RFPlus = RandomForestPlusRegressor
+    elif isinstance(fit, ClassifierMixin):
+        RFPlus = RandomForestPlusClassifier
+    else:
+        raise ValueError("Unknown task.")
+    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
+    rf_plus_model.fit(X_train, y_train)
+
+    try:
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X_test, y=y_test, local_scoring_fns=scoring_fns, version = "sub", lfi=False, sample_split=None)["local"].values
+        if return_stability_scores:
+            raise NotImplementedError
+            stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
+    except ValueError as e:
+        if str(e) == 'Transformer representation was empty for all trees.':
+            mdi_plus_scores = np.zeros((num_samples, num_features)) 
+            stability_scores = None
+        else:
+            raise
+    result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
+
+    return result_table
+
+def MDI_local_all_stumps_evaluate(X_train, y_train, X_test, y_test, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
+    """
+    Wrapper around MDI+ object to get feature importance scores
+    
+    :param X: ndarray of shape (n_samples, n_features)
+        The covariate matrix. If a pd.DataFrame object is supplied, then
+        the column names are used in the output
+    :param y: ndarray of shape (n_samples, n_targets)
+        The observed responses.
+    :param rf_model: scikit-learn random forest object or None
+        The RF model to be used for interpretation. If None, then a new
+        RandomForestRegressor or RandomForestClassifier is instantiated.
+    :param kwargs: additional arguments to pass to
+        RandomForestPlusRegressor or RandomForestPlusClassifier class.
+    :return: dataframe - [Var, Importance]
+                         Var: variable name
+                         Importance: MDI+ score
+    """
+    num_samples, num_features = X_test.shape
+    if isinstance(fit, RegressorMixin):
+        RFPlus = RandomForestPlusRegressor
+    elif isinstance(fit, ClassifierMixin):
+        RFPlus = RandomForestPlusClassifier
+    else:
+        raise ValueError("Unknown task.")
+    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
+    rf_plus_model.fit(X_train, y_train)
+
+    try:
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X_test, y=y_test, local_scoring_fns=scoring_fns, version = "all", lfi=False, sample_split=None)["local"].values
+        if return_stability_scores:
+            raise NotImplementedError
+            stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
+    except ValueError as e:
+        if str(e) == 'Transformer representation was empty for all trees.':
+            mdi_plus_scores = np.zeros((num_samples, num_features)) 
+            stability_scores = None
+        else:
+            raise
+    result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
+
+    return result_table
+
+def LFI_absolute_sum_evaluate(X_train, y_train, X_test, y_test, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
+    num_samples, num_features = X_test.shape
+    if isinstance(fit, RegressorMixin):
+        RFPlus = RandomForestPlusRegressor
+    elif isinstance(fit, ClassifierMixin):
+        RFPlus = RandomForestPlusClassifier
+    else:
+        raise ValueError("Unknown task.")
+    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
+    rf_plus_model.fit(X_train, y_train)
+
+    try:
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X_test, y=y_test, lfi=True, lfi_abs="outside", sample_split=None)["lfi"].values
+        if return_stability_scores:
+            raise NotImplementedError
+            stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
+    except ValueError as e:
+        if str(e) == 'Transformer representation was empty for all trees.':
+            mdi_plus_scores = np.zeros((num_samples, num_features)) 
+            stability_scores = None
+        else:
+            raise
+    result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
+
+    return result_table
+
+######################## Considering not using these methods
+def LFI_sum_absolute_evaluate(X_train, y_train, X_test, y_test, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
+    num_samples, num_features = X_test.shape
+    if isinstance(fit, RegressorMixin):
+        RFPlus = RandomForestPlusRegressor
+    elif isinstance(fit, ClassifierMixin):
+        RFPlus = RandomForestPlusClassifier
+    else:
+        raise ValueError("Unknown task.")
+    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
+    rf_plus_model.fit(X_train, y_train)
+
+    try:
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X_test, y=y_test, lfi=True, lfi_abs="inside", sample_split=None)["lfi"].values
+        if return_stability_scores:
+            raise NotImplementedError
+            stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
+    except ValueError as e:
+        if str(e) == 'Transformer representation was empty for all trees.':
+            mdi_plus_scores = np.zeros((num_samples, num_features)) 
+            stability_scores = None
+        else:
+            raise
+    result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
+
+    return result_table
+
+def LFI_sum_absolute(X, y, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
+    num_samples, num_features = X.shape
+    if isinstance(fit, RegressorMixin):
+        RFPlus = RandomForestPlusRegressor
+    elif isinstance(fit, ClassifierMixin):
+        RFPlus = RandomForestPlusClassifier
+    else:
+        raise ValueError("Unknown task.")
+    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
+    rf_plus_model.fit(X, y)
+
+    try:
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, lfi=True, lfi_abs="inside")["lfi"].values
+        if return_stability_scores:
+            raise NotImplementedError
+            stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
+    except ValueError as e:
+        if str(e) == 'Transformer representation was empty for all trees.':
+            mdi_plus_scores = np.zeros((num_samples, num_features)) 
+            stability_scores = None
+        else:
+            raise
+    result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
 
     return result_table

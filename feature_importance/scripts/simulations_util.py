@@ -62,6 +62,12 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
             return X
     return X.to_numpy()
 
+def sample_real_Y(X, fpath=None, return_support=False):
+    Y = pd.read_csv(fpath)
+    if return_support:
+        return Y.to_numpy(), np.ones(Y.shape[1]), None
+    return Y.to_numpy()
+
 
 def sample_normal_X(n, d, mean=0, scale=1, corr=0, Sigma=None):
     """
