@@ -6,6 +6,32 @@ import warnings
 import math
 
 
+def sample_real_data(X_fpath=None, y_fpath=None, seed=4307, normalize=True,
+                  sample_row_n=None, sample_col_n=None, return_data=None, 
+                  return_support=True):
+
+    assert return_data in ["X", "y"]
+    np.random.seed(seed)
+    if return_data == "X":
+        X = pd.read_csv(X_fpath)
+        if normalize:
+            X = (X - X.mean()) / X.std()
+        if sample_row_n is not None:
+            keep_idx = np.random.choice(X.shape[0], sample_row_n, replace=False)
+            X = X.iloc[keep_idx, :]
+        if sample_col_n is not None:
+            X = X.sample(n=sample_col_n, replace=False, axis=1)
+        return X.to_numpy()
+    else:
+        y = pd.read_csv(y_fpath)
+        if sample_row_n is not None:
+            keep_idx = np.random.choice(y.shape[0], sample_row_n, replace=False)
+            y = y.iloc[keep_idx, :]
+        if return_support:
+            return y.to_numpy().flatten(), np.ones(y.shape[1]), None
+        return y.to_numpy().flatten()
+
+
 def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
                   sample_row_n=None, sample_col_n=None, permute_col=True,
                   signal_features=None, n_signal_features=None, permute_nonsignal_col=None):
@@ -61,12 +87,6 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
             X = IndexedArray(pd.DataFrame(X).to_numpy(), index=keep_idx)
             return X
     return X.to_numpy()
-
-def sample_real_Y(X, fpath=None, return_support=False):
-    Y = pd.read_csv(fpath)
-    if return_support:
-        return Y.to_numpy(), np.ones(Y.shape[1]), None
-    return Y.to_numpy()
 
 
 def sample_normal_X(n, d, mean=0, scale=1, corr=0, Sigma=None):

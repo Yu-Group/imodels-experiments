@@ -27,7 +27,7 @@ from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score
 warnings.filterwarnings("ignore", message="Bins whose width")
 
 #RUN THE FILE
-# python 01_run_importance_local_simulations.py --nreps 2 --config mdi_local.two_subgroups_covariate_shift_sims --split_seed 331 --ignore_cache --create_rmd --result_name no_standardization
+# python 01_run_ablation_regression.py --nreps 5 --config mdi_local.real_data_regression --split_seed 331 --ignore_cache --create_rmd --result_name diabetes_regression
 
 
 def generate_random_shuffle(data, seed):
@@ -103,23 +103,23 @@ def compare_estimators(estimators: List[ModelConfig],
             # fit model
             est.fit(X_train, y_train)
 
-            # compute correlation between signal and nonsignal features
-            x_cor = np.empty(len(support))
-            x_cor[:] = np.NaN
-            x_cor[support == 0] = compute_nsg_feat_corr_w_sig_subspace(X_train[:, support == 1], X_train[:, support == 0])
+            # # compute correlation between signal and nonsignal features
+            # x_cor = np.empty(len(support))
+            # x_cor[:] = np.NaN
+            # x_cor[support == 0] = compute_nsg_feat_corr_w_sig_subspace(X_train[:, support == 1], X_train[:, support == 0])
 
             # loop over fi estimators
-            seed = np.random.randint(0, 100000)
+            rng = np.random.RandomState()
+            seed = rng.randint(0, 100000)
             for fi_est in tqdm(fi_ests):
                 metric_results = {
                     'model': model.name,
                     'fi': fi_est.name,
-                    'splitting_strategy': splitting_strategy
+                    'splitting_strategy': splitting_strategy,
+                    'train_size': X_train.shape[0]
                 }
                 start = time.time()
-                if fi_est.name in ["MDI_local_sub_stumps_evaluate", "MDI_local_all_stumps_evaluate", "LFI_absolute_sum_evaluate",
-                                   "MDI_local_sub_stumps_evaluate_without_raw", "MDI_local_all_stumps_evaluate_without_raw",
-                                   "LFI_absolute_sum_evaluate_without_raw"]:
+                if fi_est.name in ["LFI_with_raw", "LFI_without_raw"]:
                     local_fi_score = fi_est.cls(X_train, y_train, X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
                 else:
                     local_fi_score = fi_est.cls(X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
@@ -127,8 +127,8 @@ def compare_estimators(estimators: List[ModelConfig],
                 metric_results['fi_time'] = end - start
                 feature_importance_list.append(local_fi_score)
                 support_df = pd.DataFrame({"var": np.arange(len(support)),
-                                           "true_support": support,
-                                           "cor_with_signal": x_cor})
+                                           "true_support": support})#,
+                                           #"cor_with_signal": x_cor})
                 metric_results['fi_scores'] = support_df
 
                 start = time.time()

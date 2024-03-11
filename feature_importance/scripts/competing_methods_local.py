@@ -286,7 +286,7 @@ def MDI_local_all_stumps_evaluate(X_train, y_train, X_test, y_test, fit, scoring
 
     return result_table
 
-def LFI_absolute_sum_evaluate(X_train, y_train, X_test, y_test, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
+def LFI_ablation_test_evaluation(X_train, y_train, X_test, y_test, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
     num_samples, num_features = X_test.shape
     if isinstance(fit, RegressorMixin):
         RFPlus = RandomForestPlusRegressor
@@ -298,7 +298,8 @@ def LFI_absolute_sum_evaluate(X_train, y_train, X_test, y_test, fit, scoring_fns
     rf_plus_model.fit(X_train, y_train)
 
     try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X_test, y=y_test, lfi=True, lfi_abs="outside", sample_split=None)["lfi"].values
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X_test, y=y_test, lfi=True, lfi_abs="none", sample_split=None, train_or_test = "test")["lfi"].values
+        mdi_plus_scores = np.abs(mdi_plus_scores)
         if return_stability_scores:
             raise NotImplementedError
             stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
