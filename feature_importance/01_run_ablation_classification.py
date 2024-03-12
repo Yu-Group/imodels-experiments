@@ -116,7 +116,9 @@ def compare_estimators(estimators: List[ModelConfig],
                     'model': model.name,
                     'fi': fi_est.name,
                     'splitting_strategy': splitting_strategy,
-                    'train_size': X_train.shape[0]
+                    'train_size': X_train.shape[0],
+                    'num_features': X_train.shape[1],
+                    'ablation_seed': seed
                 }
                 start = time.time()
                 if fi_est.name in ["LFI_with_raw", "LFI_without_raw"]:
