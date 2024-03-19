@@ -16,7 +16,7 @@ import sys
 from collections import defaultdict
 from typing import Callable, List, Tuple
 import itertools
-from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score, mean_squared_error
+from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score, mean_squared_error, r2_score
 
 sys.path.append(".")
 sys.path.append("..")
@@ -102,15 +102,18 @@ def compare_estimators(estimators: List[ModelConfig],
 
             # fit model
             est.fit(X_train, y_train)
+            test_all_mse = mean_squared_error(y_test, est.predict(X_test))
+            test_all_r2 = r2_score(y_test, est.predict(X_test))
 
-            # # compute correlation between signal and nonsignal features
-            # x_cor = np.empty(len(support))
-            # x_cor[:] = np.NaN
-            # x_cor[support == 0] = compute_nsg_feat_corr_w_sig_subspace(X_train[:, support == 1], X_train[:, support == 0])
+            if model.name == "RF_plus":
+                indices = np.random.choice(X_test.shape[0], 100, replace=False)
+                X_test = X_test[indices]
+                y_test = y_test[indices]
 
             # loop over fi estimators
             rng = np.random.RandomState()
-            seed = rng.randint(0, 100000)
+            number_of_ablations = 10
+            seeds = rng.randint(0, 10000, number_of_ablations)
             for fi_est in tqdm(fi_ests):
                 metric_results = {
                     'model': model.name,
@@ -118,13 +121,22 @@ def compare_estimators(estimators: List[ModelConfig],
                     'splitting_strategy': splitting_strategy,
                     'train_size': X_train.shape[0],
                     'num_features': X_train.shape[1],
-                    'ablation_seed': seed
+                    'data_split_seed': args.split_seed,
+                    'test_size': X_test.shape[0],
+                    'test_all_mse': test_all_mse,
+                    'test_all_r2': test_all_r2
                 }
+                for i in range(100):
+                    if model.name == "RF_plus":
+                        metric_results[f'sample_test_{i}'] = indices[i]
+                    else:
+                        metric_results[f'sample_test_{i}'] = None
+                for i in range(len(seeds)):
+                    metric_results[f'ablation_seed_{i}'] = seeds[i]
                 start = time.time()
-                if fi_est.name in ["LFI_with_raw", "LFI_without_raw"]:
-                    local_fi_score = fi_est.cls(X_train, y_train, X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
-                else:
-                    local_fi_score = fi_est.cls(X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
+                local_fi_score = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                            X_test=X_test, y_test=y_test, 
+                                            fit =copy.deepcopy(est), **fi_est.kwargs)
                 end = time.time()
                 metric_results['fi_time'] = end - start
                 feature_importance_list.append(local_fi_score)
@@ -136,19 +148,27 @@ def compare_estimators(estimators: List[ModelConfig],
                 start = time.time()
                 y_pred = est.predict(X_test)
                 metric_results['MSE_before_ablation'] = mean_squared_error(y_test, y_pred)
+                metric_results['R_2_before_ablation'] = r2_score(y_test, y_pred)
                 imp_vals = copy.deepcopy(local_fi_score)
                 imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
                 imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
+                ablation_results_list = [0] * X_test.shape[1]
+                ablation_results_list_r2 = [0] * X_test.shape[1]
+                for seed in tqdm(seeds):
+                    for i in range(X_test.shape[1]):
+                        if fi_est.ascending:
+                            ablation_X_test = ablation(X_test, imp_vals, "max", i+1, seed)
+                        else:
+                            ablation_X_test = ablation(X_test, imp_vals, "min", i+1, seed)
+                        ablation_results_list[i] += mean_squared_error(y_test, est.predict(ablation_X_test))
+                        ablation_results_list_r2[i] += r2_score(y_test, est.predict(ablation_X_test))
+                ablation_results_list = [x / len(seeds) for x in ablation_results_list]
                 for i in range(X_test.shape[1]):
-                    if fi_est.ascending:
-                        ablation_X_test = ablation(X_test, imp_vals, "max", i+1, seed)
-                    else:
-                        ablation_X_test = ablation(X_test, imp_vals, "min", i+1, seed)
-                    metric_results[f'MSE_after_ablation_{i+1}'] = mean_squared_error(y_test, est.predict(ablation_X_test))
+                    metric_results[f'MSE_after_ablation_{i+1}'] = ablation_results_list[i]
+                    metric_results[f'R_2_after_ablation_{i+1}'] = ablation_results_list_r2[i]
                 end = time.time()
                 
                 metric_results['ablation_time'] = end - start
-                metric_results['test_size'] = X_test.shape[0]
                 print(f"data_size: {X_test.shape[0]}, fi: {fi_est.name}, done with time: {end - start}")
 
                 # initialize results with metadata and metric results

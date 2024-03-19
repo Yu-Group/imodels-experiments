@@ -102,15 +102,19 @@ def compare_estimators(estimators: List[ModelConfig],
 
             # fit model
             est.fit(X_train, y_train)
+            test_all_auc = roc_auc_score(y_test, est.predict_proba(X_test)[:, 1])
+            test_all_auprc = auprc_score(y_test, est.predict_proba(X_test)[:, 1])
+            test_all_f1 = f1_score(y_test, est.predict_proba(X_test)[:, 1] > 0.5)
 
-            # compute correlation between signal and nonsignal features
-            # x_cor = np.empty(len(support))
-            # x_cor[:] = np.NaN
-            # x_cor[support == 0] = compute_nsg_feat_corr_w_sig_subspace(X_train[:, support == 1], X_train[:, support == 0])
+            if model.name == "RF_plus":
+                indices = np.random.choice(X_test.shape[0], 100, replace=False)
+                X_test = X_test[indices]
+                y_test = y_test[indices]
 
             # loop over fi estimators
             rng = np.random.RandomState()
-            seed = rng.randint(0, 100000)
+            number_of_ablations = 10
+            seeds = rng.randint(0, 10000, number_of_ablations)
             for fi_est in tqdm(fi_ests):
                 metric_results = {
                     'model': model.name,
@@ -118,13 +122,23 @@ def compare_estimators(estimators: List[ModelConfig],
                     'splitting_strategy': splitting_strategy,
                     'train_size': X_train.shape[0],
                     'num_features': X_train.shape[1],
-                    'ablation_seed': seed
+                    'data_split_seed': args.split_seed,
+                    'test_size': X_test.shape[0],
+                    'test_all_auc': test_all_auc,
+                    'test_all_auprc': test_all_auprc,
+                    'test_all_f1': test_all_f1
                 }
+                for i in range(100):
+                    if model.name == "RF_plus":
+                        metric_results[f'sample_test_{i}'] = indices[i]
+                    else:
+                        metric_results[f'sample_test_{i}'] = None
+                for i in range(len(seeds)):
+                    metric_results[f'ablation_seed_{i}'] = seeds[i]
                 start = time.time()
-                if fi_est.name in ["LFI_with_raw", "LFI_without_raw"]:
-                    local_fi_score = fi_est.cls(X_train, y_train, X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
-                else:
-                    local_fi_score = fi_est.cls(X_test, y_test, copy.deepcopy(est), **fi_est.kwargs)
+                local_fi_score = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                            X_test=X_test, y_test=y_test, 
+                                            fit =copy.deepcopy(est), **fi_est.kwargs)
                 end = time.time()
                 metric_results['fi_time'] = end - start
                 feature_importance_list.append(local_fi_score)
@@ -132,23 +146,36 @@ def compare_estimators(estimators: List[ModelConfig],
                                            "true_support": support})#,
                                            #"cor_with_signal": x_cor})
                 metric_results['fi_scores'] = support_df
-                start = time.time()
 
+                start = time.time()
                 y_pred = est.predict_proba(X_test)[:, 1]
-                metric_results['AUC_before_ablation'] = roc_auc_score(y_test, y_pred)
+                metric_results['AUROC_before_ablation'] = roc_auc_score(y_test, y_pred)
+                metric_results['AUPRC_before_ablation'] = auprc_score(y_test, y_pred)
+                metric_results['F1_before_ablation'] = f1_score(y_test, y_pred > 0.5)
                 imp_vals = copy.deepcopy(local_fi_score)
                 imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
                 imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
+                ablation_results_auroc_list = [0] * X_test.shape[1]
+                ablation_results__auprc_list = [0] * X_test.shape[1]
+                ablation_results_f1_list = [0] * X_test.shape[1]
+                for seed in tqdm(seeds):
+                    for i in range(X_test.shape[1]):
+                        if fi_est.ascending:
+                            ablation_X_test = ablation(X_test, imp_vals, "max", i+1, seed)
+                        else:
+                            ablation_X_test = ablation(X_test, imp_vals, "min", i+1, seed)
+                        ablation_results_auroc_list[i] += roc_auc_score(y_test, est.predict_proba(ablation_X_test)[:, 1])
+                        ablation_results__auprc_list[i] += auprc_score(y_test, est.predict_proba(ablation_X_test)[:, 1])
+                        ablation_results_f1_list[i] += f1_score(y_test, est.predict_proba(ablation_X_test)[:, 1] > 0.5)
+                ablation_results_f1_list = [x / number_of_ablations for x in ablation_results_f1_list]
+                ablation_results_auroc_list = [x / number_of_ablations for x in ablation_results_auroc_list]
+                ablation_results__auprc_list = [x / number_of_ablations for x in ablation_results__auprc_list]
                 for i in range(X_test.shape[1]):
-                    if fi_est.ascending:
-                        ablation_X_test = ablation(X_test, imp_vals, "max", i+1, seed)
-                    else:
-                        ablation_X_test = ablation(X_test, imp_vals, "min", i+1, seed)
-                    metric_results[f'AUC_after_ablation_{i+1}'] = roc_auc_score(y_test, est.predict_proba(ablation_X_test)[:, 1])
-                    
+                    metric_results[f'AUROC_after_ablation_{i+1}'] = ablation_results_auroc_list[i]
+                    metric_results[f'AUPRC_after_ablation_{i+1}'] = ablation_results__auprc_list[i]
+                    metric_results[f'F1_after_ablation_{i+1}'] = ablation_results_f1_list[i]
                 end = time.time()
                 metric_results['ablation_time'] = end - start
-                metric_results['test_size'] = X_test.shape[0]
                 print(f"data_size: {X_test.shape[0]}, fi: {fi_est.name}, done with time: {end - start}")
 
                 # initialize results with metadata and metric results
@@ -194,10 +221,8 @@ def run_comparison(path: str,
         else:
             fi_estimators.append(fi_estimator)
             model_comparison_files.append(model_comparison_file)
-
     if len(fi_estimators) == 0:
         return
-
     results, fi_lst = compare_estimators(estimators=estimators,
                                  fi_estimators=fi_estimators,
                                  X=X, y=y, support=support,
