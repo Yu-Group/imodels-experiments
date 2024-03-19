@@ -1,10 +1,9 @@
 #!/bin/bash
+#SBATCH --mail-user=zhongyuan_liang@berkeley.edu
+#SBATCH --mail-type=ALL
+#SBATCH --partition=yugroup
 
-# Generate a random seed
-seed=$(shuf -i 1-10000 -n 1)
-
-# Replace XXX with the generated seed
-command="01_run_ablation_regression.py --nreps 1 --config mdi_local.real_data_regression --split_seed $seed --ignore_cache --create_rmd --result_name Diabetes_regression_parallel"
+command="01_run_ablation_regression.py --nreps 1 --config mdi_local.real_data_regression --split_seed ${1} --ignore_cache --create_rmd --result_name satellite_image_parallel"
 
 # Execute the command
 python $command

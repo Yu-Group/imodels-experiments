@@ -1,12 +1,11 @@
 #!/bin/bash
-#SBATCH --mail-user=zhongyuan_liang@berkeley.edu
-#SBATCH --mail-type=ALL
 
-# Define the SLURM submission script name
-slurm_script="01_ablation_regression_script.sh"  # Replace {slurm_submission_script} with your actual script name
+slurm_script="01_ablation_regression_script.sh"
 
-# Loop to submit SLURM job 10 times
-for rep in {1..10}
-do
-    sbatch $slurm_script  # Submit SLURM job using the specified script
-done
+rep=1
+sbatch $slurm_script $rep
+
+# for rep in {1..5}
+# do
+#     sbatch $slurm_script $rep  # Submit SLURM job using the specified script
+# done
