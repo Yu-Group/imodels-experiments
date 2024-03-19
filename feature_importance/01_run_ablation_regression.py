@@ -163,6 +163,7 @@ def compare_estimators(estimators: List[ModelConfig],
                         ablation_results_list[i] += mean_squared_error(y_test, est.predict(ablation_X_test))
                         ablation_results_list_r2[i] += r2_score(y_test, est.predict(ablation_X_test))
                 ablation_results_list = [x / len(seeds) for x in ablation_results_list]
+                ablation_results_list_r2 = [x / len(seeds) for x in ablation_results_list_r2]
                 for i in range(X_test.shape[1]):
                     metric_results[f'MSE_after_ablation_{i+1}'] = ablation_results_list[i]
                     metric_results[f'R_2_after_ablation_{i+1}'] = ablation_results_list_r2[i]
