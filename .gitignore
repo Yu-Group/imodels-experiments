@@ -40,7 +40,6 @@ experiments/data/
 .hypothesis
 experiments/results
 experiments/*.txt
-data
 **.pkl
 **egg*
 _site
