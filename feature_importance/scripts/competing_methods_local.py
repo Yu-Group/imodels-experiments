@@ -160,7 +160,7 @@ def tree_shap_local(X, y, fit):
         # Shape values are returned as a list of arrays, one for each class
         def add_abs(a, b):
             return abs(a) + abs(b)
-        results = reduce(add_abs, shap_values)
+        results = np.sum(np.abs(shap_values),axis=-1)
     else:
         results = abs(shap_values)
     result_table = pd.DataFrame(results, columns=[f'Feature_{i}' for i in range(X.shape[1])])
