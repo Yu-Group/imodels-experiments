@@ -6,7 +6,7 @@ import warnings
 import math
 
 
-def sample_real_data(X_fpath=None, y_fpath=None, seed=4307, normalize=True,
+def sample_real_data(X_fpath=None, y_fpath=None, seed=4307, normalize=False,
                   sample_row_n=None, sample_col_n=None, return_data=None, 
                   return_support=True):
 

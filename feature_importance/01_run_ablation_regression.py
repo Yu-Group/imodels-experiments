@@ -17,6 +17,7 @@ from collections import defaultdict
 from typing import Callable, List, Tuple
 import itertools
 from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score, mean_squared_error, r2_score
+from sklearn import preprocessing
 
 sys.path.append(".")
 sys.path.append("..")
@@ -99,6 +100,15 @@ def compare_estimators(estimators: List[ModelConfig],
                 y_train = y
                 y_tune = y
                 y_test = y
+
+            normalizer = preprocessing.Normalizer()
+            if args.normalization == "train_test":
+                X_train = normalizer.fit_transform(X_train)
+                X_test = normalizer.transform(X_test)
+            elif args.normalization == "all":
+                X = normalizer.fit_transform(X)
+                X_train = normalizer.transform(X_train)
+                X_test = normalizer.transform(X_test)
 
             # fit model
             est.fit(X_train, y_train)
@@ -325,6 +335,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_cores', type=int, default=None)
     parser.add_argument('--split_seed', type=int, default=0)
     parser.add_argument('--results_path', type=str, default=default_dir)
+    parser.add_argument('--normalization', type=str, default="none")
 
     # arguments for rmd output of results
     parser.add_argument('--create_rmd', action='store_true', default=False)

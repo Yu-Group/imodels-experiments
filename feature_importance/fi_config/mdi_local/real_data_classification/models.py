@@ -18,7 +18,6 @@ ESTIMATORS = [
 
 FI_ESTIMATORS = [
     [FIModelConfig('LFI_with_raw_RF', LFI_test_evaluation_RF, model_type='tree', splitting_strategy = "train-test")],
-    [FIModelConfig('LFI_with_raw_CV_RF', LFI_test_evaluation_RF, model_type='tree', splitting_strategy = "train-test", other_params={"cv_ridge": 5, "calc_loo_coef":False})],
     [FIModelConfig('MDI_RF', LFI_test_evaluation_RF, model_type='tree', splitting_strategy = "train-test", other_params={"include_raw": False, "cv_ridge": 0, "calc_loo_coef":False, "sample_split":"inbag"})],
     [FIModelConfig('LFI_with_raw_OOB_RF', LFI_test_evaluation_RF, model_type='tree', splitting_strategy = "train-test", other_params={"sample_split":"oob", "fit_on":"test", "calc_loo_coef":False})],
     [FIModelConfig('TreeSHAP_RF', tree_shap_evaluation_RF, model_type='tree', splitting_strategy = "train-test")],
