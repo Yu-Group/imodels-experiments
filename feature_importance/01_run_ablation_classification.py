@@ -18,6 +18,9 @@ from typing import Callable, List, Tuple
 import itertools
 from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score, mean_squared_error
 from sklearn import preprocessing
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.svm import SVC
 
 sys.path.append(".")
 sys.path.append("..")
@@ -73,6 +76,9 @@ def compare_estimators(estimators: List[ModelConfig],
     # initialize results
     results = defaultdict(lambda: [])
     feature_importance_list = []
+    ablation_models = {"RF_Classifier": RandomForestClassifier(n_estimators=100, min_samples_leaf=1, max_features='sqrt', random_state=42),
+                        "Logistic": LogisticRegression(),
+                        "SVM": SVC(probability=True)}
 
     # loop over model estimators
     for model in estimators:
@@ -102,13 +108,15 @@ def compare_estimators(estimators: List[ModelConfig],
                 y_test = y
 
             normalizer = preprocessing.Normalizer()
-            if args.normalization == "train_test":
+            normalizer = preprocessing.Normalizer()
+            if splitting_strategy == "train-test":
                 X_train = normalizer.fit_transform(X_train)
                 X_test = normalizer.transform(X_test)
-            elif args.normalization == "all":
+            else:
                 X = normalizer.fit_transform(X)
                 X_train = normalizer.transform(X_train)
                 X_test = normalizer.transform(X_test)
+
 
             # fit model
             est.fit(X_train, y_train)
@@ -129,11 +137,10 @@ def compare_estimators(estimators: List[ModelConfig],
                 metric_results = {
                     'model': model.name,
                     'fi': fi_est.name,
-                    'splitting_strategy': splitting_strategy,
                     'train_size': X_train.shape[0],
+                    'test_size': X_test.shape[0],
                     'num_features': X_train.shape[1],
                     'data_split_seed': args.split_seed,
-                    'test_size': X_test.shape[0],
                     'test_all_auc': test_all_auc,
                     'test_all_auprc': test_all_auprc,
                     'test_all_f1': test_all_f1
@@ -146,46 +153,85 @@ def compare_estimators(estimators: List[ModelConfig],
                 for i in range(len(seeds)):
                     metric_results[f'ablation_seed_{i}'] = seeds[i]
                 start = time.time()
-                local_fi_score = fi_est.cls(X_train=X_train, y_train=y_train, 
+                local_fi_score_train = fi_est.cls(X_train=X_train, y_train=y_train, 
                                             X_test=X_test, y_test=y_test, 
                                             fit =copy.deepcopy(est), **fi_est.kwargs)
+                local_fi_score_test = None
                 end = time.time()
                 metric_results['fi_time'] = end - start
-                feature_importance_list.append(local_fi_score)
-                support_df = pd.DataFrame({"var": np.arange(len(support)),
-                                           "true_support": support})#,
-                                           #"cor_with_signal": x_cor})
-                metric_results['fi_scores'] = support_df
+                feature_importance_list.append(local_fi_score_train)
+                feature_importance_list.append(local_fi_score_test)
 
+                # Train data ablation
                 start = time.time()
-                y_pred = est.predict_proba(X_test)[:, 1]
-                metric_results['AUROC_before_ablation'] = roc_auc_score(y_test, y_pred)
-                metric_results['AUPRC_before_ablation'] = auprc_score(y_test, y_pred)
-                metric_results['F1_before_ablation'] = f1_score(y_test, y_pred > 0.5)
-                imp_vals = copy.deepcopy(local_fi_score)
-                imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
-                imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
-                ablation_results_auroc_list = [0] * X_test.shape[1]
-                ablation_results__auprc_list = [0] * X_test.shape[1]
-                ablation_results_f1_list = [0] * X_test.shape[1]
-                for seed in tqdm(seeds):
-                    for i in range(X_test.shape[1]):
-                        if fi_est.ascending:
-                            ablation_X_test = ablation(X_test, imp_vals, "max", i+1, seed)
-                        else:
-                            ablation_X_test = ablation(X_test, imp_vals, "min", i+1, seed)
-                        ablation_results_auroc_list[i] += roc_auc_score(y_test, est.predict_proba(ablation_X_test)[:, 1])
-                        ablation_results__auprc_list[i] += auprc_score(y_test, est.predict_proba(ablation_X_test)[:, 1])
-                        ablation_results_f1_list[i] += f1_score(y_test, est.predict_proba(ablation_X_test)[:, 1] > 0.5)
-                ablation_results_f1_list = [x / number_of_ablations for x in ablation_results_f1_list]
-                ablation_results_auroc_list = [x / number_of_ablations for x in ablation_results_auroc_list]
-                ablation_results__auprc_list = [x / number_of_ablations for x in ablation_results__auprc_list]
-                for i in range(X_test.shape[1]):
-                    metric_results[f'AUROC_after_ablation_{i+1}'] = ablation_results_auroc_list[i]
-                    metric_results[f'AUPRC_after_ablation_{i+1}'] = ablation_results__auprc_list[i]
-                    metric_results[f'F1_after_ablation_{i+1}'] = ablation_results_f1_list[i]
+                for model in ablation_models:
+                    est = ablation_models[model]
+                    est.fit(X_train, y_train)
+                    y_pred = est.predict_proba(X_train)[:, 1]
+                    metric_results[model+'_train_AUROC_before_ablation'] = roc_auc_score(y_train, y_pred)
+                    metric_results[model+'_train_AUPRC_before_ablation'] = auprc_score(y_train, y_pred)
+                    metric_results[model+'_train_F1_before_ablation'] = f1_score(y_train, y_pred > 0.5)
+                    imp_vals = copy.deepcopy(local_fi_score_train)
+                    imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
+                    imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
+                    ablation_results_auroc_list = [0] * X_train.shape[1]
+                    ablation_results__auprc_list = [0] * X_train.shape[1]
+                    ablation_results_f1_list = [0] * X_train.shape[1]
+                    for seed in tqdm(seeds):
+                        for i in range(X_train.shape[1]):
+                            if fi_est.ascending:
+                                ablation_X_train = ablation(X_train, imp_vals, "max", i+1, seed)
+                            else:
+                                ablation_X_train = ablation(X_train, imp_vals, "min", i+1, seed)
+                            ablation_results_auroc_list[i] += roc_auc_score(y_train, est.predict_proba(ablation_X_train)[:, 1])
+                            ablation_results__auprc_list[i] += auprc_score(y_train, est.predict_proba(ablation_X_train)[:, 1])
+                            ablation_results_f1_list[i] += f1_score(y_train, est.predict_proba(ablation_X_train)[:, 1] > 0.5)
+                    ablation_results_f1_list = [x / number_of_ablations for x in ablation_results_f1_list]
+                    ablation_results_auroc_list = [x / number_of_ablations for x in ablation_results_auroc_list]
+                    ablation_results__auprc_list = [x / number_of_ablations for x in ablation_results__auprc_list]
+                    for i in range(X_train.shape[1]):
+                        metric_results[f'{model}_train_AUROC_after_ablation_{i+1}'] = ablation_results_auroc_list[i]
+                        metric_results[f'{model}_train_AUPRC_after_ablation_{i+1}'] = ablation_results__auprc_list[i]
+                        metric_results[f'{model}_train_F1_after_ablation_{i+1}'] = ablation_results_f1_list[i]
                 end = time.time()
-                metric_results['ablation_time'] = end - start
+                metric_results['train_data_ablation_time'] = end - start
+
+                # Test data ablation
+                start = time.time()
+                for model in ablation_models:
+                    est = ablation_models[model]
+                    est.fit(X_train, y_train)
+                    y_pred = est.predict_proba(X_test)[:, 1]
+                    metric_results[model+'_test_AUROC_before_ablation'] = roc_auc_score(y_test, y_pred)
+                    metric_results[model+'_test_AUPRC_before_ablation'] = auprc_score(y_test, y_pred)
+                    metric_results[model+'_test_F1_before_ablation'] = f1_score(y_test, y_pred > 0.5)
+                    imp_vals = copy.deepcopy(local_fi_score_test)
+                    imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
+                    imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
+                    ablation_results_auroc_list = [0] * X_test.shape[1]
+                    ablation_results__auprc_list = [0] * X_test.shape[1]
+                    ablation_results_f1_list = [0] * X_test.shape[1]
+                    for seed in tqdm(seeds):
+                        for i in range(X_test.shape[1]):
+                            if fi_est.ascending:
+                                ablation_X_test = ablation(X_test, imp_vals, "max", i+1, seed)
+                            else:
+                                ablation_X_test = ablation(X_test, imp_vals, "min", i+1, seed)
+                            ablation_results_auroc_list[i] += roc_auc_score(y_test, est.predict_proba(ablation_X_test)[:, 1])
+                            ablation_results__auprc_list[i] += auprc_score(y_test, est.predict_proba(ablation_X_test)[:, 1])
+                            ablation_results_f1_list[i] += f1_score(y_test, est.predict_proba(ablation_X_test)[:, 1] > 0.5)
+                    ablation_results_f1_list = [x / number_of_ablations for x in ablation_results_f1_list]
+                    ablation_results_auroc_list = [x / number_of_ablations for x in ablation_results_auroc_list]
+                    ablation_results__auprc_list = [x / number_of_ablations for x in ablation_results__auprc_list]
+                    for i in range(X_test.shape[1]):
+                        metric_results[f'{model}_test_AUROC_after_ablation_{i+1}'] = ablation_results_auroc_list[i]
+                        metric_results[f'{model}_test_AUPRC_after_ablation_{i+1}'] = ablation_results__auprc_list[i]
+                        metric_results[f'{model}_test_F1_after_ablation_{i+1}'] = ablation_results_f1_list[i]
+                end = time.time()
+                metric_results['test_data_ablation_time'] = end - start
+
+
+
                 print(f"data_size: {X_test.shape[0]}, fi: {fi_est.name}, done with time: {end - start}")
 
                 # initialize results with metadata and metric results
