@@ -208,8 +208,15 @@ def permutation_local(X, y, fit, num_permutations=100):
 
 ########## Use the following methods if evaluate on a separate test set
 
-def LFI_test_evaluation_RF(X_train, y_train, X_test, y_test, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
-    num_samples, num_features = X_test.shape
+def LFI_test_evaluation_RF(X_train, y_train, X_test, y_test, fit, data_fit_on, scoring_fns="auto", return_stability_scores=False, **kwargs):
+    assert data_fit_on in ["train", "test"]
+    if data_fit_on == "train":
+        X_data = X_train
+        y_data = y_train
+    else:
+        X_data = X_test
+        y_data = y_test
+    num_samples, num_features = X_data.shape
     if isinstance(fit, RegressorMixin):
         RFPlus = RandomForestPlusRegressor
     elif isinstance(fit, ClassifierMixin):
@@ -220,7 +227,7 @@ def LFI_test_evaluation_RF(X_train, y_train, X_test, y_test, fit, scoring_fns="a
     rf_plus_model.fit(X_train, y_train)
 
     try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X_test, y=y_test, lfi=True, lfi_abs="none", sample_split=None, train_or_test = "test")["lfi"].values
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X_data, y=y_data, lfi=True, lfi_abs="none", sample_split=None, train_or_test = "test")["lfi"].values
         mdi_plus_scores = np.abs(mdi_plus_scores)
         if return_stability_scores:
             raise NotImplementedError
@@ -236,7 +243,7 @@ def LFI_test_evaluation_RF(X_train, y_train, X_test, y_test, fit, scoring_fns="a
     return result_table
 
 
-def lime_test_evaluation_RF(X_train, y_train, X_test, y_test, fit):
+def lime_test_evaluation_RF(X_train, y_train, X_test, y_test, fit, data_fit_on):
     """
     Compute LIME local importance for each feature and sample.
     Larger values indicate more important features.
@@ -246,12 +253,17 @@ def lime_test_evaluation_RF(X_train, y_train, X_test, y_test, fit):
     :return: dataframe of shape: (n_samples, n_features)
 
     """
+    assert data_fit_on in ["train", "test"]
+    if data_fit_on == "train":
+        X_data = X_train
+    else:
+        X_data = X_test
     if isinstance(fit, RegressorMixin):
         mode='regression'
     elif isinstance(fit, ClassifierMixin):
         mode='classification'
     np.random.seed(1)
-    num_samples, num_features = X_test.shape
+    num_samples, num_features = X_data.shape
     result = np.zeros((num_samples, num_features))
     explainer = lime.lime_tabular.LimeTabularExplainer(X_train, verbose=False, mode=mode)
 
@@ -264,7 +276,7 @@ def lime_test_evaluation_RF(X_train, y_train, X_test, y_test, fit):
             predict_fn = fit.predict_proba
         else:
             predict_fn = fit.predict
-        exp = explainer.explain_instance(X_test[i], predict_fn, num_features=num_features)
+        exp = explainer.explain_instance(X_data[i], predict_fn, num_features=num_features)
         original_feature_importance = exp.as_map()[1]
         sorted_feature_importance = sorted(original_feature_importance, key=lambda x: x[0])
         for j in range(num_features):
@@ -275,7 +287,7 @@ def lime_test_evaluation_RF(X_train, y_train, X_test, y_test, fit):
     return result_table
 
 
-def tree_shap_evaluation_RF(X_train, y_train, X_test, y_test, fit):
+def tree_shap_evaluation_RF(X_train, y_train, X_test, y_test, fit, data_fit_on):
     """
     Compute average treeshap value across observations.
     Larger absolute values indicate more important features.
@@ -284,8 +296,13 @@ def tree_shap_evaluation_RF(X_train, y_train, X_test, y_test, fit):
     :param fit: fitted model of interest (tree-based)
     :return: dataframe of shape: (n_samples, n_features)
     """
+    assert data_fit_on in ["train", "test"]
+    if data_fit_on == "train":
+        X_data = X_train
+    else:
+        X_data = X_test
     explainer = shap.TreeExplainer(fit)
-    shap_values = explainer.shap_values(X_test, check_additivity=False)
+    shap_values = explainer.shap_values(X_data, check_additivity=False)
     if sklearn.base.is_classifier(fit):
         # Shape values are returned as a list of arrays, one for each class
         def add_abs(a, b):
@@ -293,29 +310,46 @@ def tree_shap_evaluation_RF(X_train, y_train, X_test, y_test, fit):
         results = reduce(add_abs, shap_values)
     else:
         results = abs(shap_values)
-    result_table = pd.DataFrame(results, columns=[f'Feature_{i}' for i in range(X_test.shape[1])])
+    result_table = pd.DataFrame(results, columns=[f'Feature_{i}' for i in range(X_data.shape[1])])
 
     return result_table
 
-def lime_test_evaluation_RF_plus(X_train, y_train, X_test, y_test, fit):
-    num_samples, num_features = X_test.shape
-    lime_scores = fit.get_lime_scores(X_train, X_test).values
+def lime_evaluation_RF_plus(X_train, y_train, X_test, y_test, fit, data_fit_on):
+    assert data_fit_on in ["train", "test"]
+    if data_fit_on == "train":
+        X_data = X_train
+    else:
+        X_data = X_test
+    num_samples, num_features = X_data.shape
+    lime_scores = fit.get_lime_scores(X_train, X_data).values
     result_table = pd.DataFrame(lime_scores, columns=[f'Feature_{i}' for i in range(num_features)])
 
     return result_table
 
 
-def kernel_shap_test_evaluation_RF_plus(X_train, y_train, X_test, y_test, fit):
-    num_samples, num_features = X_test.shape
-    kernel_shap_scores = fit.get_kernel_shap_scores(X_train, X_test)
+def kernel_shap_evaluation_RF_plus(X_train, y_train, X_test, y_test, fit, data_fit_on):
+    assert data_fit_on in ["train", "test"]
+    if data_fit_on == "train":
+        X_data = X_train
+    else:
+        X_data = X_test
+    num_samples, num_features = X_data.shape
+    kernel_shap_scores = fit.get_kernel_shap_scores(X_train, X_data)
     result_table = pd.DataFrame(kernel_shap_scores, columns=[f'Feature_{i}' for i in range(num_features)])
 
     return result_table
 
 
-def LFI_test_evaluation_RF_plus(X_train, y_train, X_test, y_test, fit):
-    num_samples, num_features = X_test.shape
-    abs_lfi_scores = fit.get_mdi_plus_scores(X=X_test, y=y_test, lfi=True, lfi_abs="none", sample_split=None, train_or_test = "test")["lfi"].values
+def LFI_evaluation_RF_plus(X_train, y_train, X_test, y_test, fit, data_fit_on):
+    assert data_fit_on in ["train", "test"]
+    if data_fit_on == "train":
+        X_data = X_train
+        y_data = y_train
+    else:
+        X_data = X_test
+        y_data = y_test
+    num_samples, num_features = X_data.shape
+    abs_lfi_scores = fit.get_mdi_plus_scores(X=X_data, y=y_data, lfi=True, lfi_abs="none", sample_split=None, train_or_test = "test")["lfi"].values
     abs_lfi_scores = np.abs(abs_lfi_scores)
     result_table = pd.DataFrame(abs_lfi_scores, columns=[f'Feature_{i}' for i in range(num_features)])
 

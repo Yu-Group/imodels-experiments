@@ -20,6 +20,7 @@ from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_sco
 from sklearn import preprocessing
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
+import xgboost as xgb
 
 sys.path.append(".")
 sys.path.append("..")
@@ -33,21 +34,38 @@ warnings.filterwarnings("ignore", message="Bins whose width")
 # python 01_run_ablation_regression.py --nreps 5 --config mdi_local.real_data_regression --split_seed 331 --ignore_cache --create_rmd --result_name diabetes_regression
 
 
-def generate_random_shuffle(data, seed):
-    """
-    Randomly shuffle each column of the data.
-    """
-    np.random.seed(seed)
-    return np.array([np.random.permutation(data[:, i]) for i in range(data.shape[1])]).T
+# def generate_random_shuffle(data, seed):
+#     """
+#     Randomly shuffle each column of the data.
+#     """
+#     np.random.seed(seed)
+#     return np.array([np.random.permutation(data[:, i]) for i in range(data.shape[1])]).T
 
 
-def ablation(data, feature_importance, mode, num_features, seed):
+# def ablation(data, feature_importance, mode, num_features, seed):
+#     """
+#     Replace the top num_features max feature importance data with random shuffle for each sample
+#     """
+#     assert mode in ["max", "min"]
+#     fi = feature_importance.to_numpy()
+#     shuffle = generate_random_shuffle(data, seed)
+#     if mode == "max":
+#         indices = np.argsort(-fi)
+#     else:
+#         indices = np.argsort(fi)
+#     data_copy = data.copy()
+#     for i in range(data.shape[0]):
+#         for j in range(num_features):
+#             data_copy[i, indices[i,j]] = shuffle[i, indices[i,j]]
+#     return data_copy
+
+def ablation_to_mean(train, data, feature_importance, mode, num_features):
     """
     Replace the top num_features max feature importance data with random shuffle for each sample
     """
+    train_mean = np.mean(train, axis=0)
     assert mode in ["max", "min"]
     fi = feature_importance.to_numpy()
-    shuffle = generate_random_shuffle(data, seed)
     if mode == "max":
         indices = np.argsort(-fi)
     else:
@@ -55,7 +73,7 @@ def ablation(data, feature_importance, mode, num_features, seed):
     data_copy = data.copy()
     for i in range(data.shape[0]):
         for j in range(num_features):
-            data_copy[i, indices[i,j]] = shuffle[i, indices[i,j]]
+            data_copy[i, indices[i,j]] = train_mean[indices[i,j]]
     return data_copy
 
 
@@ -75,8 +93,6 @@ def compare_estimators(estimators: List[ModelConfig],
     # initialize results
     results = defaultdict(lambda: [])
     feature_importance_list = []
-    ablation_models = {"RF_Regressor": RandomForestRegressor(n_estimators=100,min_samples_leaf=5,max_features=0.33),
-                       "Linear": LinearRegression()}
 
     # loop over model estimators
     for model in estimators:
@@ -124,7 +140,7 @@ def compare_estimators(estimators: List[ModelConfig],
 
             # loop over fi estimators
             rng = np.random.RandomState()
-            number_of_ablations = 10
+            number_of_ablations = 1
             seeds = rng.randint(0, 10000, number_of_ablations)
             for fi_est in tqdm(fi_ests):
                 metric_results = {
@@ -147,68 +163,75 @@ def compare_estimators(estimators: List[ModelConfig],
                 start = time.time()
                 local_fi_score_train = fi_est.cls(X_train=X_train, y_train=y_train, 
                                             X_test=X_test, y_test=y_test, 
-                                            fit =copy.deepcopy(est), **fi_est.kwargs)
-                local_fi_score_test = None
+                                            fit=copy.deepcopy(est), data_fit_on="train", **fi_est.kwargs)
+                local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                            X_test=X_test, y_test=y_test, 
+                                            fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
                 end = time.time()
                 metric_results['fi_time'] = end - start
                 feature_importance_list.append(local_fi_score_train)
                 feature_importance_list.append(local_fi_score_test)
 
+                ablation_models = {"RF_Regressor": RandomForestRegressor(n_estimators=100,min_samples_leaf=5,max_features=0.33),
+                                   "Linear": LinearRegression(),
+                                   "XGB_Regressor": xgb.XGBRegressor(n_estimators=100, max_depth=None, min_child_weight=5,
+                                                                     subsample=1.0, colsample_bytree=0.33, random_state=42)}
+
                 # Train data ablation
                 start = time.time()
-                for model in ablation_models:
-                    ablation_est = ablation_models[model]
+                for a_model in ablation_models:
+                    ablation_est = ablation_models[a_model]
                     ablation_est.fit(X_train, y_train)
                     y_pred = ablation_est.predict(X_train)
-                    metric_results[model + '_MSE_before_ablation'] = mean_squared_error(y_train, y_pred)
-                    metric_results[model + '_R_2_before_ablation'] = r2_score(y_train, y_pred)
+                    metric_results[a_model + '_MSE_before_ablation'] = mean_squared_error(y_train, y_pred)
+                    metric_results[a_model + '_R_2_before_ablation'] = r2_score(y_train, y_pred)
                     imp_vals = copy.deepcopy(local_fi_score_train)
                     imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
                     imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
-                    ablation_results_list = [0] * y_train.shape[1]
-                    ablation_results_list_r2 = [0] * y_train.shape[1]
-                    for seed in tqdm(seeds):
+                    ablation_results_list = [0] * X_train.shape[1]
+                    ablation_results_list_r2 = [0] * X_train.shape[1]
+                    for seed in seeds:
                         for i in range(X_train.shape[1]):
                             if fi_est.ascending:
-                                ablation_X_train = ablation(X_train, imp_vals, "max", i+1, seed)
+                                ablation_X_train = ablation_to_mean(X_train, X_train, imp_vals, "max", i+1)
                             else:
-                                ablation_X_train = ablation(X_train, imp_vals, "min", i+1, seed)
+                                ablation_X_train = ablation_to_mean(X_train, X_train, imp_vals, "min", i+1)
                             ablation_results_list[i] += mean_squared_error(y_train, ablation_est.predict(ablation_X_train))
                             ablation_results_list_r2[i] += r2_score(y_train, ablation_est.predict(ablation_X_train))
                     ablation_results_list = [x / len(seeds) for x in ablation_results_list]
                     ablation_results_list_r2 = [x / len(seeds) for x in ablation_results_list_r2]
                     for i in range(X_train.shape[1]):
-                        metric_results[f'{model}_MSE_after_ablation_{i+1}'] = ablation_results_list[i]
-                        metric_results[f'{model}_R_2_after_ablation_{i+1}'] = ablation_results_list_r2[i]
+                        metric_results[f'{a_model}_MSE_after_ablation_{i+1}'] = ablation_results_list[i]
+                        metric_results[f'{a_model}_R_2_after_ablation_{i+1}'] = ablation_results_list_r2[i]
                 end = time.time()
                 metric_results['train_data_ablation_time'] = end - start
 
                 # Test data ablation
                 start = time.time()
-                for model in ablation_models:
-                    ablation_est = ablation_models[model]
+                for a_model in ablation_models:
+                    ablation_est = ablation_models[a_model]
                     ablation_est.fit(X_train, y_train)
                     y_pred = ablation_est.predict(X_test)
-                    metric_results[model + '_MSE_before_ablation'] = mean_squared_error(y_test, y_pred)
-                    metric_results[model + '_R_2_before_ablation'] = r2_score(y_test, y_pred)
+                    metric_results[a_model + '_MSE_before_ablation'] = mean_squared_error(y_test, y_pred)
+                    metric_results[a_model + '_R_2_before_ablation'] = r2_score(y_test, y_pred)
                     imp_vals = copy.deepcopy(local_fi_score_test)
                     imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
                     imp_vals[imp_vals == float("inf")] = sys.maxsize - 1
                     ablation_results_list = [0] * X_test.shape[1]
                     ablation_results_list_r2 = [0] * X_test.shape[1]
-                    for seed in tqdm(seeds):
+                    for seed in seeds:
                         for i in range(X_test.shape[1]):
                             if fi_est.ascending:
-                                ablation_X_test = ablation(X_test, imp_vals, "max", i+1, seed)
+                                ablation_X_test = ablation_to_mean(X_train, X_test, imp_vals, "max", i+1)
                             else:
-                                ablation_X_test = ablation(X_test, imp_vals, "min", i+1, seed)
+                                ablation_X_test = ablation_to_mean(X_train, X_test, imp_vals, "min", i+1)
                             ablation_results_list[i] += mean_squared_error(y_test, ablation_est.predict(ablation_X_test))
                             ablation_results_list_r2[i] += r2_score(y_test, ablation_est.predict(ablation_X_test))
                     ablation_results_list = [x / len(seeds) for x in ablation_results_list]
                     ablation_results_list_r2 = [x / len(seeds) for x in ablation_results_list_r2]
                     for i in range(X_test.shape[1]):
-                        metric_results[f'{model}_MSE_after_ablation_{i+1}'] = ablation_results_list[i]
-                        metric_results[f'{model}_R_2_after_ablation_{i+1}'] = ablation_results_list_r2[i]
+                        metric_results[f'{a_model}_MSE_after_ablation_{i+1}'] = ablation_results_list[i]
+                        metric_results[f'{a_model}_R_2_after_ablation_{i+1}'] = ablation_results_list_r2[i]
                 end = time.time()
                 metric_results['test_data_ablation_time'] = end - start
 
@@ -304,11 +327,11 @@ def get_metrics():
 
 def reformat_results(results):
     results = results.reset_index().drop(columns=['index'])
-    fi_scores = pd.concat(results.pop('fi_scores').to_dict()). \
-        reset_index(level=0).rename(columns={'level_0': 'index'})
-    results_df = pd.merge(results, fi_scores, left_index=True, right_on="index")
-    return results_df
-
+    # fi_scores = pd.concat(results.pop('fi_scores').to_dict()). \
+    #     reset_index(level=0).rename(columns={'level_0': 'index'})
+    # results_df = pd.merge(results, fi_scores, left_index=True, right_on="index")
+    # return results_df
+    return results
 
 def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args):
     os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
@@ -367,7 +390,6 @@ if __name__ == '__main__':
     parser.add_argument('--n_cores', type=int, default=None)
     parser.add_argument('--split_seed', type=int, default=0)
     parser.add_argument('--results_path', type=str, default=default_dir)
-    parser.add_argument('--normalization', type=str, default="none")
 
     # arguments for rmd output of results
     parser.add_argument('--create_rmd', action='store_true', default=False)
