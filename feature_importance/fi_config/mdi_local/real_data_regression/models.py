@@ -11,9 +11,9 @@ from feature_importance.scripts.competing_methods_local import *
 
 ESTIMATORS = [
     [ModelConfig('RF', RandomForestRegressor, model_type='tree',
-                 other_params={'n_estimators': 100, 'min_samples_leaf': 5, 'max_features': 0.33})],
+                 other_params={'n_estimators': 100, 'min_samples_leaf': 5, 'max_features': 0.33, 'random_state': 42})],
     [ModelConfig('RF_plus', RandomForestPlusRegressor, model_type='t_plus',
-                other_params={'rf_model': RandomForestRegressor(n_estimators=100, min_samples_leaf=5, max_features=0.33)})],
+                other_params={'rf_model': RandomForestRegressor(n_estimators=100, min_samples_leaf=5, max_features=0.33, random_state=42)})],
 ]
 
 FI_ESTIMATORS = [
