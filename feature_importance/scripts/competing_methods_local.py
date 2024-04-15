@@ -207,11 +207,11 @@ from sklearn.metrics import r2_score, mean_absolute_error, accuracy_score, roc_a
 
 
 
-def LFI_evaluation_RF(X_train, y_train, X_test, y_test, fit, data_fit_on, scoring_fns="auto", return_stability_scores=False, **kwargs):
-    assert data_fit_on in ["train", "test"]
-    if data_fit_on == "train":
-        X_data = X_train
-        y_data = y_train
+def LFI_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, fit, data_fit_on, scoring_fns="auto", return_stability_scores=False, **kwargs):
+    assert data_fit_on in ["train_subset", "test"]
+    if data_fit_on == "train_subset":
+        X_data = X_train_subset
+        y_data = y_train_subset
     else:
         X_data = X_test
         y_data = y_test
@@ -242,7 +242,7 @@ def LFI_evaluation_RF(X_train, y_train, X_test, y_test, fit, data_fit_on, scorin
     return result_table
 
 
-def lime_evaluation_RF(X_train, y_train, X_test, y_test, fit, data_fit_on):
+def lime_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, fit, data_fit_on):
     """
     Compute LIME local importance for each feature and sample.
     Larger values indicate more important features.
@@ -252,9 +252,9 @@ def lime_evaluation_RF(X_train, y_train, X_test, y_test, fit, data_fit_on):
     :return: dataframe of shape: (n_samples, n_features)
 
     """
-    assert data_fit_on in ["train", "test"]
-    if data_fit_on == "train":
-        X_data = X_train
+    assert data_fit_on in ["train_subset", "test"]
+    if data_fit_on == "train_subset":
+        X_data = X_train_subset
     else:
         X_data = X_test
     if isinstance(fit, RegressorMixin):
@@ -286,7 +286,7 @@ def lime_evaluation_RF(X_train, y_train, X_test, y_test, fit, data_fit_on):
     return result_table
 
 
-def tree_shap_evaluation_RF(X_train, y_train, X_test, y_test, fit, data_fit_on):
+def tree_shap_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, fit, data_fit_on):
     """
     Compute average treeshap value across observations.
     Larger absolute values indicate more important features.
@@ -295,9 +295,9 @@ def tree_shap_evaluation_RF(X_train, y_train, X_test, y_test, fit, data_fit_on):
     :param fit: fitted model of interest (tree-based)
     :return: dataframe of shape: (n_samples, n_features)
     """
-    assert data_fit_on in ["train", "test"]
-    if data_fit_on == "train":
-        X_data = X_train
+    assert data_fit_on in ["train_subset", "test"]
+    if data_fit_on == "train_subset":
+        X_data = X_train_subset
     else:
         X_data = X_test
     explainer = shap.TreeExplainer(fit)
@@ -309,16 +309,14 @@ def tree_shap_evaluation_RF(X_train, y_train, X_test, y_test, fit, data_fit_on):
         results = np.sum(np.abs(shap_values),axis=-1)
     else:
         results = abs(shap_values)
-    print(X_data.shape)
-    print(results.shape)
     result_table = pd.DataFrame(results, columns=[f'Feature_{i}' for i in range(X_data.shape[1])])
 
     return result_table
 
-def lime_evaluation_RF_plus(X_train, y_train, X_test, y_test, fit, data_fit_on):
-    assert data_fit_on in ["train", "test"]
-    if data_fit_on == "train":
-        X_data = X_train
+def lime_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, fit, data_fit_on):
+    assert data_fit_on in ["train_subset", "test"]
+    if data_fit_on == "train_subset":
+        X_data = X_train_subset
     else:
         X_data = X_test
     num_samples, num_features = X_data.shape
@@ -328,10 +326,10 @@ def lime_evaluation_RF_plus(X_train, y_train, X_test, y_test, fit, data_fit_on):
     return result_table
 
 
-def kernel_shap_evaluation_RF_plus(X_train, y_train, X_test, y_test, fit, data_fit_on):
-    assert data_fit_on in ["train", "test"]
-    if data_fit_on == "train":
-        X_data = X_train
+def kernel_shap_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, fit, data_fit_on):
+    assert data_fit_on in ["train_subset", "test"]
+    if data_fit_on == "train_subset":
+        X_data = X_train_subset
     else:
         X_data = X_test
     num_samples, num_features = X_data.shape
@@ -341,11 +339,11 @@ def kernel_shap_evaluation_RF_plus(X_train, y_train, X_test, y_test, fit, data_f
     return result_table
 
 
-def LFI_evaluation_RF_plus(X_train, y_train, X_test, y_test, fit, data_fit_on):
-    assert data_fit_on in ["train", "test"]
-    if data_fit_on == "train":
-        X_data = X_train
-        y_data = y_train
+def LFI_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, fit, data_fit_on):
+    assert data_fit_on in ["train_subset", "test"]
+    if data_fit_on == "train_subset":
+        X_data = X_train_subset
+        y_data = y_train_subset
     else:
         X_data = X_test
         y_data = y_test

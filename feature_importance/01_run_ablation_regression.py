@@ -22,7 +22,6 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 import xgboost as xgb
 from imodels.importance import RandomForestPlusRegressor, RandomForestPlusClassifier
-
 sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../..")
@@ -150,6 +149,7 @@ def compare_estimators(estimators: List[ModelConfig],
             test_all_mse = mean_squared_error(y_test, est.predict(X_test))
             test_all_r2 = r2_score(y_test, est.predict(X_test))
 
+            np.random.seed(42)
             indices_train = np.random.choice(X_train.shape[0], 100, replace=False)
             indices_test = np.random.choice(X_test.shape[0], 100, replace=False)
             X_train_subset = X_train[indices_train]
@@ -179,15 +179,23 @@ def compare_estimators(estimators: List[ModelConfig],
                     metric_results[f'ablation_seed_{i}'] = seeds[i]
                 start = time.time()
                 local_fi_score_train_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
-                                            X_test=X_test, y_test=y_test, 
-                                            fit=copy.deepcopy(est), data_fit_on="train", **fi_est.kwargs)
-                local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train, 
-                                            X_test=X_test, y_test=y_test, 
-                                            fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
-                local_fi_score_test_subset = None
+                                                         X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                         X_test=X_test, y_test=y_test, 
+                                                         fit=copy.deepcopy(est), data_fit_on="train_subset", **fi_est.kwargs)
+                if fi_est.name not in ["LIME_RF_plus", "Kernel_SHAP_RF_plus"]:
+                    local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train,
+                                                     X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                X_test=X_test, y_test=y_test, 
+                                                fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
+                else:
+                    local_fi_score_test = None
+                local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                        X_test=X_test_subset, y_test=y_test_subset, 
+                                                        fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
                 end = time.time()
                 metric_results['fi_time'] = end - start
-                feature_importance_list.append(local_fi_score_train_subset)
+                # feature_importance_list.append(local_fi_score_train_subset)
                 feature_importance_list.append(local_fi_score_test)
                 feature_importance_list.append(local_fi_score_test_subset)
 
@@ -313,6 +321,15 @@ def compare_estimators(estimators: List[ModelConfig],
                             metric_results[f'{a_model}_test_R_2_after_ablation_{i+1}'] = ablation_results_list_r2[i]
                     end = time.time()
                     metric_results['test_data_ablation_time'] = end - start
+                else:
+                    for a_model in ablation_models:
+                        metric_results[a_model + '_test_MSE_before_ablation'] = None
+                        metric_results[a_model + '_test_R_2_before_ablation'] = None
+                        for i in range(X_test.shape[1]):
+                            metric_results[f'{a_model}_test_MSE_after_ablation_{i+1}'] = None
+                            metric_results[f'{a_model}_test_R_2_after_ablation_{i+1}'] = None
+                    metric_results["test_data_ablation_time"] = None
+
                 print(f"fi: {fi_est.name} ablation done with time: {end - start}")
 
                 # initialize results with metadata and metric results

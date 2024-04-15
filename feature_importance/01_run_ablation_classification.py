@@ -16,7 +16,7 @@ import sys
 from collections import defaultdict
 from typing import Callable, List, Tuple
 import itertools
-from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score, mean_squared_error
+from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score, mean_squared_error, average_precision_score
 from sklearn import preprocessing
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegressionCV
@@ -150,9 +150,10 @@ def compare_estimators(estimators: List[ModelConfig],
             # fit model
             est.fit(X_train, y_train)
             test_all_auc = roc_auc_score(y_test, est.predict_proba(X_test)[:, 1])
-            test_all_auprc = auprc_score(y_test, est.predict_proba(X_test)[:, 1])
+            test_all_auprc = average_precision_score(y_test, est.predict_proba(X_test)[:, 1])
             test_all_f1 = f1_score(y_test, est.predict_proba(X_test)[:, 1] > 0.5)
 
+            np.random.seed(42)
             indices_train = np.random.choice(X_train.shape[0], 100, replace=False)
             indices_test = np.random.choice(X_test.shape[0], 100, replace=False)
             X_train_subset = X_train[indices_train]
@@ -183,21 +184,29 @@ def compare_estimators(estimators: List[ModelConfig],
                     metric_results[f'ablation_seed_{i}'] = seeds[i]
                 start = time.time()
                 local_fi_score_train_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
-                                            X_test=X_test, y_test=y_test, 
-                                            fit=copy.deepcopy(est), data_fit_on="train", **fi_est.kwargs)
-                local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train, 
-                                            X_test=X_test, y_test=y_test, 
-                                            fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
-                local_fi_score_test_subset = None
+                                                         X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                         X_test=X_test, y_test=y_test, 
+                                                         fit=copy.deepcopy(est), data_fit_on="train_subset", **fi_est.kwargs)
+                if fi_est.name not in ["LIME_RF_plus", "Kernel_SHAP_RF_plus"]:
+                    local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train,
+                                                     X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                X_test=X_test, y_test=y_test, 
+                                                fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
+                else:
+                    local_fi_score_test = None
+                local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                        X_test=X_test_subset, y_test=y_test_subset, 
+                                                        fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
                 end = time.time()
                 metric_results['fi_time'] = end - start
-                feature_importance_list.append(local_fi_score_train_subset)
+                # feature_importance_list.append(local_fi_score_train_subset)
                 feature_importance_list.append(local_fi_score_test)
                 feature_importance_list.append(local_fi_score_test_subset)
 
                 ablation_models = {"RF_Classifier": RandomForestClassifier(n_estimators=100, min_samples_leaf=1, max_features='sqrt', random_state=42),
-                                   "Logistic": LogisticRegressionCV(),
-                                   "SVM": SVC(probability=True),
+                                   "LogisticCV": LogisticRegressionCV(random_state=42),
+                                   "SVM": SVC(random_state=42, probability=True),
                                    "XGBoost_Classifier": xgb.XGBClassifier(random_state=42),
                                    "RF_Plus_Classifier": RandomForestPlusClassifier(rf_model=RandomForestClassifier(n_estimators=100, min_samples_leaf=1, max_features='sqrt', random_state=42))}
 
@@ -208,7 +217,7 @@ def compare_estimators(estimators: List[ModelConfig],
                     ablation_est.fit(X_train, y_train)
                     y_pred = ablation_est.predict_proba(X_train_subset)[:, 1]
                     metric_results[a_model+'_train_subset_AUROC_before_ablation'] = roc_auc_score(y_train_subset, y_pred)
-                    metric_results[a_model+'_train_subset_AUPRC_before_ablation'] = auprc_score(y_train_subset, y_pred)
+                    metric_results[a_model+'_train_subset_AUPRC_before_ablation'] = average_precision_score(y_train_subset, y_pred)
                     metric_results[a_model+'_train_subset_F1_before_ablation'] = f1_score(y_train_subset, y_pred > 0.5)
                     imp_vals = copy.deepcopy(local_fi_score_train_subset)
                     imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
@@ -223,7 +232,7 @@ def compare_estimators(estimators: List[ModelConfig],
                             else:
                                 ablation_X_train_subset = ablation_to_mean(X_train, X_train_subset, imp_vals, "min", i+1)
                             ablation_results_auroc_list[i] += roc_auc_score(y_train_subset, ablation_est.predict_proba(ablation_X_train_subset)[:, 1])
-                            ablation_results_auprc_list[i] += auprc_score(y_train_subset, ablation_est.predict_proba(ablation_X_train_subset)[:, 1])
+                            ablation_results_auprc_list[i] += average_precision_score(y_train_subset, ablation_est.predict_proba(ablation_X_train_subset)[:, 1])
                             ablation_results_f1_list[i] += f1_score(y_train_subset, ablation_est.predict_proba(ablation_X_train_subset)[:, 1] > 0.5)
                     ablation_results_f1_list = [x / number_of_ablations for x in ablation_results_f1_list]
                     ablation_results_auroc_list = [x / number_of_ablations for x in ablation_results_auroc_list]
@@ -241,9 +250,9 @@ def compare_estimators(estimators: List[ModelConfig],
                 for a_model in ablation_models:
                     ablation_est = ablation_models[a_model]
                     ablation_est.fit(X_train, y_train)
-                    y_pred_subset = est.predict_proba(X_test_subset)[:, 1]
+                    y_pred_subset = ablation_est.predict_proba(X_test_subset)[:, 1]
                     metric_results[a_model+'_test_subset_AUROC_before_ablation'] = roc_auc_score(y_test_subset, y_pred_subset)
-                    metric_results[a_model+'_test_subset_AUPRC_before_ablation'] = auprc_score(y_test_subset, y_pred_subset)
+                    metric_results[a_model+'_test_subset_AUPRC_before_ablation'] = average_precision_score(y_test_subset, y_pred_subset)
                     metric_results[a_model+'_test_subset_F1_before_ablation'] = f1_score(y_test_subset, y_pred_subset > 0.5)
                     imp_vals = copy.deepcopy(local_fi_score_test_subset)
                     imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
@@ -258,7 +267,7 @@ def compare_estimators(estimators: List[ModelConfig],
                             else:
                                 ablation_X_test_subset = ablation_to_mean(X_train, X_test_subset, imp_vals, "min", i+1)
                             ablation_results_auroc_list[i] += roc_auc_score(y_test_subset, ablation_est.predict_proba(ablation_X_test_subset)[:, 1])
-                            ablation_results_auprc_list[i] += auprc_score(y_test_subset, ablation_est.predict_proba(ablation_X_test_subset)[:, 1])
+                            ablation_results_auprc_list[i] += average_precision_score(y_test_subset, ablation_est.predict_proba(ablation_X_test_subset)[:, 1])
                             ablation_results_f1_list[i] += f1_score(y_test_subset, ablation_est.predict_proba(ablation_X_test_subset)[:, 1] > 0.5)
                     ablation_results_f1_list = [x / number_of_ablations for x in ablation_results_f1_list]
                     ablation_results_auroc_list = [x / number_of_ablations for x in ablation_results_auroc_list]
@@ -277,7 +286,7 @@ def compare_estimators(estimators: List[ModelConfig],
                     ablation_est = ablation_models[a_model]
                     ablation_est.fit(X_train, y_train)
                     metric_results[a_model+'_test_subset_AUROC_before_ablation_blank'] = roc_auc_score(y_test_subset, ablation_est.predict(np.zeros(X_test_subset.shape)))
-                    metric_results[a_model+'_test_subset_AUPRC_before_ablation_blank'] = auprc_score(y_test_subset, ablation_est.predict(np.zeros(X_test_subset.shape)))
+                    metric_results[a_model+'_test_subset_AUPRC_before_ablation_blank'] = average_precision_score(y_test_subset, ablation_est.predict(np.zeros(X_test_subset.shape)))
                     metric_results[a_model+'_test_subset_F1_before_ablation_blank'] = f1_score(y_test_subset, ablation_est.predict(np.zeros(X_test_subset.shape)) > 0.5)
                     imp_vals = copy.deepcopy(local_fi_score_test_subset)
                     imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
@@ -292,10 +301,11 @@ def compare_estimators(estimators: List[ModelConfig],
                             else:
                                 ablation_X_test_subset_blank = ablation_by_addition(X_test_subset, imp_vals, "min", i+1)
                             ablation_results_auroc_list[i] += roc_auc_score(y_test_subset, ablation_est.predict_proba(ablation_X_test_subset_blank)[:, 1])
-                            ablation_results_auprc_list[i] += auprc_score(y_test_subset, ablation_est.predict_proba(ablation_X_test_subset_blank)[:, 1])
+                            ablation_results_auprc_list[i] += average_precision_score(y_test_subset, ablation_est.predict_proba(ablation_X_test_subset_blank)[:, 1])
                             ablation_results_f1_list[i] += f1_score(y_test_subset, ablation_est.predict_proba(ablation_X_test_subset_blank)[:, 1] > 0.5)
-                    ablation_results_list = [x / len(seeds) for x in ablation_results_list]
-                    ablation_results_list_r2 = [x / len(seeds) for x in ablation_results_list_r2]
+                    ablation_results_f1_list = [x / number_of_ablations for x in ablation_results_f1_list]
+                    ablation_results_auroc_list = [x / number_of_ablations for x in ablation_results_auroc_list]
+                    ablation_results_auprc_list = [x / number_of_ablations for x in ablation_results_auprc_list]
                     for i in range(X_test_subset.shape[1]):
                         metric_results[f'{a_model}_test_subset_AUROC_after_ablation_{i+1}_blank'] = ablation_results_auroc_list[i]
                         metric_results[f'{a_model}_test_subset_AUPRC_after_ablation_{i+1}_blank'] = ablation_results_auprc_list[i]
@@ -309,9 +319,9 @@ def compare_estimators(estimators: List[ModelConfig],
                     for a_model in ablation_models:
                         ablation_est = ablation_models[a_model]
                         ablation_est.fit(X_train, y_train)
-                        y_pred = est.predict_proba(X_test)[:, 1]
+                        y_pred = ablation_est.predict_proba(X_test)[:, 1]
                         metric_results[a_model+'_test_AUROC_before_ablation'] = roc_auc_score(y_test, y_pred)
-                        metric_results[a_model+'_test_AUPRC_before_ablation'] = auprc_score(y_test, y_pred)
+                        metric_results[a_model+'_test_AUPRC_before_ablation'] = average_precision_score(y_test, y_pred)
                         metric_results[a_model+'_test_F1_before_ablation'] = f1_score(y_test, y_pred > 0.5)
                         imp_vals = copy.deepcopy(local_fi_score_test)
                         imp_vals[imp_vals == float("-inf")] = -sys.maxsize - 1
@@ -326,7 +336,7 @@ def compare_estimators(estimators: List[ModelConfig],
                                 else:
                                     ablation_X_test = ablation_to_mean(X_train, X_test, imp_vals, "min", i+1)
                                 ablation_results_auroc_list[i] += roc_auc_score(y_test, ablation_est.predict_proba(ablation_X_test)[:, 1])
-                                ablation_results_auprc_list[i] += auprc_score(y_test, ablation_est.predict_proba(ablation_X_test)[:, 1])
+                                ablation_results_auprc_list[i] += average_precision_score(y_test, ablation_est.predict_proba(ablation_X_test)[:, 1])
                                 ablation_results_f1_list[i] += f1_score(y_test, ablation_est.predict_proba(ablation_X_test)[:, 1] > 0.5)
                         ablation_results_f1_list = [x / number_of_ablations for x in ablation_results_f1_list]
                         ablation_results_auroc_list = [x / number_of_ablations for x in ablation_results_auroc_list]
@@ -337,6 +347,16 @@ def compare_estimators(estimators: List[ModelConfig],
                             metric_results[f'{a_model}_test_F1_after_ablation_{i+1}'] = ablation_results_f1_list[i]
                     end = time.time()
                     metric_results['test_data_ablation_time'] = end - start
+                else:
+                    for a_model in ablation_models:
+                        metric_results[a_model+'_test_AUROC_before_ablation'] = None
+                        metric_results[a_model+'_test_AUPRC_before_ablation'] = None
+                        metric_results[a_model+'_test_F1_before_ablation'] = None
+                        for i in range(X_test.shape[1]):
+                            metric_results[f'{a_model}_test_AUROC_after_ablation_{i+1}'] = None
+                            metric_results[f'{a_model}_test_AUPRC_after_ablation_{i+1}'] = None
+                            metric_results[f'{a_model}_test_F1_after_ablation_{i+1}'] = None
+                    metric_results["test_data_ablation_time"] = None
                 print(f"fi: {fi_est.name} ablation done with time: {end - start}")
 
                 # initialize results with metadata and metric results
