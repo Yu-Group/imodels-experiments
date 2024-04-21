@@ -1,7 +1,12 @@
-from sklearn.ensemble import RandomForestRegressor
+import copy
+import numpy as np
 from feature_importance.util import ModelConfig, FIModelConfig
+from sklearn.ensemble import RandomForestRegressor
+from imodels.importance.rf_plus import RandomForestPlusRegressor
 from feature_importance.scripts.competing_methods_local import *
-# N_ESTIMATORS=[50, 100, 500, 1000]
+      
+
+
 ESTIMATORS = [
     [ModelConfig('RF', RandomForestRegressor, model_type='tree',
                 other_params={'n_estimators': 100, 'min_samples_leaf': 1, 'max_features': 'sqrt', 'random_state': 42})],
@@ -16,5 +21,5 @@ FI_ESTIMATORS = [
     [FIModelConfig('TreeSHAP_RF', tree_shap_evaluation_RF, model_type='tree', splitting_strategy = "train-test")],
     [FIModelConfig('LFI_with_raw_RF_plus', LFI_evaluation_RF_plus, model_type='t_plus', splitting_strategy = "train-test")],
     [FIModelConfig('Kernel_SHAP_RF_plus', kernel_shap_evaluation_RF_plus, model_type='t_plus', splitting_strategy = "train-test")],
-    [FIModelConfig('LIME_RF_plus', lime_evaluation_RF_plus, model_type='t_plus', splitting_strategy = "train-test")],
+    # [FIModelConfig('LIME_RF_plus', lime_evaluation_RF_plus, model_type='t_plus', splitting_strategy = "train-test")],
 ]

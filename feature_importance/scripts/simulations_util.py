@@ -218,7 +218,6 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         for j in range(s):
             linear_term += x[j] * beta[j]
         return linear_term
-
     beta = generate_coef(beta, s)
     y_train = np.array([create_y(X[i, :], s, beta) for i in range(len(X))])
     if heritability is not None:
@@ -262,7 +261,7 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
             y_train = y_train + sigma * error_fun(n)
             corrupt_idx = np.random.choice(range(s, p), size=1)
             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
-
+    print("beta:", beta)
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
         return y_train, support, beta
