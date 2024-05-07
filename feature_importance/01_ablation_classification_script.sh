@@ -4,7 +4,7 @@
 #SBATCH --partition=yugroup
 
 source activate mdi
-command="01_run_ablation_classification.py --nreps 1 --config mdi_local.real_data_classification --split_seed ${1} --ignore_cache --create_rmd --result_name fico"
+command="01_run_ablation_classification.py --nreps 1 --config mdi_local.real_data_classification --split_seed 1 --ignore_cache --create_rmd --result_name diabetes_classification"
 
 # Execute the command
 python $command

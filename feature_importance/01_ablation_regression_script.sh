@@ -4,7 +4,7 @@
 #SBATCH --partition=yugroup
 
 source activate mdi
-command="01_run_ablation_regression.py --nreps 1 --config mdi_local.real_data_regression --split_seed ${1} --ignore_cache --create_rmd --result_name satellite_image"
+command="01_run_ablation_regression.py --nreps 1 --config mdi_local.real_data_regression --split_seed ${1} --ignore_cache --create_rmd --result_name ca_housing_new"
 
 # Execute the command
 python $command

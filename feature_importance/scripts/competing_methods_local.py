@@ -205,44 +205,29 @@ from sklearn.metrics import r2_score, mean_absolute_error, accuracy_score, roc_a
 
 #     return result_table
 
-
-
-def LFI_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, fit, data_fit_on, scoring_fns="auto", return_stability_scores=False, **kwargs):
-    assert data_fit_on in ["train_subset", "test"]
-    if data_fit_on == "train_subset":
-        X_data = X_train_subset
-        y_data = y_train_subset
-    else:
-        X_data = X_test
-        y_data = y_test
-    num_samples, num_features = X_data.shape
+def LFI_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):
     if isinstance(fit, RegressorMixin):
         RFPlus = RandomForestPlusRegressor
     elif isinstance(fit, ClassifierMixin):
         RFPlus = RandomForestPlusClassifier
     else:
         raise ValueError("Unknown task.")
+    
     rf_plus_model = RFPlus(rf_model=fit, **kwargs)
     rf_plus_model.fit(X_train, y_train)
 
-    try:
-        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(X=X_data, y=y_data, lfi=True, lfi_abs="none", sample_split=None, train_or_test = "test")["lfi"].values
-        mdi_plus_scores = np.abs(mdi_plus_scores)
-        if return_stability_scores:
-            raise NotImplementedError
-            stability_scores = rf_plus_model.get_mdi_plus_stability_scores(B=25)
-    except ValueError as e:
-        if str(e) == 'Transformer representation was empty for all trees.':
-            mdi_plus_scores = np.zeros((num_samples, num_features)) 
-            stability_scores = None
-        else:
-            raise
-    result_table = pd.DataFrame(mdi_plus_scores, columns=[f'Feature_{i}' for i in range(num_features)])
+    subsets = [(X_train_subset, y_train_subset), (X_test, y_test), (X_test_subset, y_test_subset)]
+    result_tables = []
 
-    return result_table
+    for X, y in subsets:
+        num_samples, num_features = X.shape
+        abs_lfi_scores = rf_plus_model.get_mdi_plus_scores(X=X, y=y, lfi=True, lfi_abs="none", sample_split=None, train_or_test="test")["lfi"].values
+        abs_lfi_scores = np.abs(abs_lfi_scores)
+        result_table = pd.DataFrame(abs_lfi_scores, columns=[f'Feature_{i}' for i in range(num_features)])
+        result_tables.append(result_table)
+    return tuple(result_tables)
 
-
-def lime_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, fit, data_fit_on):
+def lime_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit):
     """
     Compute LIME local importance for each feature and sample.
     Larger values indicate more important features.
@@ -252,41 +237,38 @@ def lime_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test,
     :return: dataframe of shape: (n_samples, n_features)
 
     """
-    assert data_fit_on in ["train_subset", "test"]
-    if data_fit_on == "train_subset":
-        X_data = X_train_subset
-    else:
-        X_data = X_test
-    if isinstance(fit, RegressorMixin):
-        mode='regression'
-    elif isinstance(fit, ClassifierMixin):
-        mode='classification'
     np.random.seed(1)
-    num_samples, num_features = X_data.shape
-    result = np.zeros((num_samples, num_features))
-    explainer = lime.lime_tabular.LimeTabularExplainer(X_train, verbose=False, mode=mode)
+    if isinstance(fit, RegressorMixin):
+        mode = 'regression'
+    elif isinstance(fit, ClassifierMixin):
+        mode = 'classification'
 
-    if mode == 'classification':
-        if not hasattr(fit, 'predict_proba'):
+    def compute_result_table(data, fit, mode, num_features):
+        result = np.zeros((len(data), num_features))
+        explainer = lime.lime_tabular.LimeTabularExplainer(X_train, verbose=False, mode=mode)
+
+        if mode == 'classification' and not hasattr(fit, 'predict_proba'):
             raise ValueError("Classifier model must have predict_proba method")
 
-    for i in range(num_samples):
-        if mode == 'classification':
-            predict_fn = fit.predict_proba
-        else:
-            predict_fn = fit.predict
-        exp = explainer.explain_instance(X_data[i], predict_fn, num_features=num_features)
-        original_feature_importance = exp.as_map()[1]
-        sorted_feature_importance = sorted(original_feature_importance, key=lambda x: x[0])
-        for j in range(num_features):
-            result[i,j] = abs(sorted_feature_importance[j][1])
-    # Convert the array to a DataFrame
-    result_table = pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
+        for i, sample in enumerate(data):
+            if mode == 'classification':
+                predict_fn = fit.predict_proba
+            else:
+                predict_fn = fit.predict
+            exp = explainer.explain_instance(sample, predict_fn, num_features=num_features)
+            original_feature_importance = exp.as_map()[1]
+            sorted_feature_importance = sorted(original_feature_importance, key=lambda x: x[0])
+            for j in range(num_features):
+                result[i, j] = abs(sorted_feature_importance[j][1])
+        return pd.DataFrame(result, columns=[f'Feature_{i}' for i in range(num_features)])
 
-    return result_table
+    result_table_train_subset = compute_result_table(X_train_subset, fit, mode, X_train_subset.shape[1])
+    result_table_test = compute_result_table(X_test, fit, mode, X_test.shape[1])
+    result_table_test_subset = compute_result_table(X_test_subset, fit, mode, X_test_subset.shape[1])
 
+    return result_table_train_subset, result_table_test, result_table_test_subset
 
-def tree_shap_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, fit, data_fit_on):
+def tree_shap_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit):
     """
     Compute average treeshap value across observations.
     Larger absolute values indicate more important features.
@@ -295,64 +277,70 @@ def tree_shap_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_
     :param fit: fitted model of interest (tree-based)
     :return: dataframe of shape: (n_samples, n_features)
     """
-    assert data_fit_on in ["train_subset", "test"]
-    if data_fit_on == "train_subset":
-        X_data = X_train_subset
-    else:
-        X_data = X_test
+    def add_abs(a, b):
+        return abs(a) + abs(b)
+
+    subsets = [(X_train_subset, y_train_subset), (X_test, y_test), (X_test_subset, y_test_subset)]
+    result_tables = []
+
     explainer = shap.TreeExplainer(fit)
-    shap_values = explainer.shap_values(X_data, check_additivity=False)
-    if sklearn.base.is_classifier(fit):
-        # Shape values are returned as a list of arrays, one for each class
-        def add_abs(a, b):
-            return abs(a) + abs(b)
-        results = np.sum(np.abs(shap_values),axis=-1)
-    else:
-        results = abs(shap_values)
-    result_table = pd.DataFrame(results, columns=[f'Feature_{i}' for i in range(X_data.shape[1])])
 
-    return result_table
+    for X, y in subsets:
+        shap_values = explainer.shap_values(X, check_additivity=False)
+        if sklearn.base.is_classifier(fit):
+            # Shape values are returned as a list of arrays, one for each class
+            results = np.sum(np.abs(shap_values), axis=-1)
+        else:
+            results = np.abs(shap_values)
 
-def lime_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, fit, data_fit_on):
-    assert data_fit_on in ["train_subset", "test"]
-    if data_fit_on == "train_subset":
-        X_data = X_train_subset
-    else:
-        X_data = X_test
-    num_samples, num_features = X_data.shape
-    lime_scores = fit.get_lime_scores(X_train, X_data).values
-    result_table = pd.DataFrame(lime_scores, columns=[f'Feature_{i}' for i in range(num_features)])
+        result_table = pd.DataFrame(results, columns=[f'Feature_{i}' for i in range(X.shape[1])])
+        result_tables.append(result_table)
 
-    return result_table
+    return tuple(result_tables)
 
+def lime_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit):
+    subsets = [(X_train_subset, y_train_subset), (X_test_subset, y_test_subset)]
+    result_tables = []
 
-def kernel_shap_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, fit, data_fit_on):
-    assert data_fit_on in ["train_subset", "test"]
-    if data_fit_on == "train_subset":
-        X_data = X_train_subset
-    else:
-        X_data = X_test
-    num_samples, num_features = X_data.shape
-    kernel_shap_scores = fit.get_kernel_shap_scores(X_train, X_data)
-    result_table = pd.DataFrame(kernel_shap_scores, columns=[f'Feature_{i}' for i in range(num_features)])
+    for X, y in subsets:
+        num_samples, num_features = X.shape
+        lime_scores = fit.get_lime_scores(X_train, X_test_subset).values
+        result_table = pd.DataFrame(lime_scores, columns=[f'Feature_{i}' for i in range(num_features)])
+        result_tables.append(result_table)
 
-    return result_table
+    result_table_train_subset, result_table_test_subset = result_tables
+
+    return result_table_train_subset, None, result_table_test_subset
 
 
-def LFI_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, fit, data_fit_on):
-    assert data_fit_on in ["train_subset", "test"]
-    if data_fit_on == "train_subset":
-        X_data = X_train_subset
-        y_data = y_train_subset
-    else:
-        X_data = X_test
-        y_data = y_test
-    num_samples, num_features = X_data.shape
-    abs_lfi_scores = fit.get_mdi_plus_scores(X=X_data, y=y_data, lfi=True, lfi_abs="none", sample_split=None, train_or_test = "test")["lfi"].values
-    abs_lfi_scores = np.abs(abs_lfi_scores)
-    result_table = pd.DataFrame(abs_lfi_scores, columns=[f'Feature_{i}' for i in range(num_features)])
+def kernel_shap_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit):
+    subsets = [(X_train_subset, y_train_subset), (X_test_subset, y_test_subset)]
+    result_tables = []
 
-    return result_table
+    for X, y in subsets:
+        num_samples, num_features = X.shape
+        kernel_shap_scores = fit.get_kernel_shap_scores(X_train, X)
+        result_table = pd.DataFrame(kernel_shap_scores, columns=[f'Feature_{i}' for i in range(num_features)])
+        result_tables.append(result_table)
+
+    result_table_train_subset, result_table_test_subset = result_tables
+
+    return result_table_train_subset, None, result_table_test_subset
+
+
+def LFI_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit):
+    subsets = [(X_train_subset, y_train_subset), (X_test, y_test), (X_test_subset, y_test_subset)]
+    result_tables = []
+
+    for X, y in subsets:
+        num_samples, num_features = X.shape
+        abs_lfi_scores = fit.get_mdi_plus_scores(X=X, y=y, lfi=True, lfi_abs="none", sample_split=None, train_or_test="test")["lfi"].values
+        abs_lfi_scores = np.abs(abs_lfi_scores)
+        result_table = pd.DataFrame(abs_lfi_scores, columns=[f'Feature_{i}' for i in range(num_features)])
+        result_tables.append(result_table)
+
+    return tuple(result_tables)
+
 
 
 # def MDI_local_sub_stumps_evaluate(X_train, y_train, X_test, y_test, fit, scoring_fns="auto", return_stability_scores=False, **kwargs):

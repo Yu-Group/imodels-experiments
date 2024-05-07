@@ -137,21 +137,28 @@ def compare_estimators(estimators: List[ModelConfig],
                 y_tune = y
                 y_test = y
 
-            normalizer = preprocessing.Normalizer()
-            if splitting_strategy == "train-test":
-                X_train = normalizer.fit_transform(X_train)
-                X_test = normalizer.transform(X_test)
-            else:
-                X = normalizer.fit_transform(X)
-                X_train = normalizer.transform(X_train)
-                X_test = normalizer.transform(X_test)
+            # normalizer = preprocessing.Normalizer()
+            # if splitting_strategy == "train-test":
+            #     X_train = normalizer.fit_transform(X_train)
+            #     X_test = normalizer.transform(X_test)
+            # else:
+            #     X = normalizer.fit_transform(X)
+            #     X_train = normalizer.transform(X_train)
+            #     X_test = normalizer.transform(X_test)
 
 
-            # fit model
+            # fit RF model
             est.fit(X_train, y_train)
-            test_all_auc = roc_auc_score(y_test, est.predict_proba(X_test)[:, 1])
-            test_all_auprc = average_precision_score(y_test, est.predict_proba(X_test)[:, 1])
-            test_all_f1 = f1_score(y_test, est.predict_proba(X_test)[:, 1] > 0.5)
+            test_all_auc_rf = roc_auc_score(y_test, est.predict_proba(X_test)[:, 1])
+            test_all_auprc_rf = average_precision_score(y_test, est.predict_proba(X_test)[:, 1])
+            test_all_f1_rf = f1_score(y_test, est.predict_proba(X_test)[:, 1] > 0.5)
+
+            # fit RF_plus model
+            rf_plus_base = RandomForestPlusClassifier(rf_model=est)
+            rf_plus_base.fit(X_train, y_train)
+            test_all_auc_rf_plus = roc_auc_score(y_test, rf_plus_base.predict_proba(X_test)[:, 1])
+            test_all_auprc_rf_plus = average_precision_score(y_test, rf_plus_base.predict_proba(X_test)[:, 1])
+            test_all_f1_rf_plus = f1_score(y_test, rf_plus_base.predict_proba(X_test)[:, 1] > 0.5)
 
             np.random.seed(42)
             indices_train = np.random.choice(X_train.shape[0], 100, replace=False)
@@ -173,9 +180,12 @@ def compare_estimators(estimators: List[ModelConfig],
                     'test_size': X_test.shape[0],
                     'num_features': X_train.shape[1],
                     'data_split_seed': args.split_seed,
-                    'test_all_auc': test_all_auc,
-                    'test_all_auprc': test_all_auprc,
-                    'test_all_f1': test_all_f1
+                    'test_all_auc_rf': test_all_auc_rf,
+                    'test_all_auprc_rf': test_all_auprc_rf,
+                    'test_all_f1_rf': test_all_f1_rf,
+                    'test_all_auc_rf_plus': test_all_auc_rf_plus,
+                    'test_all_auprc_rf_plus': test_all_auprc_rf_plus,
+                    'test_all_f1_rf_plus': test_all_f1_rf_plus,
                 }
                 for i in range(100):
                     metric_results[f'sample_train_{i}'] = indices_train[i]
@@ -183,24 +193,21 @@ def compare_estimators(estimators: List[ModelConfig],
                 for i in range(len(seeds)):
                     metric_results[f'ablation_seed_{i}'] = seeds[i]
                 start = time.time()
-                local_fi_score_train_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
-                                                         X_train_subset = X_train_subset, y_train_subset=y_train_subset,
-                                                         X_test=X_test, y_test=y_test, 
-                                                         fit=copy.deepcopy(est), data_fit_on="train_subset", **fi_est.kwargs)
-                if fi_est.name not in ["LIME_RF_plus", "Kernel_SHAP_RF_plus"]:
-                    local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train,
-                                                     X_train_subset = X_train_subset, y_train_subset=y_train_subset,
-                                                X_test=X_test, y_test=y_test, 
-                                                fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
+                if fi_est.name.split("_")[-1] == "plus":
+                    local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                                            X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                            X_test_subset=X_test_subset, y_test_subset=y_test_subset,
+                                                            X_test=X_test, y_test=y_test, 
+                                                            fit=rf_plus_base, **fi_est.kwargs)
                 else:
-                    local_fi_score_test = None
-                local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
-                X_train_subset = X_train_subset, y_train_subset=y_train_subset,
-                                                        X_test=X_test_subset, y_test=y_test_subset, 
-                                                        fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
+                    local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                                            X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                            X_test_subset=X_test_subset, y_test_subset=y_test_subset,
+                                                            X_test=X_test, y_test=y_test, 
+                                                            fit=copy.deepcopy(est), **fi_est.kwargs)
                 end = time.time()
                 metric_results['fi_time'] = end - start
-                # feature_importance_list.append(local_fi_score_train_subset)
+                feature_importance_list.append(local_fi_score_train_subset)
                 feature_importance_list.append(local_fi_score_test)
                 feature_importance_list.append(local_fi_score_test_subset)
 
@@ -208,13 +215,14 @@ def compare_estimators(estimators: List[ModelConfig],
                                    "LogisticCV": LogisticRegressionCV(random_state=42),
                                    "SVM": SVC(random_state=42, probability=True),
                                    "XGBoost_Classifier": xgb.XGBClassifier(random_state=42),
-                                   "RF_Plus_Classifier": RandomForestPlusClassifier(rf_model=RandomForestClassifier(n_estimators=100, min_samples_leaf=1, max_features='sqrt', random_state=42))}
-
+                                   "RF_Plus_Classifier": rf_plus_base}
+                print("start ablation")
                 # Subset Train data ablation for all FI methods
                 start = time.time()
                 for a_model in ablation_models:
                     ablation_est = ablation_models[a_model]
-                    ablation_est.fit(X_train, y_train)
+                    if a_model != "RF_Plus_Classifier":
+                        ablation_est.fit(X_train, y_train)
                     y_pred = ablation_est.predict_proba(X_train_subset)[:, 1]
                     metric_results[a_model+'_train_subset_AUROC_before_ablation'] = roc_auc_score(y_train_subset, y_pred)
                     metric_results[a_model+'_train_subset_AUPRC_before_ablation'] = average_precision_score(y_train_subset, y_pred)
@@ -241,15 +249,19 @@ def compare_estimators(estimators: List[ModelConfig],
                         metric_results[f'{a_model}_train_subset_AUROC_after_ablation_{i+1}'] = ablation_results_auroc_list[i]
                         metric_results[f'{a_model}_train_subset_AUPRC_after_ablation_{i+1}'] = ablation_results_auprc_list[i]
                         metric_results[f'{a_model}_train_subset_F1_after_ablation_{i+1}'] = ablation_results_f1_list[i]
+                    end = time.time()
+                    print(f"done with ablation {a_model} train subset {end - start}")
                 end = time.time()
                 metric_results['train_subset_data_ablation_time'] = end - start
+
 
                 # Test data ablation
                 # Subset test data ablation for all FI methods - removal
                 start = time.time()
                 for a_model in ablation_models:
                     ablation_est = ablation_models[a_model]
-                    ablation_est.fit(X_train, y_train)
+                    if a_model != "RF_Plus_Classifier":
+                        ablation_est.fit(X_train, y_train)
                     y_pred_subset = ablation_est.predict_proba(X_test_subset)[:, 1]
                     metric_results[a_model+'_test_subset_AUROC_before_ablation'] = roc_auc_score(y_test_subset, y_pred_subset)
                     metric_results[a_model+'_test_subset_AUPRC_before_ablation'] = average_precision_score(y_test_subset, y_pred_subset)
@@ -276,6 +288,8 @@ def compare_estimators(estimators: List[ModelConfig],
                         metric_results[f'{a_model}_test_subset_AUROC_after_ablation_{i+1}'] = ablation_results_auroc_list[i]
                         metric_results[f'{a_model}_test_subset_AUPRC_after_ablation_{i+1}'] = ablation_results_auprc_list[i]
                         metric_results[f'{a_model}_test_subset_F1_after_ablation_{i+1}'] = ablation_results_f1_list[i]
+                    end = time.time()
+                    print(f"done with ablation {a_model} test subset {end - start}")
                 end = time.time()
                 metric_results['test_subset_ablation_time'] = end - start
 
@@ -284,7 +298,8 @@ def compare_estimators(estimators: List[ModelConfig],
                 start = time.time()
                 for a_model in ablation_models:
                     ablation_est = ablation_models[a_model]
-                    ablation_est.fit(X_train, y_train)
+                    if a_model != "RF_Plus_Classifier":
+                        ablation_est.fit(X_train, y_train)
                     metric_results[a_model+'_test_subset_AUROC_before_ablation_blank'] = roc_auc_score(y_test_subset, ablation_est.predict(np.zeros(X_test_subset.shape)))
                     metric_results[a_model+'_test_subset_AUPRC_before_ablation_blank'] = average_precision_score(y_test_subset, ablation_est.predict(np.zeros(X_test_subset.shape)))
                     metric_results[a_model+'_test_subset_F1_before_ablation_blank'] = f1_score(y_test_subset, ablation_est.predict(np.zeros(X_test_subset.shape)) > 0.5)
@@ -310,6 +325,8 @@ def compare_estimators(estimators: List[ModelConfig],
                         metric_results[f'{a_model}_test_subset_AUROC_after_ablation_{i+1}_blank'] = ablation_results_auroc_list[i]
                         metric_results[f'{a_model}_test_subset_AUPRC_after_ablation_{i+1}_blank'] = ablation_results_auprc_list[i]
                         metric_results[f'{a_model}_test_subset_F1_after_ablation_{i+1}_blank'] = ablation_results_f1_list[i]
+                    end = time.time()
+                    print(f"done with ablation {a_model} test subset blank {end - start}")
                 end = time.time()
                 metric_results['test_subset_blank_ablation_time'] = end - start
 
@@ -318,7 +335,8 @@ def compare_estimators(estimators: List[ModelConfig],
                     start = time.time()
                     for a_model in ablation_models:
                         ablation_est = ablation_models[a_model]
-                        ablation_est.fit(X_train, y_train)
+                        if a_model != "RF_Plus_Classifier":
+                            ablation_est.fit(X_train, y_train)
                         y_pred = ablation_est.predict_proba(X_test)[:, 1]
                         metric_results[a_model+'_test_AUROC_before_ablation'] = roc_auc_score(y_test, y_pred)
                         metric_results[a_model+'_test_AUPRC_before_ablation'] = average_precision_score(y_test, y_pred)

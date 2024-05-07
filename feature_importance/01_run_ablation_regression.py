@@ -135,19 +135,25 @@ def compare_estimators(estimators: List[ModelConfig],
                 y_train = y
                 y_test = y
 
-            normalizer = preprocessing.Normalizer()
-            if splitting_strategy == "train-test":
-                X_train = normalizer.fit_transform(X_train)
-                X_test = normalizer.transform(X_test)
-            else:
-                X = normalizer.fit_transform(X)
-                X_train = normalizer.transform(X_train)
-                X_test = normalizer.transform(X_test)
+            # normalizer = preprocessing.Normalizer()
+            # if splitting_strategy == "train-test":
+            #     X_train = normalizer.fit_transform(X_train)
+            #     X_test = normalizer.transform(X_test)
+            # else:
+            #     X = normalizer.fit_transform(X)
+            #     X_train = normalizer.transform(X_train)
+            #     X_test = normalizer.transform(X_test)
 
-            # fit model
+            # fit RF model
             est.fit(X_train, y_train)
-            test_all_mse = mean_squared_error(y_test, est.predict(X_test))
-            test_all_r2 = r2_score(y_test, est.predict(X_test))
+            test_all_mse_rf = mean_squared_error(y_test, est.predict(X_test))
+            test_all_r2_rf = r2_score(y_test, est.predict(X_test))
+
+            # fit RF_plus model
+            rf_plus_base = RandomForestPlusRegressor(rf_model=est)
+            rf_plus_base.fit(X_train, y_train)
+            test_all_mse_rf_plus = mean_squared_error(y_test, rf_plus_base.predict(X_test))
+            test_all_r2_rf_plus = r2_score(y_test, rf_plus_base.predict(X_test))
 
             np.random.seed(42)
             indices_train = np.random.choice(X_train.shape[0], 100, replace=False)
@@ -169,8 +175,10 @@ def compare_estimators(estimators: List[ModelConfig],
                     'test_size': X_test.shape[0],
                     'num_features': X_train.shape[1],
                     'data_split_seed': args.split_seed,
-                    'test_all_mse': test_all_mse,
-                    'test_all_r2': test_all_r2
+                    'test_all_mse_rf': test_all_mse_rf,
+                    'test_all_r2_rf': test_all_r2_rf,
+                    'test_all_mse_rf_plus': test_all_mse_rf_plus,
+                    'test_all_r2_rf_plus': test_all_r2_rf_plus,
                 }
                 for i in range(100):
                     metric_results[f'sample_train_{i}'] = indices_train[i]
@@ -178,37 +186,35 @@ def compare_estimators(estimators: List[ModelConfig],
                 for i in range(len(seeds)):
                     metric_results[f'ablation_seed_{i}'] = seeds[i]
                 start = time.time()
-                local_fi_score_train_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
-                                                         X_train_subset = X_train_subset, y_train_subset=y_train_subset,
-                                                         X_test=X_test, y_test=y_test, 
-                                                         fit=copy.deepcopy(est), data_fit_on="train_subset", **fi_est.kwargs)
-                if fi_est.name not in ["LIME_RF_plus", "Kernel_SHAP_RF_plus"]:
-                    local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train,
-                                                     X_train_subset = X_train_subset, y_train_subset=y_train_subset,
-                                                X_test=X_test, y_test=y_test, 
-                                                fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
+                if fi_est.name.split("_")[-1] == "plus":
+                    local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                                            X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                            X_test_subset=X_test_subset, y_test_subset=y_test_subset,
+                                                            X_test=X_test, y_test=y_test, 
+                                                            fit=rf_plus_base, **fi_est.kwargs)
                 else:
-                    local_fi_score_test = None
-                local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
-                X_train_subset = X_train_subset, y_train_subset=y_train_subset,
-                                                        X_test=X_test_subset, y_test=y_test_subset, 
-                                                        fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
+                    local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                                            X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                            X_test_subset=X_test_subset, y_test_subset=y_test_subset,
+                                                            X_test=X_test, y_test=y_test, 
+                                                            fit=copy.deepcopy(est), **fi_est.kwargs)
                 end = time.time()
                 metric_results['fi_time'] = end - start
-                # feature_importance_list.append(local_fi_score_train_subset)
+                feature_importance_list.append(local_fi_score_train_subset)
                 feature_importance_list.append(local_fi_score_test)
                 feature_importance_list.append(local_fi_score_test_subset)
 
                 ablation_models = {"RF_Regressor": RandomForestRegressor(n_estimators=100,min_samples_leaf=5,max_features=0.33,random_state=42),
                                    "Linear": LinearRegression(),
                                    "XGB_Regressor": xgb.XGBRegressor(random_state=42),
-                                   "RF_Plus_Regressor":RandomForestPlusRegressor(rf_model=RandomForestRegressor(n_estimators=100,min_samples_leaf=5,max_features=0.33,random_state=42))}
+                                   "RF_Plus_Regressor": rf_plus_base}
 
                 # Subset Train data ablation for all FI methods
                 start = time.time()
                 for a_model in ablation_models:
                     ablation_est = ablation_models[a_model]
-                    ablation_est.fit(X_train, y_train)
+                    if a_model != "RF_Plus_Regressor":
+                        ablation_est.fit(X_train, y_train)
                     y_pred_subset = ablation_est.predict(X_train_subset)
                     metric_results[a_model + '_train_subset_MSE_before_ablation'] = mean_squared_error(y_train_subset, y_pred_subset)
                     metric_results[a_model + '_train_subset_R_2_before_ablation'] = r2_score(y_train_subset, y_pred_subset)
@@ -238,7 +244,8 @@ def compare_estimators(estimators: List[ModelConfig],
                 start = time.time()
                 for a_model in ablation_models:
                     ablation_est = ablation_models[a_model]
-                    ablation_est.fit(X_train, y_train)
+                    if a_model != "RF_Plus_Regressor":
+                        ablation_est.fit(X_train, y_train)
                     y_pred_subset = ablation_est.predict(X_test_subset)
                     metric_results[a_model + '_test_subset_MSE_before_ablation'] = mean_squared_error(y_test_subset, y_pred_subset)
                     metric_results[a_model + '_test_subset_R_2_before_ablation'] = r2_score(y_test_subset, y_pred_subset)
@@ -268,7 +275,8 @@ def compare_estimators(estimators: List[ModelConfig],
                 start = time.time()
                 for a_model in ablation_models:
                     ablation_est = ablation_models[a_model]
-                    ablation_est.fit(X_train, y_train)
+                    if a_model != "RF_Plus_Regressor":
+                        ablation_est.fit(X_train, y_train)
                     metric_results[a_model + '_test_subset_MSE_before_ablation_blank'] = mean_squared_error(y_test_subset, ablation_est.predict(np.zeros(X_test_subset.shape)))
                     metric_results[a_model + '_test_subset_R_2_before_ablation_blank'] = r2_score(y_test_subset, ablation_est.predict(np.zeros(X_test_subset.shape)))
                     imp_vals = copy.deepcopy(local_fi_score_test_subset)
@@ -297,7 +305,8 @@ def compare_estimators(estimators: List[ModelConfig],
                     start = time.time()
                     for a_model in ablation_models:
                         ablation_est = ablation_models[a_model]
-                        ablation_est.fit(X_train, y_train)
+                        if a_model != "RF_Plus_Regressor":
+                            ablation_est.fit(X_train, y_train)
                         y_pred = ablation_est.predict(X_test)
                         metric_results[a_model + '_test_MSE_before_ablation'] = mean_squared_error(y_test, y_pred)
                         metric_results[a_model + '_test_R_2_before_ablation'] = r2_score(y_test, y_pred)
