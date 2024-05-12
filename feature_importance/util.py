@@ -13,7 +13,7 @@ from sklearn.metrics import confusion_matrix, precision_recall_curve, auc, avera
 from sklearn.preprocessing import label_binarize
 from sklearn.utils._encode import _unique
 from sklearn import metrics
-from imodels.importance.ppms import huber_loss
+# from imodels.importance.ppms import huber_loss
 
 DATASET_PATH = oj(dirname(os.path.realpath(__file__)), 'data')
 
@@ -144,8 +144,8 @@ def neg_mean_absolute_error(y_true, y_pred, **kwargs):
     return -mean_absolute_error(y_true, y_pred, **kwargs)
   
   
-def neg_huber_loss(y_true, y_pred, **kwargs):
-    return -huber_loss(y_true, y_pred, **kwargs)
+# def neg_huber_loss(y_true, y_pred, **kwargs):
+#     return -huber_loss(y_true, y_pred, **kwargs)
 
 
 def restricted_roc_auc_score(y_true, y_score, ignored_indices=[]):

@@ -21,7 +21,7 @@ from sklearn import preprocessing
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 import xgboost as xgb
-from imodels.importance import RandomForestPlusRegressor, RandomForestPlusClassifier
+from imodels.tree.rf_plus.rf_plus.rf_plus_models import RandomForestPlusRegressor, RandomForestPlusClassifier
 sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../..")
@@ -65,7 +65,7 @@ def ablation_to_mean(train, data, feature_importance, mode, num_features):
     """
     train_mean = np.mean(train, axis=0)
     assert mode in ["max", "min"]
-    fi = feature_importance.to_numpy()
+    fi = feature_importance
     if mode == "max":
         indices = np.argsort(-fi)
     else:
@@ -81,7 +81,7 @@ def ablation_by_addition(data, feature_importance, mode, num_features):
     Initialize the data with zeros and add the top num_features max feature importance data for each sample
     """
     assert mode in ["max", "min"]
-    fi = feature_importance.to_numpy()
+    fi = feature_importance
     if mode == "max":
         indices = np.argsort(-fi)
     else:
@@ -135,15 +135,6 @@ def compare_estimators(estimators: List[ModelConfig],
                 y_train = y
                 y_test = y
 
-            # normalizer = preprocessing.Normalizer()
-            # if splitting_strategy == "train-test":
-            #     X_train = normalizer.fit_transform(X_train)
-            #     X_test = normalizer.transform(X_test)
-            # else:
-            #     X = normalizer.fit_transform(X)
-            #     X_train = normalizer.transform(X_train)
-            #     X_test = normalizer.transform(X_test)
-
             # fit RF model
             est.fit(X_train, y_train)
             test_all_mse_rf = mean_squared_error(y_test, est.predict(X_test))
@@ -162,6 +153,7 @@ def compare_estimators(estimators: List[ModelConfig],
             y_train_subset = y_train[indices_train]
             X_test_subset = X_test[indices_test]
             y_test_subset = y_test[indices_test]
+            print(X_train.shape)
 
             # loop over fi estimators
             rng = np.random.RandomState()
@@ -186,18 +178,32 @@ def compare_estimators(estimators: List[ModelConfig],
                 for i in range(len(seeds)):
                     metric_results[f'ablation_seed_{i}'] = seeds[i]
                 start = time.time()
-                if fi_est.name.split("_")[-1] == "plus":
-                    local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                if fi_est.name == "LFI_evaluate_on_all_RF_plus" or fi_est.name == "LFI_evaluate_on_oob_RF_plus":
+                    local_fi_score_train, local_parital_pred_train, local_fi_score_test, local_partial_pred_test, local_fi_score_test_subset, local_partial_pred_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
                                                             X_train_subset = X_train_subset, y_train_subset=y_train_subset,
-                                                            X_test_subset=X_test_subset, y_test_subset=y_test_subset,
-                                                            X_test=X_test, y_test=y_test, 
+                                                            X_test_subset=X_test_subset, X_test=X_test, 
                                                             fit=rf_plus_base, **fi_est.kwargs)
-                else:
+                    print(local_fi_score_train.shape)
+                    local_fi_score_train_subset = local_fi_score_train[indices_train]
+                    local_partial_pred_train_subset = local_parital_pred_train[indices_train]
+                elif fi_est.name == "LFI_fit_on_inbag_RF" or fi_est.name == "LFI_fit_on_inbag_RF":
+                    local_fi_score_train, local_parital_pred_train, local_fi_score_test, local_partial_pred_test, local_fi_score_test_subset, local_partial_pred_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                                            X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                            X_test_subset=X_test_subset, X_test=X_test, 
+                                                            fit=copy.deepcopy(est), **fi_est.kwargs)
+                    print(local_fi_score_train.shape)
+                    local_fi_score_train_subset = local_fi_score_train[indices_train]
+                    local_partial_pred_train_subset = local_parital_pred_train[indices_train]
+                elif fi_est.name == "TreeSHAP_RF":
                     local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
                                                             X_train_subset = X_train_subset, y_train_subset=y_train_subset,
-                                                            X_test_subset=X_test_subset, y_test_subset=y_test_subset,
-                                                            X_test=X_test, y_test=y_test, 
+                                                            X_test_subset=X_test_subset, X_test=X_test, 
                                                             fit=copy.deepcopy(est), **fi_est.kwargs)
+                elif fi_est.name == "Kernel_SHAP_RF_plus" or fi_est.name == "LIME_RF_plus":
+                    local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                                            X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                            X_test_subset=X_test_subset, X_test=X_test, 
+                                                            fit=rf_plus_base, **fi_est.kwargs)
                 end = time.time()
                 metric_results['fi_time'] = end - start
                 feature_importance_list.append(local_fi_score_train_subset)
