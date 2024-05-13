@@ -11,6 +11,7 @@ import shap
 import lime
 import lime.lime_tabular
 from imodels.tree.rf_plus.rf_plus.rf_plus_models import RandomForestPlusRegressor, RandomForestPlusClassifier
+from sklearn.ensemble import RandomForestRegressor
 from imodels.tree.rf_plus.feature_importance.rfplus_explainer import *
 from sklearn.metrics import r2_score, mean_absolute_error, accuracy_score, roc_auc_score, mean_squared_error
 
@@ -54,6 +55,29 @@ def LFI_evaluation_RF_MDI(X_train, y_train, X_train_subset, y_train_subset, X_te
         raise ValueError("Unknown task.")
     
     rf_plus_model = RFPlus(rf_model=fit, **kwargs)
+    rf_plus_model.fit(X_train, y_train)
+
+    subsets = [(X_train, y_train), (X_test, None), (X_test_subset, None)]
+    result_tables = []
+
+    for X_data, y_data in subsets:
+        if np.array_equal(X_data, X_train):
+            rf_plus_mdi = RFPlusMDI(rf_plus_model, evaluate_on="inbag")
+        else:
+            rf_plus_mdi = RFPlusMDI(rf_plus_model, evaluate_on="all")
+        num_samples, num_features = X_data.shape
+        local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
+        abs_local_feature_importances = np.abs(local_feature_importances)
+        abs_partial_preds = np.abs(partial_preds)
+        result_tables.append(abs_local_feature_importances)
+        result_tables.append(abs_partial_preds)
+    return tuple(result_tables)
+
+def LFI_evaluation_RF_MDI_classification(X_train, y_train, X_train_subset, y_train_subset, X_test, X_test_subset, fit, **kwargs):
+
+    rf = RandomForestRegressor(n_estimators=100, min_samples_leaf=3, max_features='sqrt', random_state=42)    
+    rf.fit(X_train, y_train)
+    rf_plus_model = RandomForestPlusRegressor(rf_model=rf, **kwargs)
     rf_plus_model.fit(X_train, y_train)
 
     subsets = [(X_train, y_train), (X_test, None), (X_test_subset, None)]
