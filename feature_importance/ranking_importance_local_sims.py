@@ -16,12 +16,16 @@ import sys
 from collections import defaultdict
 from typing import Callable, List, Tuple
 import itertools
+from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score, mean_squared_error, r2_score, average_precision_score
 from sklearn import preprocessing
-from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score, average_precision_score
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.linear_model import LinearRegression
+import xgboost as xgb
+from imodels.tree.rf_plus.rf_plus.rf_plus_models import RandomForestPlusRegressor, RandomForestPlusClassifier
 sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../../")
-sys.path.append("/accounts/grad/zachrewolinski/research/imodels")
+sys.path.append("/accounts/grad/zachrewolinski/research/imodels/imodels")
 print(sys.path)
 import fi_config
 from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, auroc_score, auprc_score, compute_nsg_feat_corr_w_sig_subspace, apply_splitting_strategy
@@ -47,7 +51,7 @@ def compare_estimators(estimators: List[ModelConfig],
 
     # loop over model estimators
     for model in estimators:
-        print("Running model:", model)
+        print("running model:", model)
         est = model.cls(**model.kwargs)
 
         # get kwargs for all fi_ests
@@ -62,7 +66,7 @@ def compare_estimators(estimators: List[ModelConfig],
 
         # loop over splitting strategies
         for splitting_strategy, fi_ests in fi_ests_dict.items():
-            print("Using feature importance estimator:", fi_ests)
+            print("using feature importance estimator:", fi_ests)
             # implement provided splitting strategy
             if splitting_strategy is not None:
                 X_train, X_tune, X_test, y_train, y_tune, y_test = apply_splitting_strategy(X, y, splitting_strategy, args.split_seed)
@@ -71,15 +75,25 @@ def compare_estimators(estimators: List[ModelConfig],
                 X_test = X
                 y_train = y
                 y_test = y
+                
+            # fit RF model
+            est.fit(X_train, y_train)
+            
+            # fit RF_plus model
+            start = time.time()
+            rf_plus_base = RandomForestPlusRegressor(rf_model=est)
+            rf_plus_base.fit(X_train, y_train)
+            end = time.time()
 
-            normalizer = preprocessing.Normalizer()
-            if splitting_strategy == "train-test":
-                X_train = normalizer.fit_transform(X_train)
-                X_test = normalizer.transform(X_test)
-            else:
-                X = normalizer.fit_transform(X)
-                X_train = normalizer.transform(X_train)
-                X_test = normalizer.transform(X_test)
+            # if logistic regression then do this
+                # normalizer = preprocessing.Normalizer()
+                # if splitting_strategy == "train-test":
+                #     X_train = normalizer.fit_transform(X_train)
+                #     X_test = normalizer.transform(X_test)
+                # else:
+                #     X = normalizer.fit_transform(X)
+                #     X_train = normalizer.transform(X_train)
+                #     X_test = normalizer.transform(X_test)
                 
             print("Line 85")
 
@@ -99,9 +113,6 @@ def compare_estimators(estimators: List[ModelConfig],
             print("Line 100")
 
             # loop over fi estimators
-            rng = np.random.RandomState()
-            number_of_ablations = 1
-            seeds = rng.randint(0, 10000, number_of_ablations)
             for fi_est in tqdm(fi_ests):
                 print("line 107")
                 print("Using fi est:", fi_est)
@@ -111,47 +122,51 @@ def compare_estimators(estimators: List[ModelConfig],
                     'train_size': X_train.shape[0],
                     'test_size': X_test.shape[0],
                     'num_features': X_train.shape[1],
-                    'data_split_seed': args.split_seed
+                    'data_split_seed': args.split_seed,
+                    'rf_plus_fit_time': end - start
                 }
                 for i in range(int(X_train.shape[0]*.25)):
                     metric_results[f'sample_train_{i}'] = indices_train[i]
                 for i in range(int(X_test.shape[0]*.25)):
                     metric_results[f'sample_test_{i}'] = indices_test[i]
-                for i in range(len(seeds)):
-                    metric_results[f'ablation_seed_{i}'] = seeds[i]
                 start = time.time()
-                local_fi_score_train_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
-                                                         X_train_subset = X_train_subset, y_train_subset=y_train_subset,
-                                                         X_test=X_test, y_test=y_test, 
-                                                         fit=copy.deepcopy(est), data_fit_on="train_subset", **fi_est.kwargs)
-                if fi_est.name not in ["LIME_RF_plus", "Kernel_SHAP_RF_plus"]:
-                    local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train,
-                                                     X_train_subset = X_train_subset, y_train_subset=y_train_subset,
-                                                X_test=X_test, y_test=y_test, 
-                                                fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
-                else:
-                    local_fi_score_test = None
-                local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
-                X_train_subset = X_train_subset, y_train_subset=y_train_subset,
-                                                        X_test=X_test_subset, y_test=y_test_subset, 
-                                                        fit=copy.deepcopy(est), data_fit_on="test", **fi_est.kwargs)
+                if fi_est.name == "LFI_evaluate_on_all_RF_plus" or fi_est.name == "LFI_evaluate_on_oob_RF_plus":
+                    local_fi_score_train, local_parital_pred_train, local_fi_score_test, local_partial_pred_test, local_fi_score_test_subset, local_partial_pred_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                                            X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                            X_test_subset=X_test_subset, X_test=X_test, 
+                                                            fit=rf_plus_base, **fi_est.kwargs)
+                    local_fi_score_train_subset = local_fi_score_train[indices_train]
+                    local_partial_pred_train_subset = local_parital_pred_train[indices_train]
+                elif fi_est.name == "LFI_fit_on_inbag_RF" or fi_est.name == "LFI_fit_on_inbag_RF":
+                    local_fi_score_train, local_parital_pred_train, local_fi_score_test, local_partial_pred_test, local_fi_score_test_subset, local_partial_pred_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                                            X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                            X_test_subset=X_test_subset, X_test=X_test, 
+                                                            fit=copy.deepcopy(est), **fi_est.kwargs)
+                    local_fi_score_train_subset = local_fi_score_train[indices_train]
+                    local_partial_pred_train_subset = local_parital_pred_train[indices_train]
+                elif fi_est.name == "TreeSHAP_RF":
+                    local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                                            X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                            X_test_subset=X_test_subset, X_test=X_test, 
+                                                            fit=copy.deepcopy(est), **fi_est.kwargs)
+                elif fi_est.name == "Kernel_SHAP_RF_plus" or fi_est.name == "LIME_RF_plus":
+                    local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
+                                                            X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                            X_test_subset=X_test_subset, X_test=X_test, 
+                                                            fit=rf_plus_base, **fi_est.kwargs)
+                
                 end = time.time()
                 metric_results['fi_time'] = end - start
                 # feature_importance_list.append(local_fi_score_train_subset)
                 feature_importance_list.append(local_fi_score_test)
                 feature_importance_list.append(local_fi_score_test_subset)
                 
-                # print("support:")
-                # print(support)
-                # print("support shape:")
-                # print(support.shape)
-                # print("local_fi_score_train_subset")
-                # print(local_fi_score_train_subset)
-                # print(type(local_fi_score_train_subset))
-                
                 auroc = []
                 auprc = []
                 f1 = []
+                print("Original Type:", type(local_fi_score_train_subset))
+                local_fi_score_train_subset = pd.DataFrame(local_fi_score_train_subset)
+                print("Changed Type:", type(local_fi_score_train_subset))
                 for rownum in range(local_fi_score_train_subset.shape[0]):
                     auroc.append(roc_auc_score(support, local_fi_score_train_subset.iloc[rownum,:]))
                     auprc.append(average_precision_score(support, local_fi_score_train_subset.iloc[rownum,:]))
@@ -164,6 +179,9 @@ def compare_estimators(estimators: List[ModelConfig],
                 auroc = []
                 auprc = []
                 f1 = []
+                print("Original Type:", type(local_fi_score_test_subset))
+                local_fi_score_test_subset = pd.DataFrame(local_fi_score_test_subset)
+                print("Changed Type:", type(local_fi_score_train_subset))
                 for rownum in range(local_fi_score_test_subset.shape[0]):
                     auroc.append(roc_auc_score(support, local_fi_score_test_subset.iloc[rownum,:]))
                     auprc.append(average_precision_score(support, local_fi_score_test_subset.iloc[rownum,:]))
@@ -172,7 +190,6 @@ def compare_estimators(estimators: List[ModelConfig],
                 metric_results['test_AUROC'] = np.array(auroc).mean()
                 metric_results['test_AUPRC'] = np.array(auprc).mean()
                 metric_results['test_F1'] = np.array(f1).mean()
-                # print("done with metrics")
                 
                 # initialize results with metadata and metric results
                 kwargs: dict = model.kwargs  # dict
@@ -185,7 +202,7 @@ def compare_estimators(estimators: List[ModelConfig],
                         results[k].append(None)
                 for met_name, met_val in metric_results.items():
                     results[met_name].append(met_val)
-            print("Done iterating over individual estimators")
+            print("done iterating over individual estimators")
 
     return results, feature_importance_list
 

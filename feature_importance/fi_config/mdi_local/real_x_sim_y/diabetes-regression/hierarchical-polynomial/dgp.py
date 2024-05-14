@@ -3,11 +3,13 @@ sys.path.append("../..")
 from feature_importance.scripts.simulations_util import *
 
 
-X_DGP = sample_real_X
+X_DGP = sample_real_data_X
 X_PARAMS_DICT = {
-    "fpath": "../data/regression_data/Diabetes_regression/X_diabetes_regression.csv",
-    "sample_row_n": 442
+    "source": "imodels",
+    "data_name": "diabetes_regr",
+    "sample_row_n": None
 }
+
 Y_DGP = hierarchical_poly
 Y_PARAMS_DICT = {
     "beta": 1,

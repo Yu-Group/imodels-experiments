@@ -4,33 +4,42 @@ import random
 from scipy.linalg import toeplitz
 import warnings
 import math
+import imodels
+import openml
 
-
-def sample_real_data(X_fpath=None, y_fpath=None, seed=4307, normalize=False,
-                  sample_row_n=None, sample_col_n=None, return_data=None, 
-                  return_support=True):
-
-    assert return_data in ["X", "y"]
+def sample_real_data_X(source=None, data_name=None, task_id=None, seed=4307, normalize=False, sample_row_n=None):
     np.random.seed(seed)
-    if return_data == "X":
-        X = pd.read_csv(X_fpath)
-        if normalize:
-            X = (X - X.mean()) / X.std()
-        if sample_row_n is not None:
-            keep_idx = np.random.choice(X.shape[0], sample_row_n, replace=False)
-            X = X.iloc[keep_idx, :]
-        if sample_col_n is not None:
-            X = X.sample(n=sample_col_n, replace=False, axis=1)
-        return X.to_numpy()
-    else:
-        y = pd.read_csv(y_fpath)
-        if sample_row_n is not None:
-            keep_idx = np.random.choice(y.shape[0], sample_row_n, replace=False)
-            y = y.iloc[keep_idx, :]
-        if return_support:
-            return y.to_numpy().flatten(), np.ones(y.shape[1]), None
-        return y.to_numpy().flatten()
+    if source == "imodels":
+        X, _, _ = imodels.get_clean_dataset(data_name)
+    elif source == "openml":
+        task = openml.tasks.get_task(task_id)
+        dataset_id = task.dataset_id
+        dataset = openml.datasets.get_dataset(dataset_id)
+        X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute, dataset_format="array")
+    if normalize:
+        X = (X - X.mean()) / X.std()
+    if sample_row_n is not None:
+        keep_idx = np.random.choice(X.shape[0], sample_row_n, replace=False)
+        X = X[keep_idx, :]
+    return X
+    
 
+def sample_real_data_y(X=None, source=None, data_name=None, task_id=None,
+                     seed=4307, sample_row_n=None, return_support=True):
+    np.random.seed(seed)
+    if source == "imodels":
+        _, y, _ = imodels.get_clean_dataset(data_name)
+    elif source == "openml":
+        task = openml.tasks.get_task(task_id)
+        dataset_id = task.dataset_id
+        dataset = openml.datasets.get_dataset(dataset_id)
+        _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
+    if sample_row_n is not None:
+        keep_idx = np.random.choice(y.shape[0], sample_row_n, replace=False)
+        y = y[keep_idx, :]
+    if return_support:
+        return y, np.ones(y.shape), None
+    return y
 
 def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
                   sample_row_n=None, sample_col_n=None, permute_col=True,
@@ -218,6 +227,7 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         for j in range(s):
             linear_term += x[j] * beta[j]
         return linear_term
+
     beta = generate_coef(beta, s)
     y_train = np.array([create_y(X[i, :], s, beta) for i in range(len(X))])
     if heritability is not None:
@@ -261,7 +271,7 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
             y_train = y_train + sigma * error_fun(n)
             corrupt_idx = np.random.choice(range(s, p), size=1)
             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
-    print("beta:", beta)
+
     if return_support:
         support = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
         return y_train, support, beta
@@ -1144,4 +1154,3 @@ class IndexedArray(np.ndarray):
             return
         self.index = getattr(obj, 'index', None)
 
-#%%
