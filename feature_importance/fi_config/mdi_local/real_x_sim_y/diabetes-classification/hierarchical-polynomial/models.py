@@ -10,7 +10,7 @@ from feature_importance.scripts.competing_methods_local import *
 ESTIMATORS = [
     [ModelConfig('RF', RandomForestRegressor, model_type='tree',
                 other_params={'n_estimators': 100, 'min_samples_leaf': 1, 'max_features': 'sqrt', 'random_state': 42})],
-    [ModelConfig('RF_plus', RandomForestPlusClassifier, model_type='t_plus',
+    [ModelConfig('RF_plus', RandomForestPlusRegressor, model_type='t_plus',
                 other_params={'rf_model': RandomForestRegressor(n_estimators=100, min_samples_leaf=1, max_features='sqrt', random_state=42)})]
 ]
 
@@ -21,5 +21,5 @@ FI_ESTIMATORS = [
     [FIModelConfig('TreeSHAP_RF', tree_shap_evaluation_RF, model_type='tree', splitting_strategy = "train-test")],
     [FIModelConfig('LFI_with_raw_RF_plus', LFI_evaluation_RF_plus, model_type='t_plus', splitting_strategy = "train-test")],
     [FIModelConfig('Kernel_SHAP_RF_plus', kernel_shap_evaluation_RF_plus, model_type='t_plus', splitting_strategy = "train-test")],
-    # [FIModelConfig('LIME_RF_plus', lime_evaluation_RF_plus, model_type='t_plus', splitting_strategy = "train-test")],
+    [FIModelConfig('LIME_RF_plus', lime_evaluation_RF_plus, model_type='t_plus', splitting_strategy = "train-test")],
 ]

@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --mail-user=zhongyuan_liang@berkeley.edu
+#SBATCH --mail-user=zachrewolinski@berkeley.edu
 #SBATCH --mail-type=ALL
 #SBATCH --partition=yugroup
 

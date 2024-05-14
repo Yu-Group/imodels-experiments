@@ -17,8 +17,7 @@ from collections import defaultdict
 from typing import Callable, List, Tuple
 import itertools
 from sklearn import preprocessing
-from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score
-
+from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score, average_precision_score
 sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../../")
@@ -142,6 +141,39 @@ def compare_estimators(estimators: List[ModelConfig],
                 feature_importance_list.append(local_fi_score_test)
                 feature_importance_list.append(local_fi_score_test_subset)
                 
+                # print("support:")
+                # print(support)
+                # print("support shape:")
+                # print(support.shape)
+                # print("local_fi_score_train_subset")
+                # print(local_fi_score_train_subset)
+                # print(type(local_fi_score_train_subset))
+                
+                auroc = []
+                auprc = []
+                f1 = []
+                for rownum in range(local_fi_score_train_subset.shape[0]):
+                    auroc.append(roc_auc_score(support, local_fi_score_train_subset.iloc[rownum,:]))
+                    auprc.append(average_precision_score(support, local_fi_score_train_subset.iloc[rownum,:]))
+                    f1.append(f1_score(support, local_fi_score_train_subset.iloc[rownum,:] > 0.5))
+                    
+                metric_results['train_AUROC'] = np.array(auroc).mean()
+                metric_results['train_AUPRC'] = np.array(auprc).mean()
+                metric_results['train_F1'] = np.array(f1).mean()
+                
+                auroc = []
+                auprc = []
+                f1 = []
+                for rownum in range(local_fi_score_test_subset.shape[0]):
+                    auroc.append(roc_auc_score(support, local_fi_score_test_subset.iloc[rownum,:]))
+                    auprc.append(average_precision_score(support, local_fi_score_test_subset.iloc[rownum,:]))
+                    f1.append(f1_score(support, local_fi_score_test_subset.iloc[rownum,:] > 0.5))
+                    
+                metric_results['test_AUROC'] = np.array(auroc).mean()
+                metric_results['test_AUPRC'] = np.array(auprc).mean()
+                metric_results['test_F1'] = np.array(f1).mean()
+                # print("done with metrics")
+                
                 # initialize results with metadata and metric results
                 kwargs: dict = model.kwargs  # dict
                 for k in kwargs:
@@ -235,10 +267,11 @@ def get_metrics():
 
 def reformat_results(results):
     results = results.reset_index().drop(columns=['index'])
-    fi_scores = pd.concat(results.pop('fi_scores').to_dict()). \
-        reset_index(level=0).rename(columns={'level_0': 'index'})
-    results_df = pd.merge(results, fi_scores, left_index=True, right_on="index")
-    return results_df
+    # results = results.reset_index().drop(columns=['index'])
+    # fi_scores = pd.concat(results.pop('fi_scores').to_dict()). \
+    #     reset_index(level=0).rename(columns={'level_0': 'index'})
+    # results_df = pd.merge(results, fi_scores, left_index=True, right_on="index")
+    return results
 
 
 def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args):
@@ -384,6 +417,9 @@ if __name__ == '__main__':
                     range(args.nreps)]
                 results = dask.compute(*futures)
             else:
+                print("line 387")
+                # results = [run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests,
+                #                           metrics, args) for i in range(args.nreps)]
                 results = [
                     run_simulation(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict,
                                    y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
@@ -490,6 +526,8 @@ if __name__ == '__main__':
                     results.insert(1, 'rep', i)
                 results_list.append(results)
     results_merged = pd.concat(results_list, axis=0)
+    print("line 496")
+    print("results_merged")
     pkl.dump(results_merged, open(oj(path, 'results.pkl'), 'wb'))
     results_df = reformat_results(results_merged)
     results_df.to_csv(oj(path, 'results.csv'), index=False)

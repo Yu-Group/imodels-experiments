@@ -21,10 +21,12 @@ from sklearn import preprocessing
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 import xgboost as xgb
-from imodels.importance import RandomForestPlusRegressor, RandomForestPlusClassifier
 sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../..")
+sys.path.append("/accounts/grad/zachrewolinski/research/imodels")
+print("sys.path", sys.path)
+from imodels.importance import RandomForestPlusRegressor, RandomForestPlusClassifier
 import fi_config
 from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, auroc_score, auprc_score, compute_nsg_feat_corr_w_sig_subspace, apply_splitting_strategy
 
