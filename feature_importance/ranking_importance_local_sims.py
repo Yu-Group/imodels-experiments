@@ -96,13 +96,6 @@ def compare_estimators(estimators: List[ModelConfig],
                 #     X = normalizer.fit_transform(X)
                 #     X_train = normalizer.transform(X_train)
                 #     X_test = normalizer.transform(X_test)
-                
-            print("Line 85")
-
-            # fit model
-            est.fit(X_train, y_train)
-            
-            print("Line 90")
 
             np.random.seed(42)
             indices_train = np.random.choice(X_train.shape[0], int(X_train.shape[0]*.25), replace=False)
@@ -139,7 +132,7 @@ def compare_estimators(estimators: List[ModelConfig],
                                                             fit=rf_plus_base, **fi_est.kwargs)
                     local_fi_score_train_subset = local_fi_score_train[indices_train]
                     local_partial_pred_train_subset = local_parital_pred_train[indices_train]
-                elif fi_est.name == "LFI_fit_on_inbag_RF" or fi_est.name == "LFI_fit_on_inbag_RF":
+                elif fi_est.name == "LFI_fit_on_inbag_RF" or fi_est.name == "LFI_fit_on_OOB_RF":
                     local_fi_score_train, local_parital_pred_train, local_fi_score_test, local_partial_pred_test, local_fi_score_test_subset, local_partial_pred_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, 
                                                             X_train_subset = X_train_subset, y_train_subset=y_train_subset,
                                                             X_test_subset=X_test_subset, X_test=X_test, 

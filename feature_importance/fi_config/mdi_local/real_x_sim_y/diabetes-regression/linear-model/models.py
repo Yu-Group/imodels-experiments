@@ -7,7 +7,7 @@ from sklearn.linear_model import Ridge
 
 ESTIMATORS = [
     [ModelConfig('RF', RandomForestRegressor, model_type='tree',
-                other_params={'n_estimators': 100, 'min_samples_leaf': 1, 'max_features': 0.33, 'random_state': 42})]
+                other_params={'n_estimators': 100, 'min_samples_leaf': 5, 'max_features': 0.33, 'random_state': 42})]
 ]
 
 FI_ESTIMATORS = [

@@ -67,10 +67,10 @@ def LFI_evaluation_RF_MDI(X_train, y_train, X_train_subset, y_train_subset, X_te
             rf_plus_mdi = RFPlusMDI(rf_plus_model, evaluate_on="all")
         num_samples, num_features = X_data.shape
         local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
-        abs_local_feature_importances = np.abs(local_feature_importances)
-        abs_partial_preds = np.abs(partial_preds)
-        result_tables.append(abs_local_feature_importances)
-        result_tables.append(abs_partial_preds)
+        # abs_local_feature_importances = np.abs(local_feature_importances)
+        # abs_partial_preds = np.abs(partial_preds)
+        result_tables.append(local_feature_importances) # used to be abs
+        result_tables.append(partial_preds) # used to be abs
     return tuple(result_tables)
 
 def LFI_evaluation_RF_MDI_classification(X_train, y_train, X_train_subset, y_train_subset, X_test, X_test_subset, fit, **kwargs):
@@ -90,10 +90,10 @@ def LFI_evaluation_RF_MDI_classification(X_train, y_train, X_train_subset, y_tra
             rf_plus_mdi = RFPlusMDI(rf_plus_model, evaluate_on="all")
         num_samples, num_features = X_data.shape
         local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
-        abs_local_feature_importances = np.abs(local_feature_importances)
-        abs_partial_preds = np.abs(partial_preds)
-        result_tables.append(abs_local_feature_importances)
-        result_tables.append(abs_partial_preds)
+        # abs_local_feature_importances = np.abs(local_feature_importances)
+        # abs_partial_preds = np.abs(partial_preds)
+        result_tables.append(local_feature_importances) # used to be abs
+        result_tables.append(partial_preds) # used to be abs
     return tuple(result_tables)
 
 def LFI_evaluation_RF_OOB(X_train, y_train, X_train_subset, y_train_subset, X_test, X_test_subset, fit, **kwargs):
@@ -117,10 +117,10 @@ def LFI_evaluation_RF_OOB(X_train, y_train, X_train_subset, y_train_subset, X_te
             rf_plus_mdi = AloRFPlusMDI(rf_plus_model, evaluate_on="all")
         num_samples, num_features = X_data.shape
         local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
-        abs_local_feature_importances = np.abs(local_feature_importances)
-        abs_partial_preds = np.abs(partial_preds)
-        result_tables.append(abs_local_feature_importances)
-        result_tables.append(abs_partial_preds)
+        # abs_local_feature_importances = np.abs(local_feature_importances)
+        # abs_partial_preds = np.abs(partial_preds)
+        result_tables.append(local_feature_importances) # used to be abs
+        result_tables.append(partial_preds) # used to be abs
     return tuple(result_tables)
 
 
@@ -134,10 +134,10 @@ def LFI_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_t
     for X_data, y_data in subsets:
         num_samples, num_features = X_data.shape
         local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
-        abs_local_feature_importances = np.abs(local_feature_importances)
-        abs_partial_preds = np.abs(partial_preds)
-        result_tables.append(abs_local_feature_importances)
-        result_tables.append(abs_partial_preds)
+        # abs_local_feature_importances = np.abs(local_feature_importances)
+        # abs_partial_preds = np.abs(partial_preds)
+        result_tables.append(local_feature_importances) # used to be abs
+        result_tables.append(partial_preds) # used to be abs
 
     return tuple(result_tables)
 
@@ -153,10 +153,10 @@ def LFI_evaluation_RF_plus_OOB(X_train, y_train, X_train_subset, y_train_subset,
         else:
             rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
         local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
-        abs_local_feature_importances = np.abs(local_feature_importances)
-        abs_partial_preds = np.abs(partial_preds)
-        result_tables.append(abs_local_feature_importances)
-        result_tables.append(abs_partial_preds)
+        # abs_local_feature_importances = np.abs(local_feature_importances)
+        # abs_partial_preds = np.abs(partial_preds)
+        result_tables.append(local_feature_importances) # used to be abs
+        result_tables.append(partial_preds) # used to be abs
 
     return tuple(result_tables)
 
