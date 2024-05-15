@@ -49,6 +49,8 @@ def compare_estimators(estimators: List[ModelConfig],
     results = defaultdict(lambda: [])
     feature_importance_list = []
 
+    print("estimators:", estimators)
+    print("estimators length:", len(estimators))
     # loop over model estimators
     for model in estimators:
         print("running model:", model)
@@ -164,9 +166,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 auroc = []
                 auprc = []
                 f1 = []
-                print("Original Type:", type(local_fi_score_train_subset))
                 local_fi_score_train_subset = pd.DataFrame(local_fi_score_train_subset)
-                print("Changed Type:", type(local_fi_score_train_subset))
                 for rownum in range(local_fi_score_train_subset.shape[0]):
                     auroc.append(roc_auc_score(support, local_fi_score_train_subset.iloc[rownum,:]))
                     auprc.append(average_precision_score(support, local_fi_score_train_subset.iloc[rownum,:]))
@@ -179,9 +179,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 auroc = []
                 auprc = []
                 f1 = []
-                print("Original Type:", type(local_fi_score_test_subset))
                 local_fi_score_test_subset = pd.DataFrame(local_fi_score_test_subset)
-                print("Changed Type:", type(local_fi_score_train_subset))
                 for rownum in range(local_fi_score_test_subset.shape[0]):
                     auroc.append(roc_auc_score(support, local_fi_score_test_subset.iloc[rownum,:]))
                     auprc.append(average_precision_score(support, local_fi_score_test_subset.iloc[rownum,:]))
@@ -217,30 +215,35 @@ def run_comparison(path: str,
                          if fi_estimator.model_type in estimators[0].model_type]
     model_comparison_files_all = [oj(path, f'{estimator_name}_{fi_estimator.name}_comparisons.pkl') \
                                   for fi_estimator in fi_estimators_all]
+    print("model_comparison_files_all:", model_comparison_files_all)
     
     ####### Update by saving pickle files for feature importance
     feature_importance_all = [oj(path, f'{estimator_name}_{fi_estimator.name}_feature_importance.pkl') \
                                   for fi_estimator in fi_estimators_all]
+    print("feature_importance_all:", feature_importance_all)
 
 
     if args.parallel_id is not None:
         model_comparison_files_all = [f'_{args.parallel_id[0]}.'.join(model_comparison_file.split('.')) \
                                       for model_comparison_file in model_comparison_files_all]
+        print("model_comparison_files_all (parallel):", model_comparison_files_all)
 
     fi_estimators = []
     model_comparison_files = []
     for model_comparison_file, fi_estimator in zip(model_comparison_files_all, fi_estimators_all):
         if os.path.isfile(model_comparison_file) and not args.ignore_cache:
+            print("in if line 233")
             print(
                 f'{estimator_name} with {fi_estimator.name} results already computed and cached. use --ignore_cache to recompute')
         else:
+            print("in else line 237")
             fi_estimators.append(fi_estimator)
             model_comparison_files.append(model_comparison_file)
 
     #######
     if len(fi_estimators) == 0:
         return
-
+    print("CALLING COMPARE_ESTIMATORS")
     results, fi_lst = compare_estimators(estimators=estimators,
                                  fi_estimators=fi_estimators,
                                  X=X, y=y, support=support,
@@ -259,6 +262,8 @@ def run_comparison(path: str,
     for col in nosave_cols:
         if col in df.columns:
             df = df.drop(columns=[col])
+            
+    print("about to dump file to pkl")
     
     for i in range(len(feature_importance_all)):
         pkl.dump(fi_lst[i], open(feature_importance_all[i], 'wb'))
@@ -309,8 +314,10 @@ def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp
         support = np.delete(support, omit_vars)
         X = np.delete(X, omit_vars, axis=1)
         del beta  # note: beta is not currently supported when using omit_vars
-
+    print("ests (line 317)", ests)
+    print("ests (317) length:", len(ests))
     for est in ests:
+        print("CALLING RUN_COMPARISON")
         results = run_comparison(path=oj(path, val_name, "rep" + str(i)),
                                  X=X, y=y, support=support,
                                  metrics=metrics,
@@ -371,8 +378,10 @@ if __name__ == '__main__':
 
     if args.model:
         ests = list(filter(lambda x: args.model.lower() == x[0].name.lower(), ests))
+        print("ests:", ests)
     if args.fi_model:
         fi_ests = list(filter(lambda x: args.fi_model.lower() == x[0].name.lower(), fi_ests))
+        print("fi_ests", fi_ests)
 
     if len(ests) == 0:
         raise ValueError('No valid estimators', 'sim', args.config, 'models', args.model, 'fi', args.fi_model)
@@ -428,6 +437,7 @@ if __name__ == '__main__':
                         raise ValueError('Invalid vary_param_name.')
 
             if args.parallel:
+                print("IN PARALLEL CASE, CALLING RUN_SIMULATION")
                 futures = [
                     dask.delayed(run_simulation)(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp,
                                                  y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in
@@ -435,6 +445,7 @@ if __name__ == '__main__':
                 results = dask.compute(*futures)
             else:
                 print("line 387")
+                print("IN NON-PARALLEL CASE, CALLING RUN_SIMULATION")
                 # results = [run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests,
                 #                           metrics, args) for i in range(args.nreps)]
                 results = [
@@ -465,11 +476,13 @@ if __name__ == '__main__':
                     raise ValueError('Invalid vary_param_name.')
 
             if args.parallel:
+                print("IN PARALLEL CASE (479), CALLING RUN_SIMULATION")
                 futures = [
                     dask.delayed(run_simulation)(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests,
                                                  fi_ests, metrics, args) for i in range(args.nreps)]
                 results = dask.compute(*futures)
             else:
+                print("IN NON-PARALLEL CASE (485), CALLING RUN_SIMULATION")
                 results = [run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests,
                                           metrics, args) for i in range(args.nreps)]
             assert all(results)
