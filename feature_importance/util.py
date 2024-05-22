@@ -53,6 +53,7 @@ class FIModelConfig:
                  splitting_strategy: str = None,
                  vary_param: str = None, vary_param_val: Any = None,
                  other_params: Dict[str, Any] = {},
+                 base_model= None,
                  model_type: str = None):
         """
         ascending: boolean
@@ -71,12 +72,14 @@ class FIModelConfig:
             'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata',
             'train-test-prediction', None
         }
+        assert base_model in ["None", "RF", "RFPlus_default", "RFPlus_inbag", "RFPlus_oob"]
 
         self.name = name
         self.cls = cls
         self.ascending = ascending
         self.model_type = model_type
         self.splitting_strategy = splitting_strategy
+        self.base_model = base_model
         self.vary_param = vary_param
         self.vary_param_val = vary_param_val
         self.kwargs = {}

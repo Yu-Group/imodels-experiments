@@ -45,3 +45,5 @@ experiments/*.txt
 _site
 
 temp.ipynb
+**.png
+data

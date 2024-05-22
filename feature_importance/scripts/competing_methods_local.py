@@ -17,7 +17,7 @@ from sklearn.metrics import r2_score, mean_absolute_error, accuracy_score, roc_a
 
 
 # Feature Importance Methods for RF
-def tree_shap_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, X_test_subset, fit):
+def tree_shap_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None):
     """
     Compute average treeshap value across observations.
     Larger absolute values indicate more important features.
@@ -29,169 +29,156 @@ def tree_shap_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_
     def add_abs(a, b):
         return abs(a) + abs(b)
 
-    subsets = [(X_train_subset, y_train_subset), (X_test, None), (X_test_subset, None)]
+    subsets = [(None, None), (X_train_subset, None), (X_test, None), (X_test_subset, None)]
     result_tables = []
 
     explainer = shap.TreeExplainer(fit)
 
     for X_data, _ in subsets:
-        shap_values = explainer.shap_values(X_data, check_additivity=False)
-        if sklearn.base.is_classifier(fit):
-            # Shape values are returned as a list of arrays, one for each class
-            results = np.sum(np.abs(shap_values), axis=-1)
+        if isinstance(X_data, np.ndarray):
+            shap_values = explainer.shap_values(X_data, check_additivity=False)
+            if sklearn.base.is_classifier(fit):
+                # Shape values are returned as a list of arrays, one for each class
+                results = np.sum(np.abs(shap_values), axis=-1)
+            else:
+                results = np.abs(shap_values)
+
+            result_tables.append(results)
         else:
-            results = np.abs(shap_values)
-
-        result_tables.append(results)
-
+            result_tables.append(None)
     return tuple(result_tables)
-
-def LFI_evaluation_RF_MDI(X_train, y_train, X_train_subset, y_train_subset, X_test, X_test_subset, fit, **kwargs):
-    if isinstance(fit, RegressorMixin):
-        RFPlus = RandomForestPlusRegressor
-    elif isinstance(fit, ClassifierMixin):
-        RFPlus = RandomForestPlusClassifier
-    else:
-        raise ValueError("Unknown task.")
-    
-    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
-    rf_plus_model.fit(X_train, y_train)
-
-    subsets = [(X_train, y_train), (X_test, None), (X_test_subset, None)]
-    result_tables = []
-
-    for X_data, y_data in subsets:
-        if np.array_equal(X_data, X_train):
-            rf_plus_mdi = RFPlusMDI(rf_plus_model, evaluate_on="inbag")
-        else:
-            rf_plus_mdi = RFPlusMDI(rf_plus_model, evaluate_on="all")
-        num_samples, num_features = X_data.shape
-        local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
-        abs_local_feature_importances = np.abs(local_feature_importances)
-        abs_partial_preds = np.abs(partial_preds)
-        result_tables.append(abs_local_feature_importances)
-        result_tables.append(abs_partial_preds)
-    return tuple(result_tables)
-
-def LFI_evaluation_RF_MDI_classification(X_train, y_train, X_train_subset, y_train_subset, X_test, X_test_subset, fit, **kwargs):
-
-    rf = RandomForestRegressor(n_estimators=100, min_samples_leaf=3, max_features='sqrt', random_state=42)    
-    rf.fit(X_train, y_train)
-    rf_plus_model = RandomForestPlusRegressor(rf_model=rf, **kwargs)
-    rf_plus_model.fit(X_train, y_train)
-
-    subsets = [(X_train, y_train), (X_test, None), (X_test_subset, None)]
-    result_tables = []
-
-    for X_data, y_data in subsets:
-        if np.array_equal(X_data, X_train):
-            rf_plus_mdi = RFPlusMDI(rf_plus_model, evaluate_on="inbag")
-        else:
-            rf_plus_mdi = RFPlusMDI(rf_plus_model, evaluate_on="all")
-        num_samples, num_features = X_data.shape
-        local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
-        abs_local_feature_importances = np.abs(local_feature_importances)
-        abs_partial_preds = np.abs(partial_preds)
-        result_tables.append(abs_local_feature_importances)
-        result_tables.append(abs_partial_preds)
-    return tuple(result_tables)
-
-def LFI_evaluation_RF_OOB(X_train, y_train, X_train_subset, y_train_subset, X_test, X_test_subset, fit, **kwargs):
-    if isinstance(fit, RegressorMixin):
-        RFPlus = RandomForestPlusRegressor
-    elif isinstance(fit, ClassifierMixin):
-        RFPlus = RandomForestPlusClassifier
-    else:
-        raise ValueError("Unknown task.")
-    
-    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
-    rf_plus_model.fit(X_train, y_train)
-
-    subsets = [(X_train, y_train), (X_test, None), (X_test_subset, None)]
-    result_tables = []
-
-    for X_data, y_data in subsets:
-        if np.array_equal(X_data, X_train):
-            rf_plus_mdi = AloRFPlusMDI(rf_plus_model, evaluate_on="oob")
-        else:
-            rf_plus_mdi = AloRFPlusMDI(rf_plus_model, evaluate_on="all")
-        num_samples, num_features = X_data.shape
-        local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
-        abs_local_feature_importances = np.abs(local_feature_importances)
-        abs_partial_preds = np.abs(partial_preds)
-        result_tables.append(abs_local_feature_importances)
-        result_tables.append(abs_partial_preds)
-    return tuple(result_tables)
-
 
 # Feature Importance Methods for RF+
-def LFI_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, X_test_subset, fit):
+def LFI_evaluation_RFPlus_inbag(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None):
     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    subsets = [(X_train, y_train), (X_test, None), (X_test_subset, None)]
+    subsets = [(X_train, y_train), (None, None), (X_test, None), (X_test_subset, None)]
+    result_tables = []
+
+    for X_data, y_data in subsets:
+        if isinstance(X_data, np.ndarray):
+            if np.array_equal(X_data, X_train):
+                rf_plus_mdi = RFPlusMDI(fit, evaluate_on="inbag")
+            else:
+                rf_plus_mdi = RFPlusMDI(fit, evaluate_on="all")
+            local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
+            abs_local_feature_importances = np.abs(local_feature_importances)
+            result_tables.append(abs_local_feature_importances)
+        else:
+            result_tables.append(None)
+    return tuple(result_tables)
+
+def LFI_evaluation_RFPlus_oob(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    subsets = [(X_train, y_train), (None, None), (X_test, None), (X_test_subset, None)]
+    result_tables = []
+
+    for X_data, y_data in subsets:
+        if isinstance(X_data, np.ndarray):
+            if np.array_equal(X_data, X_train):
+                rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="oob")
+            else:
+                rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
+            local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
+            abs_local_feature_importances = np.abs(local_feature_importances)
+            result_tables.append(abs_local_feature_importances)
+        else:
+            result_tables.append(None)
+    return tuple(result_tables)
+
+def LFI_evaluation_RFPlus_all(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    subsets = [(X_train, y_train), (None, None), (X_test, None), (X_test_subset, None)]
     result_tables = []
     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
 
     for X_data, y_data in subsets:
-        num_samples, num_features = X_data.shape
-        local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
-        abs_local_feature_importances = np.abs(local_feature_importances)
-        abs_partial_preds = np.abs(partial_preds)
-        result_tables.append(abs_local_feature_importances)
-        result_tables.append(abs_partial_preds)
+        if isinstance(X_data, np.ndarray):
+            local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
+            abs_local_feature_importances = np.abs(local_feature_importances)
+            result_tables.append(abs_local_feature_importances)
+        else:
+            result_tables.append(None)
 
     return tuple(result_tables)
 
-def LFI_evaluation_RF_plus_OOB(X_train, y_train, X_train_subset, y_train_subset, X_test, X_test_subset, fit):
+def lime_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None):
     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    subsets = [(X_train, y_train), (X_test, None), (X_test_subset, None)]
+    subsets = [(None, None), (X_train_subset, None), (None, None), (X_test_subset, None)]
     result_tables = []
+
+    for X_data, _ in subsets:
+        if isinstance(X_data, np.ndarray):
+            rf_plus_lime = RFPlusLime(fit)
+            lime_values = rf_plus_lime.explain(X_train=X_train, X_test=X_data)
+            lime_scores = np.abs(lime_values)
+            result_tables.append(lime_scores)
+        else:
+            result_tables.append(None)
+
+    return tuple(result_tables)
+
+
+def kernel_shap_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    subsets = [(None, None), (X_train_subset, None), (None, None), (X_test_subset, None)]
+    result_tables = []
+
+    for X_data, _ in subsets:
+        if isinstance(X_data, np.ndarray):
+            rf_plus_kernel_shap = RFPlusKernelSHAP(fit)
+            kernel_shap_scores = rf_plus_kernel_shap.explain(X_train=X_train, X_test=X_data)
+            kernel_shap_scores = np.abs(kernel_shap_scores)
+            result_tables.append(kernel_shap_scores)
+        else:
+            result_tables.append(None)
+
+    return tuple(result_tables)
+
+def LFI_evaluation_oracle_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    subsets = [(None, None),(None, None),(X_test, y_test), (X_test_subset, y_test_subset)]
+    result_tables = []
+    rf_plus_mdi = RFPlusMDI(fit, evaluate_on="all")
 
     for X_data, y_data in subsets:
-        num_samples, num_features = X_data.shape
-        if np.array_equal(X_data, X_train):
-            rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="oob")
+        if isinstance(X_data, np.ndarray):
+            local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
+            abs_local_feature_importances = np.abs(local_feature_importances)
+            result_tables.append(abs_local_feature_importances)
         else:
-            rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
-        local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
-        abs_local_feature_importances = np.abs(local_feature_importances)
-        abs_partial_preds = np.abs(partial_preds)
-        result_tables.append(abs_local_feature_importances)
-        result_tables.append(abs_partial_preds)
+            result_tables.append(None)
 
     return tuple(result_tables)
 
-def lime_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, X_test_subset, fit):
-    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    subsets = [(X_train_subset, y_train_subset), (X_test_subset, None)]
-    result_tables = []
+# def per_sample_neg_log_loss(y_true,y_pred,epsilon = 1e-4):
 
-    for X_data, _ in subsets:
-        num_samples, num_features = X_data.shape
-        rf_plus_lime = RFPlusLime(fit)
-        lime_values = rf_plus_lime.explain(X_train=X_train, X_test=X_data)
-        lime_scores = np.abs(lime_values)
-        result_tables.append(lime_scores)
+#     y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
+#     y_true = y_true.reshape(-1,1)
+#     log_loss_values = -y_true * np.log(y_pred) - (1 - y_true) * np.log(1 - y_pred)
+#     return -1*log_loss_values
 
-    result_table_train_subset, result_table_test_subset = result_tables
+# def per_sample_neg_mean_absolute_error(y_true,y_pred):
+#     y_true = y_true.reshape(-1,1)   
+#     return -1*np.abs(y_true - y_pred)
 
-    return result_table_train_subset, None, result_table_test_subset
+# def Global_MDI_plus_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None):
+#         y_test_pred = fit.predict(X_test)
+#         y_test_subset_pred = fit.predict(X_test_subset)
+#     elif isinstance(fit, RandomForestPlusClassifier):
+#         y_test_pred = fit.predict_proba(X_test)
+#         y_test_subset_pred = fit.predict_proba(X_test_subset)
+#     subsets = [(X_train, y_train), (X_test, y_test_pred), (X_test_subset, y_test_subset_pred)]
+#     result_tables = []
+#     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
 
+#     for X_data, y_data in subsets:
+#         num_samples, num_features = X_data.shape
+#         local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
+#         abs_partial_preds = np.abs(partial_preds)
+#         result_tables.append(abs_partial_preds)
 
-def kernel_shap_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, X_test_subset, fit):
-    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    subsets = [(X_train_subset, y_train_subset), (X_test_subset, None)]
-    result_tables = []
+#     return tuple(result_tables)
 
-    for X_data, _ in subsets:
-        num_samples, num_features = X_data.shape
-        rf_plus_kernel_shap = RFPlusKernelSHAP(fit)
-        kernel_shap_scores = rf_plus_kernel_shap.explain(X_train=X_train, X_test=X_data)
-        kernel_shap_scores = np.abs(kernel_shap_scores)
-        result_tables.append(kernel_shap_scores)
-
-    result_table_train_subset, result_table_test_subset = result_tables
-
-    return result_table_train_subset, None, result_table_test_subset
 
 
 # result_table = pd.DataFrame(kernel_shap_scores, columns=[f'Feature_{i}' for i in range(num_features)])

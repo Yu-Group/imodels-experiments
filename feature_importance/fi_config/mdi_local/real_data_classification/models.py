@@ -14,11 +14,13 @@ ESTIMATORS = [
 ]
 
 FI_ESTIMATORS = [
-    [FIModelConfig('TreeSHAP_RF', tree_shap_evaluation_RF, model_type='tree', splitting_strategy = "train-test")],
-    [FIModelConfig('LFI_fit_on_inbag_RF', LFI_evaluation_RF_MDI_classification, model_type='tree', splitting_strategy = "train-test", ascending = False, other_params={"include_raw":False, "fit_on":"inbag", "prediction_model": Ridge(alpha=1e-6)})],
-    [FIModelConfig('LFI_fit_on_OOB_RF', LFI_evaluation_RF_OOB, model_type='tree', splitting_strategy = "train-test",  ascending = False, other_params={"fit_on":"oob"})],
-    [FIModelConfig('LFI_evaluate_on_all_RF_plus', LFI_evaluation_RF_plus, model_type='tree', splitting_strategy = "train-test", ascending = False)],
-    [FIModelConfig('LFI_evaluate_on_oob_RF_plus', LFI_evaluation_RF_plus_OOB, model_type='tree', splitting_strategy = "train-test", ascending = False)],
-    [FIModelConfig('Kernel_SHAP_RF_plus', kernel_shap_evaluation_RF_plus, model_type='tree', splitting_strategy = "train-test")],
-    [FIModelConfig('LIME_RF_plus', lime_evaluation_RF_plus, model_type='tree', splitting_strategy = "train-test")],
+    [FIModelConfig('TreeSHAP_RF', tree_shap_evaluation_RF, model_type='tree', base_model="RF", splitting_strategy = "train-test")],
+    [FIModelConfig('LFI_fit_on_inbag_RFPlus', LFI_evaluation_RFPlus_inbag, model_type='tree', base_model="RFPlus_inbag", splitting_strategy = "train-test", ascending = False)],
+    [FIModelConfig('LFI_fit_on_OOB_RFPlus', LFI_evaluation_RFPlus_oob, model_type='tree', base_model="RFPlus_oob", splitting_strategy = "train-test",  ascending = False)],
+    [FIModelConfig('LFI_fit_on_all_evaluate_on_all_RFPlus', LFI_evaluation_RFPlus_all, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test", ascending = False)],
+    [FIModelConfig('LFI_fit_on_all_evaluate_on_oob_RFPlus', LFI_evaluation_RFPlus_oob, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test", ascending = False)],
+    [FIModelConfig('Kernel_SHAP_RF_plus', kernel_shap_evaluation_RF_plus, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
+    [FIModelConfig('LIME_RF_plus', lime_evaluation_RF_plus, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
+    [FIModelConfig('Random', None, model_type='tree', base_model="None", splitting_strategy = "train-test")],
+    [FIModelConfig('Oracle_test_RFPlus', LFI_evaluation_oracle_RF_plus, base_model="RFPlus_default", model_type='tree', splitting_strategy = "train-test", ascending = False)],
 ]

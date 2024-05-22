@@ -7,8 +7,7 @@ import math
 import imodels
 import openml
 
-def sample_real_data_X(source=None, data_name=None, task_id=None, seed=4307, normalize=False, sample_row_n=None):
-    np.random.seed(seed)
+def sample_real_data_X(source=None, data_name=None, file_path=None, task_id=None, seed=4307, normalize=False, sample_row_n=None):
     if source == "imodels":
         X, _, _ = imodels.get_clean_dataset(data_name)
     elif source == "openml":
@@ -16,17 +15,19 @@ def sample_real_data_X(source=None, data_name=None, task_id=None, seed=4307, nor
         dataset_id = task.dataset_id
         dataset = openml.datasets.get_dataset(dataset_id)
         X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
+    elif source == "csv":
+        X = pd.read_csv(file_path).to_numpy()
     if normalize:
         X = (X - X.mean()) / X.std()
     if sample_row_n is not None:
+        np.random.seed(seed)
         keep_idx = np.random.choice(X.shape[0], sample_row_n, replace=False)
-        X = X.iloc[keep_idx, :]
+        X = X[keep_idx, :]
     return X
     
 
-def sample_real_data_y(X=None, source=None, data_name=None, task_id=None,
+def sample_real_data_y(X=None, source=None, data_name=None, file_path=None, task_id=None,
                      seed=4307, sample_row_n=None, return_support=True):
-    np.random.seed(seed)
     if source == "imodels":
         _, y, _ = imodels.get_clean_dataset(data_name)
     elif source == "openml":
@@ -34,9 +35,12 @@ def sample_real_data_y(X=None, source=None, data_name=None, task_id=None,
         dataset_id = task.dataset_id
         dataset = openml.datasets.get_dataset(dataset_id)
         _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
+    elif source == "csv":
+        y = pd.read_csv(file_path).to_numpy().flatten()
     if sample_row_n is not None:
+        np.random.seed(seed)
         keep_idx = np.random.choice(y.shape[0], sample_row_n, replace=False)
-        y = y.iloc[keep_idx, :]
+        y = y[keep_idx]
     if return_support:
         return y, np.ones(y.shape), None
     return y
