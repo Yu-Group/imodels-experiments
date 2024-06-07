@@ -10,7 +10,7 @@ X_PARAMS_DICT = {
     "sample_row_n": None
 }
 
-Y_DGP = hierarchical_poly
+Y_DGP = partial_linear_lss_model
 Y_PARAMS_DICT = {
     "beta": 1,
     "sigma": None,

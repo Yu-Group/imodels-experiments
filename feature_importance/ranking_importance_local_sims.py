@@ -156,6 +156,10 @@ def compare_estimators(estimators: List[ModelConfig],
                 feature_importance_list.append(local_fi_score_test)
                 feature_importance_list.append(local_fi_score_test_subset)
                 
+                print("fi_est", fi_est, "local_fi_score_train_subset:", local_fi_score_train_subset)
+                print("fi_est", fi_est, "local_fi_score_test_subset:", local_fi_score_test_subset)
+                print("support:", support)
+                
                 auroc = []
                 auprc = []
                 f1 = []
@@ -178,6 +182,9 @@ def compare_estimators(estimators: List[ModelConfig],
                     auprc.append(average_precision_score(support, local_fi_score_test_subset.iloc[rownum,:]))
                     f1.append(f1_score(support, local_fi_score_test_subset.iloc[rownum,:] > 0.5))
                     
+                print("fi_est", fi_est, "auroc", np.array(auroc).mean())
+                print("fi_est", fi_est, "auprc", np.array(auprc).mean())
+                
                 metric_results['test_AUROC'] = np.array(auroc).mean()
                 metric_results['test_AUPRC'] = np.array(auprc).mean()
                 metric_results['test_F1'] = np.array(f1).mean()

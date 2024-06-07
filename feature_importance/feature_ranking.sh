@@ -3,7 +3,7 @@
 #SBATCH --mail-type=ALL
 
 source activate mdi
-command="ranking_importance_local_sims.py --nreps 1 --config mdi_local.real_x_sim_y.diabetes-regression.linear-model --split_seed 1 --ignore_cache --create_rmd --result_name diabetes-reg-linear"
+command="ranking_importance_local_sims.py --nreps 1 --config mdi_local.real_x_sim_y.diabetes-regression.hierarchical-polynomial --split_seed ${1} --ignore_cache --create_rmd --result_name diabetes-reg-hierpoly"
 
 # Execute the command
 python $command
