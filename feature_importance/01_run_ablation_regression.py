@@ -114,7 +114,7 @@ def compare_estimators(estimators: List[ModelConfig],
 
     # initialize results
     results = defaultdict(lambda: [])
-    feature_importance_list = []
+    feature_importance_list = {}
 
     # loop over model estimators
     for model in estimators:
@@ -180,21 +180,23 @@ def compare_estimators(estimators: List[ModelConfig],
                         "MSE": [test_all_mse_rf, test_all_mse_rf_plus, test_all_mse_rf_plus_oob, test_all_mse_rf_plus_inbag],
                         "R2": [test_all_r2_rf, test_all_r2_rf_plus, test_all_r2_rf_plus_oob, test_all_r2_rf_plus_inbag],
                         "Time": [end_rf - start_rf, end_rf_plus - start_rf_plus, end_rf_plus_oob - start_rf_plus_oob, end_rf_plus_inbag - start_rf_plus_inbag]
-                    }
+                }
+                
+                os.makedirs(f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}", exist_ok=True)
                 results_df = pd.DataFrame(fitted_results)
-                results_df.to_csv(f"./saved_models/{args.result_name}/RFPlus_fitted_summary_{args.split_seed}.csv", index=False)
+                results_df.to_csv(f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_fitted_summary_{args.split_seed}.csv", index=False)
                             
 
-                pickle_file = f"./saved_models/{args.result_name}/RF_{args.split_seed}.dill"
+                pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RF_{args.split_seed}.dill"
                 with open(pickle_file, 'wb') as file:
                     dill.dump(est, file)
-                pickle_file = f"./saved_models/{args.result_name}/RFPlus_default_{args.split_seed}.dill"
+                pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_default_{args.split_seed}.dill"
                 with open(pickle_file, 'wb') as file:
                     dill.dump(rf_plus_base, file)
-                pickle_file = f"./saved_models/{args.result_name}/RFPlus_oob_{args.split_seed}.dill"
+                pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_oob_{args.split_seed}.dill"
                 with open(pickle_file, 'wb') as file:
                     dill.dump(rf_plus_base_oob, file)
-                pickle_file = f"./saved_models/{args.result_name}/RFPlus_inbag_{args.split_seed}.dill"
+                pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_inbag_{args.split_seed}.dill"
                 with open(pickle_file, 'wb') as file:
                     dill.dump(rf_plus_base_inbag, file)
 
@@ -225,18 +227,18 @@ def compare_estimators(estimators: List[ModelConfig],
 
                 print("Load Models")
                 start = time.time()
-                with open(f"./saved_models/{args.result_name}/RFPlus_default_{args.split_seed}.dill", 'rb') as file:
+                with open(f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_default_{args.split_seed}.dill", 'rb') as file:
                     rf_plus_base = dill.load(file)
                 if fi_est.base_model == "None":
                     pass
                 elif fi_est.base_model == "RF":
-                    with open(f"./saved_models/{args.result_name}/RF_{args.split_seed}.dill", 'rb') as file:
+                    with open(f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RF_{args.split_seed}.dill", 'rb') as file:
                         loaded_model = dill.load(file)
                 elif fi_est.base_model == "RFPlus_oob":
-                    with open(f"./saved_models/{args.result_name}/RFPlus_oob_{args.split_seed}.dill", 'rb') as file:
+                    with open(f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_oob_{args.split_seed}.dill", 'rb') as file:
                         loaded_model = dill.load(file)
                 elif fi_est.base_model == "RFPlus_inbag":
-                    with open(f"./saved_models/{args.result_name}/RFPlus_inbag_{args.split_seed}.dill", 'rb') as file:
+                    with open(f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_inbag_{args.split_seed}.dill", 'rb') as file:
                         loaded_model = dill.load(file)
                 elif fi_est.base_model == "RFPlus_default":
                     loaded_model = rf_plus_base
@@ -256,15 +258,13 @@ def compare_estimators(estimators: List[ModelConfig],
                     local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, X_train_subset = X_train_subset, y_train_subset=y_train_subset,
                                                                                                                                     X_test=X_test, y_test=y_test, X_test_subset=X_test_subset, y_test_subset=y_test_subset,
                                                                                                                                     fit=loaded_model)
-                if fi_est.name.startswith("LFI"):
+                if fi_est.name.startswith("Local_MDI+"):
                     local_fi_score_train_subset = local_fi_score_train[indices_train]
                 end = time.time()
                 metric_results['fi_time'] = end - start
                 print(f"done with feature importance: {end - start}")
 
-                feature_importance_list.append(local_fi_score_train_subset)
-                feature_importance_list.append(local_fi_score_test)
-                feature_importance_list.append(local_fi_score_test_subset)
+                feature_importance_list[fi_est.name] = [local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset]
 
                 # prepare ablations
                 print("start ablation")
@@ -292,6 +292,8 @@ def compare_estimators(estimators: List[ModelConfig],
                         else:
                             all_fi_rank[i] = np.argsort(fi)
 
+                feature_importance_list[fi_est.name].extend(all_fi_rank)
+                            
                 ablation_datas = {"train_subset": (X_train_subset, y_train_subset, all_fi_rank[0]),
                                  "test_subset": (X_test_subset, y_test_subset, all_fi_rank[1]),
                                  "test": (X_test, y_test, all_fi_rank[2])}
@@ -442,7 +444,7 @@ def run_comparison(path: str,
             df = df.drop(columns=[col])
 
     for i in range(len(feature_importance_all)):
-        pkl.dump(fi_lst[i], open(feature_importance_all[i], 'wb'))
+        pkl.dump(list(fi_lst.items())[i], open(feature_importance_all[i], 'wb'))
 
     for model_comparison_file, fi_estimator in zip(model_comparison_files, fi_estimators):
         output_dict = {

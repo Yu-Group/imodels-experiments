@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 import sklearn.base
 from sklearn.base import RegressorMixin, ClassifierMixin
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, log_loss
 from functools import reduce
 
 import shap
@@ -109,7 +109,7 @@ def lime_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_
     for X_data, _ in subsets:
         if isinstance(X_data, np.ndarray):
             rf_plus_lime = RFPlusLime(fit)
-            lime_values = rf_plus_lime.explain(X_train=X_train, X_test=X_data)
+            lime_values = rf_plus_lime.explain(X_train=X_train, X_test=X_data).values
             lime_scores = np.abs(lime_values)
             result_tables.append(lime_scores)
         else:
@@ -150,35 +150,90 @@ def LFI_evaluation_oracle_RF_plus(X_train, y_train, X_train_subset, y_train_subs
 
     return tuple(result_tables)
 
-# def per_sample_neg_log_loss(y_true,y_pred,epsilon = 1e-4):
+def fast_r2_score(y_true, y_pred, multiclass=False):
+    """
+    Evaluates the r-squared value between the observed and estimated responses.
+    Equivalent to sklearn.metrics.r2_score but without the robust error
+    checking, thus leading to a much faster implementation (at the cost of
+    this error checking). For multi-class responses, returns the mean
+    r-squared value across each column in the response matrix.
 
-#     y_pred = np.clip(y_pred, epsilon, 1 - epsilon)
-#     y_true = y_true.reshape(-1,1)
-#     log_loss_values = -y_true * np.log(y_pred) - (1 - y_true) * np.log(1 - y_pred)
-#     return -1*log_loss_values
+    Parameters
+    ----------
+    y_true: array-like of shape (n_samples, n_targets)
+        Observed responses.
+    y_pred: array-like of shape (n_samples, n_targets)
+        Predicted responses.
+    multiclass: bool
+        Whether or not the responses are multi-class.
 
-# def per_sample_neg_mean_absolute_error(y_true,y_pred):
-#     y_true = y_true.reshape(-1,1)   
-#     return -1*np.abs(y_true - y_pred)
+    Returns
+    -------
+    Scalar quantity, measuring the r-squared value.
+    """
+    numerator = ((y_true - y_pred) ** 2).sum(axis=0, dtype=np.float64)
+    denominator = ((y_true - np.mean(y_true, axis=0)) ** 2). \
+        sum(axis=0, dtype=np.float64)
+    if multiclass:
+        return np.mean(1 - numerator / denominator)
+    else:
+        return 1 - numerator / denominator
 
-# def Global_MDI_plus_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None):
-#         y_test_pred = fit.predict(X_test)
-#         y_test_subset_pred = fit.predict(X_test_subset)
-#     elif isinstance(fit, RandomForestPlusClassifier):
-#         y_test_pred = fit.predict_proba(X_test)
-#         y_test_subset_pred = fit.predict_proba(X_test_subset)
-#     subsets = [(X_train, y_train), (X_test, y_test_pred), (X_test_subset, y_test_subset_pred)]
-#     result_tables = []
-#     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
 
-#     for X_data, y_data in subsets:
-#         num_samples, num_features = X_data.shape
-#         local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
-#         abs_partial_preds = np.abs(partial_preds)
-#         result_tables.append(abs_partial_preds)
+def neg_log_loss(y_true, y_pred):
+    """
+    Evaluates the negative log-loss between the observed and
+    predicted responses.
 
-#     return tuple(result_tables)
+    Parameters
+    ----------
+    y_true: array-like of shape (n_samples, n_targets)
+        Observed responses.
+    y_pred: array-like of shape (n_samples, n_targets)
+        Predicted probabilies.
 
+    Returns
+    -------
+    Scalar quantity, measuring the negative log-loss value.
+    """
+    return -log_loss(y_true, y_pred)
+
+def neg_mae(y_true, y_pred):
+    return -mean_absolute_error(y_true, y_pred)
+
+def partial_preds_to_scores(partial_preds, y_test, scoring_fn):
+    scores = []
+    for k in range(partial_preds.shape[1]):
+        y_pred = partial_preds[:,k]
+        scores.append(scoring_fn(y_test, y_pred))
+    return scores
+
+def LFI_global_MDI_plus_RF_Plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None):
+    if isinstance(fit, RandomForestPlusRegressor):
+        scoring_fn = fast_r2_score
+    elif isinstance(fit, RandomForestPlusClassifier):
+        scoring_fn = neg_log_loss
+    test_classification_scoring_fn = neg_mae
+    y_test_subset_hat = fit.predict(X_test_subset)
+    y_test_hat = fit.predict(X_test)
+    subsets = [(X_train, y_train, y_train),(None, None, None),(X_test, None, y_test_hat), (X_test_subset, None, y_test_subset_hat)]
+    result_tables = []
+    rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
+
+    for X_data, y_data, y_hat in subsets:
+        if isinstance(X_data, np.ndarray):
+            if isinstance(fit, RandomForestPlusClassifier) and (np.array_equal(X_data, X_test) or np.array_equal(X_data, X_test_subset)):
+                    local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
+                    scores = partial_preds_to_scores(partial_preds, y_hat, test_classification_scoring_fn)
+                    result_tables.append(np.tile(scores, (X_data.shape[0], 1)))
+            else:
+                local_feature_importances, partial_preds = rf_plus_mdi.explain(X=X_data, y=y_data)
+                scores = partial_preds_to_scores(partial_preds, y_hat, scoring_fn)
+                result_tables.append(np.tile(scores, (X_data.shape[0], 1)))
+        else:
+            result_tables.append(None)
+
+    return tuple(result_tables)
 
 
 # result_table = pd.DataFrame(kernel_shap_scores, columns=[f'Feature_{i}' for i in range(num_features)])

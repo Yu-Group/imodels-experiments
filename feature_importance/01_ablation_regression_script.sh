@@ -4,8 +4,8 @@
 #SBATCH --partition=yugroup
 
 source activate mdi
-command="01_run_ablation_regression.py --nreps 1 --config mdi_local.real_data_regression --split_seed ${1} --ignore_cache --create_rmd --result_name diabetes_test_new"
-#command="01_run_ablation_regression.py --nreps 1 --config mdi_local.real_data_regression --split_seed ${1} --ignore_cache --create_rmd --result_name CCLE_AZD0530_new --ablate_features 20"
+# Need to specify --result_name --ablate_features(default all features) --fitted(default not fitted)
+command="01_run_ablation_regression.py --nreps 1 --config mdi_local.real_data_regression --split_seed ${1} --ignore_cache --create_rmd --ablate_features 20 --result_name CCLE_2000"
 
 # Execute the command
 python $command
