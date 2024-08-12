@@ -79,7 +79,14 @@ import dill
 #         data_copy[i, feature_importance_rank[i,feature_index]] = data[i, feature_importance_rank[i,feature_index]]
 #     return data_copy
 
-def ablation_removal(train_mean, data, feature_importance_rank, feature_index):
+def ablation_removal(train_mean, data, feature_importance, feature_importance_rank, feature_index, mode):
+    if mode == "absolute":
+        return ablation_removal_absolute(train_mean, data, feature_importance_rank, feature_index)
+    else:
+        return ablation_removal_pos_neg(train_mean, data, feature_importance_rank, feature_importance, feature_index)
+
+
+def ablation_removal_absolute(train_mean, data, feature_importance_rank, feature_index):
     """
     Replace the top num_features max feature importance data with mean value for each sample
     """
@@ -88,14 +95,25 @@ def ablation_removal(train_mean, data, feature_importance_rank, feature_index):
     data_copy[np.arange(data.shape[0]), indices] = train_mean[indices]
     return data_copy
 
-def ablation_addition(data_ablation, data, feature_importance_rank, feature_index):
-    """
-    Initialize the data with mean values and add the top num_features max feature importance data for each sample
-    """
-    data_copy = data_ablation.copy()
+def ablation_removal_pos_neg(train_mean, data, feature_importance_rank, feature_importance, feature_index):
+    data_copy = data.copy()
     indices = feature_importance_rank[:, feature_index]
-    data_copy[np.arange(data.shape[0]), indices] = data[np.arange(data.shape[0]), indices]
+    sum = 0
+    for i in range(data.shape[0]):
+        if feature_importance[i, indices[i]] != 0 and feature_importance[i, indices[i]] < sys.maxsize - 1:
+            sum += 1
+            data_copy[i, indices[i]] = train_mean[indices[i]]
+    print("Remove sum: ", sum)
     return data_copy
+
+# def ablation_addition(data_ablation, data, feature_importance_rank, feature_index):
+#     """
+#     Initialize the data with mean values and add the top num_features max feature importance data for each sample
+#     """
+#     data_copy = data_ablation.copy()
+#     indices = feature_importance_rank[:, feature_index]
+#     data_copy[np.arange(data.shape[0]), indices] = data[np.arange(data.shape[0]), indices]
+#     return data_copy
 
 
 def compare_estimators(estimators: List[ModelConfig],
@@ -113,7 +131,7 @@ def compare_estimators(estimators: List[ModelConfig],
 
     # initialize results
     results = defaultdict(lambda: [])
-    feature_importance_list = {}
+    feature_importance_list = {"positive": {}, "negative": {}, "absolute": {}}
 
     # loop over model estimators
     for model in estimators:
@@ -142,7 +160,8 @@ def compare_estimators(estimators: List[ModelConfig],
                 y_tune = y
                 y_test = y
 
-            if not args.fitted:
+            if args.fit_model:
+                print("Fitting Models")
                 # fit RF model
                 start_rf = time.time()
                 est.fit(X_train, y_train)
@@ -168,6 +187,7 @@ def compare_estimators(estimators: List[ModelConfig],
                 rf_plus_base_inbag.fit(X_train, y_train)
                 end_rf_plus_inbag = time.time()
 
+                # get test results
                 test_all_auc_rf = roc_auc_score(y_test, est.predict_proba(X_test)[:, 1])
                 test_all_auprc_rf = average_precision_score(y_test, est.predict_proba(X_test)[:, 1])
                 test_all_f1_rf = f1_score(y_test, est.predict_proba(X_test)[:, 1] > 0.5)
@@ -186,226 +206,237 @@ def compare_estimators(estimators: List[ModelConfig],
                     "Time": [end_rf - start_rf, end_rf_plus - start_rf_plus, end_rf_plus_oob - start_rf_plus_oob, end_rf_plus_inbag - start_rf_plus_inbag]
                 }
 
-                os.makedirs(f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}", exist_ok=True)
+                os.makedirs(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}", exist_ok=True)
                 results_df = pd.DataFrame(fitted_results)
-                results_df.to_csv(f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_fitted_summary_{args.split_seed}.csv", index=False)
+                results_df.to_csv(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RFPlus_fitted_summary_{args.split_seed}.csv", index=False)
                             
 
-                pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RF_{args.split_seed}.dill"
+                pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RF_{args.split_seed}.dill"
                 with open(pickle_file, 'wb') as file:
                     dill.dump(est, file)
-                pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_default_{args.split_seed}.dill"
+                pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RFPlus_default_{args.split_seed}.dill"
                 with open(pickle_file, 'wb') as file:
                     dill.dump(rf_plus_base, file)
-                pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_oob_{args.split_seed}.dill"
+                pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RFPlus_oob_{args.split_seed}.dill"
                 with open(pickle_file, 'wb') as file:
                     dill.dump(rf_plus_base_oob, file)
-                pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_inbag_{args.split_seed}.dill"
+                pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RFPlus_inbag_{args.split_seed}.dill"
                 with open(pickle_file, 'wb') as file:
                     dill.dump(rf_plus_base_inbag, file)
 
-
-            np.random.seed(42)
-            indices_train = np.random.choice(X_train.shape[0], 100, replace=False)
-            indices_test = np.random.choice(X_test.shape[0], 100, replace=False)
-            X_train_subset = X_train[indices_train]
-            y_train_subset = y_train[indices_train]
-            X_test_subset = X_test[indices_test]
-            y_test_subset = y_test[indices_test]
-
-            for fi_est in tqdm(fi_ests):
-                metric_results = {
-                    'model': model.name,
-                    'fi': fi_est.name,
-                    'train_size': X_train.shape[0],
-                    'train_subset_size': X_train_subset.shape[0],
-                    'test_size': X_test.shape[0],
-                    'test_subset_size': X_test_subset.shape[0],
-                    'num_features': X_train.shape[1],
-                    'data_split_seed': args.split_seed
-                }
-                for i in range(100):
-                    metric_results[f'sample_train_{i}'] = indices_train[i]
-                    metric_results[f'sample_test_{i}'] = indices_test[i]
-
-                print("Load Models")
-                start = time.time()
-                with open(f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_default_{args.split_seed}.dill", 'rb') as file:
-                    rf_plus_base = dill.load(file)
-                if fi_est.base_model == "None":
-                    pass
-                elif fi_est.base_model == "RF":
-                    with open(f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RF_{args.split_seed}.dill", 'rb') as file:
-                        loaded_model = dill.load(file)
-                elif fi_est.base_model == "RFPlus_oob":
-                    with open(f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_oob_{args.split_seed}.dill", 'rb') as file:
-                        loaded_model = dill.load(file)
-                elif fi_est.base_model == "RFPlus_inbag":
-                    with open(f"/scratch/users/zhongyuan_liang/saved_models/{args.result_name}/RFPlus_inbag_{args.split_seed}.dill", 'rb') as file:
-                        loaded_model = dill.load(file)
-                elif fi_est.base_model == "RFPlus_default":
-                    loaded_model = rf_plus_base
-                end = time.time()
-                metric_results['load_model_time'] = end - start
-                print(f"done with loading models: {end - start}")
-
-
-                print("Compute feature importance")
-                start = time.time()
-                if fi_est.base_model == "None":
-                    np.random.seed(args.split_seed)
-                    local_fi_score_train_subset = np.random.rand(*X_train_subset.shape)
-                    local_fi_score_test = np.random.rand(*X_test.shape)
-                    local_fi_score_test_subset = np.random.rand(*X_test_subset.shape)
+            if args.absolute_masking or args.positive_masking or args.negative_masking:
+                np.random.seed(42)
+                if X_train.shape[0] > 100:
+                    indices_train = np.random.choice(X_train.shape[0], 100, replace=False)
+                    X_train_subset = X_train[indices_train]
+                    y_train_subset = y_train[indices_train]
                 else:
-                    local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, X_train_subset = X_train_subset, y_train_subset=y_train_subset,
-                                                                                                                                    X_test=X_test, y_test=y_test, X_test_subset=X_test_subset, y_test_subset=y_test_subset,
-                                                                                                                                    fit=loaded_model)
-                if fi_est.name.startswith("Local_MDI+"):
-                    local_fi_score_train_subset = local_fi_score_train[indices_train]
-                end = time.time()
-                metric_results['fi_time'] = end - start
-                print(f"done with feature importance: {end - start}")
-
-                feature_importance_list[fi_est.name] = [local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset]
-
-                # prepare ablations
-                print("start ablation")
-                ablation_models = {"RF_Classifier": RandomForestClassifier(n_estimators=100, min_samples_leaf=1, max_features='sqrt', random_state=42),
-                                   "LogisticCV": LogisticRegressionCV(random_state=42, max_iter=200),
-                                   "SVM": SVC(random_state=42, probability=True),
-                                   "XGBoost_Classifier": xgb.XGBClassifier(random_state=42),
-                                   "RF_Plus_Classifier": rf_plus_base}
-                start = time.time()
-                for a_model in ablation_models:
-                    if a_model != "RF_Plus_Classifier":
-                        ablation_models[a_model].fit(X_train, y_train)
-                end = time.time()
-                metric_results['ablation_model_fit_time'] = end - start
-                print(f"done with ablation model fit: {end - start}")
-
-                all_fi = [local_fi_score_train_subset, local_fi_score_test_subset, local_fi_score_test]
-                all_fi_rank = [None, None, None]
-                for i in range(len(all_fi)):
-                    fi = all_fi[i]
-                    if isinstance(fi, np.ndarray):
-                        fi[fi == float("-inf")] = -sys.maxsize - 1
-                        fi[fi == float("inf")] = sys.maxsize - 1
-                        if fi_est.ascending:
-                            all_fi_rank[i] = np.argsort(-fi)
-                        else:
-                            all_fi_rank[i] = np.argsort(fi)
-
-                feature_importance_list[fi_est.name].extend(all_fi_rank)
-
-                ablation_datas = {"train_subset": (X_train_subset, y_train_subset, all_fi_rank[0]),
-                                 "test_subset": (X_test_subset, y_test_subset, all_fi_rank[1]),
-                                 "test": (X_test, y_test, all_fi_rank[2])}
+                    indices_train = np.arange(X_train.shape[0])
+                    X_train_subset = X_train
+                    y_train_subset = y_train
                 
-                num_ablate_features = args.ablate_features
-                if num_ablate_features is None:
-                    num_ablate_features = X_train.shape[1]
-                metric_results['num_ablate_features'] = num_ablate_features
+                if X_test.shape[0] > 100:
+                    indices_test = np.random.choice(X_test.shape[0], 100, replace=False)
+                    X_test_subset = X_test[indices_test]
+                    y_test_subset = y_test[indices_test]
+                else:
+                    indices_test = np.arange(X_test.shape[0])
+                    X_test_subset = X_test
+                    y_test_subset = y_test
 
-                train_mean = np.mean(X_train, axis=0)
-                train_mean_list = train_mean.tolist()
+                if args.num_features_masked is None:
+                    num_features_masked = X_train.shape[1]
+                else:
+                    num_features_masked = args.num_features_masked
 
-                # Start ablation 1: Feature removal
-                for ablation_data in ablation_datas:
+
+                for fi_est in tqdm(fi_ests):
+                    metric_results = {
+                        'model': model.name,
+                        'fi': fi_est.name,
+                        'train_size': X_train.shape[0],
+                        'train_subset_size': X_train_subset.shape[0],
+                        'test_size': X_test.shape[0],
+                        'test_subset_size': X_test_subset.shape[0],
+                        'num_features': X_train.shape[1],
+                        'data_split_seed': args.split_seed,
+                        'num_features_masked': num_features_masked
+                    }
+                    for i in range(X_train_subset.shape[0]):
+                        metric_results[f'sample_train_{i}'] = indices_train[i]
+                    for i in range(X_test_subset.shape[0]):
+                        metric_results[f'sample_test_{i}'] = indices_test[i]
+                    print("Load Models")
                     start = time.time()
-                    X_data, y_data, local_fi_score_data = ablation_datas[ablation_data]
-                    if not isinstance(local_fi_score_data, np.ndarray):
-                        for a_model in ablation_models:
-                            metric_results[f'{a_model}_{ablation_data}_AUROC_before_ablation'] = None
-                            metric_results[f'{a_model}_{ablation_data}_AUPRC_before_ablation'] = None
-                            metric_results[f'{a_model}_{ablation_data}_F1_before_ablation'] = None
-                        for i in range(num_ablate_features):
-                            for a_model in ablation_models:
-                                metric_results[f'{a_model}_{ablation_data}_AUROC_after_ablation_{i+1}'] = None
-                                metric_results[f'{a_model}_{ablation_data}_AUPRC_after_ablation_{i+1}'] = None
-                                metric_results[f'{a_model}_{ablation_data}_F1_after_ablation_{i+1}'] = None
-                    else:
-                        for a_model in ablation_models:
-                            print(f"start ablation removal: {ablation_data} {a_model}")
-                            ablation_est = ablation_models[a_model]
-                            y_pred = ablation_est.predict(X_data)
-                            metric_results[a_model + f'_{ablation_data}_AUROC_before_ablation'] = roc_auc_score(y_data, y_pred)
-                            metric_results[a_model + f'_{ablation_data}_AUPRC_before_ablation'] = average_precision_score(y_data, y_pred)
-                            metric_results[a_model + f'_{ablation_data}_F1_before_ablation'] = f1_score(y_data, y_pred > 0.5)
-                            imp_vals = copy.deepcopy(local_fi_score_data)
-                            ablation_results_auroc_list = [0] * num_ablate_features
-                            ablation_results_auprc_list = [0] * num_ablate_features
-                            ablation_results_f1_list = [0] * num_ablate_features
-                            X_temp = X_data.copy()
-                            for i in range(num_ablate_features):
-                                ablation_X_data = ablation_removal(train_mean, X_temp, imp_vals, i)
-                                ablation_results_auroc_list[i] = roc_auc_score(y_data, ablation_est.predict(ablation_X_data))
-                                ablation_results_auprc_list[i] = average_precision_score(y_data, ablation_est.predict(ablation_X_data))
-                                ablation_results_f1_list[i] = f1_score(y_data, ablation_est.predict(ablation_X_data) > 0.5)
-                                X_temp = ablation_X_data
-                            for i in range(num_ablate_features):
-                                metric_results[f'{a_model}_{ablation_data}_AUROC_after_ablation_{i+1}'] = ablation_results_auroc_list[i]
-                                metric_results[f'{a_model}_{ablation_data}_AUPRC_after_ablation_{i+1}'] = ablation_results_auprc_list[i]
-                                metric_results[f'{a_model}_{ablation_data}_F1_after_ablation_{i+1}'] = ablation_results_f1_list[i]
+                    with open(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RFPlus_default_{args.split_seed}.dill", 'rb') as file:
+                        rf_plus_base = dill.load(file)
+                    if fi_est.base_model == "None":
+                        loaded_model = None
+                    elif fi_est.base_model == "RF":
+                        with open(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RF_{args.split_seed}.dill", 'rb') as file:
+                            loaded_model = dill.load(file)
+                    elif fi_est.base_model == "RFPlus_oob":
+                        with open(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RFPlus_oob_{args.split_seed}.dill", 'rb') as file:
+                            loaded_model = dill.load(file)
+                    elif fi_est.base_model == "RFPlus_inbag":
+                        with open(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RFPlus_inbag_{args.split_seed}.dill", 'rb') as file:
+                            loaded_model = dill.load(file)
+                    elif fi_est.base_model == "RFPlus_default":
+                        loaded_model = rf_plus_base
                     end = time.time()
-                    print(f"done with ablation removal: {ablation_data} {end - start}")
-                    metric_results[f'{ablation_data}_ablation_removal_time'] = end - start
+                    metric_results['load_model_time'] = end - start
+                    print(f"done with loading models: {end - start}")
 
-                # Start ablation 2: Feature addition
-                for ablation_data in ablation_datas:
-                    start = time.time()
-                    X_data, y_data, local_fi_score_data = ablation_datas[ablation_data]
-                    if not isinstance(local_fi_score_data, np.ndarray):
+                    mode = []
+                    if args.absolute_masking:
+                        mode.append("absolute")
+                    if args.positive_masking:
+                        mode.append("positive")
+                    if args.negative_masking:
+                        mode.append("negative")
+                    
+                    for m in mode:
+                        start = time.time()
+                        print(f"Compute feature importance")
+                        # Compute feature importance
+                        local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, X_train_subset = X_train_subset, y_train_subset=y_train_subset,
+                                                                                                                                        X_test=X_test, y_test=y_test, X_test_subset=X_test_subset, y_test_subset=y_test_subset,
+                                                                                                                                        fit=loaded_model, mode=m)
+                        if fi_est.name.startswith("Local_MDI+"):
+                            local_fi_score_train_subset = local_fi_score_train[indices_train]
+                        
+                        feature_importance_list[m][fi_est.name] = [local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset]
+                        end = time.time()
+                        metric_results[f'fi_time_{m}'] = end - start
+                        print(f"done with feature importance {m}: {end - start}")
+                        # prepare ablations
+                        print("start ablation")
+                        ablation_models = {"RF_Classifier": RandomForestClassifier(n_estimators=100, min_samples_leaf=1, max_features='sqrt', random_state=42),
+                                        "LogisticCV": LogisticRegressionCV(random_state=42, max_iter=200),
+                                        "SVM": SVC(random_state=42, probability=True),
+                                        "XGBoost_Classifier": xgb.XGBClassifier(random_state=42),
+                                        "RF_Plus_Classifier": rf_plus_base}
+                        start = time.time()
                         for a_model in ablation_models:
-                            metric_results[f'{a_model}_{ablation_data}_AUROC_before_ablation_addition'] = None
-                            metric_results[f'{a_model}_{ablation_data}_AUPRC_before_ablation_addition'] = None
-                            metric_results[f'{a_model}_{ablation_data}_F1_before_ablation_addition'] = None
-                        for i in range(num_ablate_features):
-                            for a_model in ablation_models:
-                                metric_results[f'{a_model}_{ablation_data}_AUROC_after_ablation_{i+1}_addition'] = None
-                                metric_results[f'{a_model}_{ablation_data}_AUPRC_after_ablation_{i+1}_addition'] = None
-                                metric_results[f'{a_model}_{ablation_data}_F1_after_ablation_{i+1}_addition'] = None
-                    else:
-                        for a_model in ablation_models:
-                            print(f"start ablation addtion: {ablation_data} {a_model}")
-                            ablation_est = ablation_models[a_model]
-                            X_temp = np.array([train_mean_list] * X_data.shape[0]).copy()
-                            y_pred = ablation_est.predict(X_temp)
-                            metric_results[a_model + f'_{ablation_data}_AUROC_before_ablation_addition'] = roc_auc_score(y_data, y_pred)
-                            metric_results[a_model + f'_{ablation_data}_AUPRC_before_ablation_addition'] = average_precision_score(y_data, y_pred)
-                            metric_results[a_model + f'_{ablation_data}_F1_before_ablation_addition'] = f1_score(y_data, y_pred > 0.5)
-                            imp_vals = copy.deepcopy(local_fi_score_data)
-                            ablation_results_auroc_list = [0] * num_ablate_features
-                            ablation_results_auprc_list = [0] * num_ablate_features
-                            ablation_results_f1_list = [0] * num_ablate_features
-                            for i in range(num_ablate_features):
-                                ablation_X_data = ablation_addition(X_temp, X_data, imp_vals, i)
-                                ablation_results_auroc_list[i] = roc_auc_score(y_data, ablation_est.predict(ablation_X_data))
-                                ablation_results_auprc_list[i] = average_precision_score(y_data, ablation_est.predict(ablation_X_data))
-                                ablation_results_f1_list[i] = f1_score(y_data, ablation_est.predict(ablation_X_data) > 0.5)
-                                X_temp = ablation_X_data
-                            for i in range(num_ablate_features):
-                                metric_results[f'{a_model}_{ablation_data}_AUROC_after_ablation_{i+1}_addition'] = ablation_results_auroc_list[i]
-                                metric_results[f'{a_model}_{ablation_data}_AUPRC_after_ablation_{i+1}_addition'] = ablation_results_auprc_list[i]
-                                metric_results[f'{a_model}_{ablation_data}_F1_after_ablation_{i+1}_addition'] = ablation_results_f1_list[i]
+                            if a_model != "RF_Plus_Classifier":
+                                ablation_models[a_model].fit(X_train, y_train)
+                        end = time.time()
+                        metric_results['ablation_model_fit_time'] = end - start
+                        print(f"done with ablation model fit: {end - start}")
 
-                    end = time.time()
-                    print(f"done with ablation addtion: {ablation_data} {end - start}")
-                    metric_results[f'{ablation_data}_ablation_addition_time'] = end - start
+                        all_fi = [local_fi_score_train_subset, local_fi_score_test_subset, local_fi_score_test]
+                        all_fi_rank = [None, None, None]
+                        for i in range(len(all_fi)):
+                            fi = all_fi[i]
+                            if isinstance(fi, np.ndarray):
+                                fi[fi == float("-inf")] = -sys.maxsize - 1
+                                fi[fi == float("inf")] = sys.maxsize - 1
+                                if fi_est.ascending:
+                                    all_fi_rank[i] = np.argsort(-fi)
+                                else:
+                                    all_fi_rank[i] = np.argsort(fi)
 
-                print(f"fi: {fi_est.name} all ablation done")
+                        ablation_datas = {"train_subset": (X_train_subset, y_train_subset, all_fi[0], all_fi_rank[0]),
+                                        "test_subset": (X_test_subset, y_test_subset, all_fi[1], all_fi_rank[1]),
+                                        "test": (X_test, y_test, all_fi[2], all_fi_rank[2])}
+                        train_mean = np.mean(X_train, axis=0)
 
-                # initialize results with metadata and metric results
-                kwargs: dict = model.kwargs  # dict
-                for k in kwargs:
-                    results[k].append(kwargs[k])
-                for k in fi_kwargs:
-                    if k in fi_est.kwargs:
-                        results[k].append(str(fi_est.kwargs[k]))
-                    else:
-                        results[k].append(None)
-                for met_name, met_val in metric_results.items():
-                    results[met_name].append(met_val)
+                        print("start ablation")
+                        # Start ablation 1: Feature removal
+                        for ablation_data in ablation_datas:
+                            start = time.time()
+                            X_data, y_data, local_fi_score, local_fi_score_rank = ablation_datas[ablation_data]
+                            if not isinstance(local_fi_score, np.ndarray):
+                                for a_model in ablation_models:
+                                    metric_results[f'{a_model}_{ablation_data}_AUROC_before_ablation_{m}'] = None
+                                    metric_results[f'{a_model}_{ablation_data}_AUPRC_before_ablation_{m}'] = None
+                                    metric_results[f'{a_model}_{ablation_data}_F1_before_ablation_{m}'] = None
+                                for i in range(num_features_masked):
+                                    for a_model in ablation_models:
+                                        metric_results[f'{a_model}_{ablation_data}_AUROC_after_ablation_{i+1}_{m}'] = None
+                                        metric_results[f'{a_model}_{ablation_data}_AUPRC_after_ablation_{i+1}_{m}'] = None
+                                        metric_results[f'{a_model}_{ablation_data}_F1_after_ablation_{i+1}_{m}'] = None
+                            else:
+                                for a_model in ablation_models:
+                                    print(f"start ablation removal: {ablation_data} {a_model}")
+                                    ablation_est = ablation_models[a_model]
+                                    y_pred = ablation_est.predict(X_data)
+                                    metric_results[a_model + f'_{ablation_data}_AUROC_before_ablation_{m}'] = roc_auc_score(y_data, y_pred)
+                                    metric_results[a_model + f'_{ablation_data}_AUPRC_before_ablation_{m}'] = average_precision_score(y_data, y_pred)
+                                    metric_results[a_model + f'_{ablation_data}_F1_before_ablation_{m}'] = f1_score(y_data, y_pred > 0.5)
+                                    ablation_results_auroc_list = [0] * num_features_masked
+                                    ablation_results_auprc_list = [0] * num_features_masked
+                                    ablation_results_f1_list = [0] * num_features_masked
+                                    X_temp = X_data.copy()
+                                    for i in range(num_features_masked):
+                                        ablation_X_data = ablation_removal(train_mean, X_temp, local_fi_score, local_fi_score_rank, i, m)
+                                        ablation_results_auroc_list[i] = roc_auc_score(y_data, ablation_est.predict(ablation_X_data))
+                                        ablation_results_auprc_list[i] = average_precision_score(y_data, ablation_est.predict(ablation_X_data))
+                                        ablation_results_f1_list[i] = f1_score(y_data, ablation_est.predict(ablation_X_data) > 0.5)
+                                        X_temp = ablation_X_data
+                                    for i in range(num_features_masked):
+                                        metric_results[f'{a_model}_{ablation_data}_AUROC_after_ablation_{i+1}_{m}'] = ablation_results_auroc_list[i]
+                                        metric_results[f'{a_model}_{ablation_data}_AUPRC_after_ablation_{i+1}_{m}'] = ablation_results_auprc_list[i]
+                                        metric_results[f'{a_model}_{ablation_data}_F1_after_ablation_{i+1}_{m}'] = ablation_results_f1_list[i]
+                            end = time.time()
+                            print(f"done with ablation removal: {ablation_data} {end - start}")
+                            metric_results[f'{ablation_data}_ablation_removal_time'] = end - start
+
+                    # # Start ablation 2: Feature addition
+                    # for ablation_data in ablation_datas:
+                    #     start = time.time()
+                    #     X_data, y_data, local_fi_score_data = ablation_datas[ablation_data]
+                    #     if not isinstance(local_fi_score_data, np.ndarray):
+                    #         for a_model in ablation_models:
+                    #             metric_results[f'{a_model}_{ablation_data}_AUROC_before_ablation_addition'] = None
+                    #             metric_results[f'{a_model}_{ablation_data}_AUPRC_before_ablation_addition'] = None
+                    #             metric_results[f'{a_model}_{ablation_data}_F1_before_ablation_addition'] = None
+                    #         for i in range(num_ablate_features):
+                    #             for a_model in ablation_models:
+                    #                 metric_results[f'{a_model}_{ablation_data}_AUROC_after_ablation_{i+1}_addition'] = None
+                    #                 metric_results[f'{a_model}_{ablation_data}_AUPRC_after_ablation_{i+1}_addition'] = None
+                    #                 metric_results[f'{a_model}_{ablation_data}_F1_after_ablation_{i+1}_addition'] = None
+                    #     else:
+                    #         for a_model in ablation_models:
+                    #             print(f"start ablation addtion: {ablation_data} {a_model}")
+                    #             ablation_est = ablation_models[a_model]
+                    #             X_temp = np.array([train_mean_list] * X_data.shape[0]).copy()
+                    #             y_pred = ablation_est.predict(X_temp)
+                    #             metric_results[a_model + f'_{ablation_data}_AUROC_before_ablation_addition'] = roc_auc_score(y_data, y_pred)
+                    #             metric_results[a_model + f'_{ablation_data}_AUPRC_before_ablation_addition'] = average_precision_score(y_data, y_pred)
+                    #             metric_results[a_model + f'_{ablation_data}_F1_before_ablation_addition'] = f1_score(y_data, y_pred > 0.5)
+                    #             imp_vals = copy.deepcopy(local_fi_score_data)
+                    #             ablation_results_auroc_list = [0] * num_ablate_features
+                    #             ablation_results_auprc_list = [0] * num_ablate_features
+                    #             ablation_results_f1_list = [0] * num_ablate_features
+                    #             for i in range(num_ablate_features):
+                    #                 ablation_X_data = ablation_addition(X_temp, X_data, imp_vals, i)
+                    #                 ablation_results_auroc_list[i] = roc_auc_score(y_data, ablation_est.predict(ablation_X_data))
+                    #                 ablation_results_auprc_list[i] = average_precision_score(y_data, ablation_est.predict(ablation_X_data))
+                    #                 ablation_results_f1_list[i] = f1_score(y_data, ablation_est.predict(ablation_X_data) > 0.5)
+                    #                 X_temp = ablation_X_data
+                    #             for i in range(num_ablate_features):
+                    #                 metric_results[f'{a_model}_{ablation_data}_AUROC_after_ablation_{i+1}_addition'] = ablation_results_auroc_list[i]
+                    #                 metric_results[f'{a_model}_{ablation_data}_AUPRC_after_ablation_{i+1}_addition'] = ablation_results_auprc_list[i]
+                    #                 metric_results[f'{a_model}_{ablation_data}_F1_after_ablation_{i+1}_addition'] = ablation_results_f1_list[i]
+
+                    #     end = time.time()
+                    #     print(f"done with ablation addtion: {ablation_data} {end - start}")
+                    #     metric_results[f'{ablation_data}_ablation_addition_time'] = end - start
+
+                    print(f"fi: {fi_est.name} all ablation done")
+
+                    # initialize results with metadata and metric results
+                    kwargs: dict = model.kwargs  # dict
+                    for k in kwargs:
+                        results[k].append(kwargs[k])
+                    for k in fi_kwargs:
+                        if k in fi_est.kwargs:
+                            results[k].append(str(fi_est.kwargs[k]))
+                        else:
+                            results[k].append(None)
+                    for met_name, met_val in metric_results.items():
+                        results[met_name].append(met_val)
     return results, feature_importance_list
 
 
@@ -421,8 +452,7 @@ def run_comparison(path: str,
     model_comparison_files_all = [oj(path, f'{estimator_name}_{fi_estimator.name}_comparisons.pkl') \
                                   for fi_estimator in fi_estimators_all]
     
-    feature_importance_all = [oj(path, f'{estimator_name}_{fi_estimator.name}_feature_importance.pkl') \
-                                  for fi_estimator in fi_estimators_all]
+    feature_importance_all = oj(path, f'feature_importance.pkl')
 
 
     if args.parallel_id is not None:
@@ -459,8 +489,7 @@ def run_comparison(path: str,
         if col in df.columns:
             df = df.drop(columns=[col])
 
-    for i in range(len(feature_importance_all)):
-        pkl.dump(list(fi_lst.items())[i], open(feature_importance_all[i], 'wb'))
+    pkl.dump(fi_lst, open(feature_importance_all, 'wb'))
 
     for model_comparison_file, fi_estimator in zip(model_comparison_files, fi_estimators):
         output_dict = {
@@ -538,9 +567,12 @@ if __name__ == '__main__':
     parser.add_argument('--nosave_cols', type=str, default="prediction_model")
 
     ### Newly added arguments
-    parser.add_argument('--result_name', type=str, default=None)
-    parser.add_argument('--ablate_features', type=int, default=None)
-    parser.add_argument('--fitted', type=bool, default=False)
+    parser.add_argument('--folder_name', type=str, default=None)
+    parser.add_argument('--fit_model', type=bool, default=False)
+    parser.add_argument('--absolute_masking', type=bool, default=False)
+    parser.add_argument('--positive_masking', type=bool, default=False)
+    parser.add_argument('--negative_masking', type=bool, default=False)
+    parser.add_argument('--num_features_masked', type=int, default=None)
 
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)
@@ -588,10 +620,10 @@ if __name__ == '__main__':
 
     if args.omit_vars is not None:
         #results_dir = oj(args.results_path, args.config + "_omitted_vars")
-        results_dir = oj(args.results_path, args.config + "_omitted_vars", args.result_name)
+        results_dir = oj(args.results_path, args.config + "_omitted_vars", args.folder_name)
     else:
         #results_dir = oj(args.results_path, args.config)
-        results_dir = oj(args.results_path, args.config, args.result_name)
+        results_dir = oj(args.results_path, args.config, args.folder_name)
 
     if isinstance(vary_param_name, list):
         path = oj(results_dir, "varying_" + "_".join(vary_param_name), "seed" + str(args.split_seed))

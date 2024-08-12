@@ -4,16 +4,16 @@ from feature_importance.scripts.simulations_util import *
 
 
 X_DGP = sample_real_data_X
-# X_PARAMS_DICT = {
-#     "source": "imodels",
-#     "data_name": "diabetes",
-#     "sample_row_n": None
-# }
 X_PARAMS_DICT = {
     "source": "imodels",
-    "data_name": "juvenile",
+    "data_name": "diabetes",
     "sample_row_n": None
 }
+# X_PARAMS_DICT = {
+#     "source": "imodels",
+#     "data_name": "juvenile",
+#     "sample_row_n": None
+# }
 
 # X_PARAMS_DICT = {
 #     "source": "csv",
@@ -23,14 +23,14 @@ X_PARAMS_DICT = {
 # }
 
 Y_DGP = sample_real_data_y
-# Y_PARAMS_DICT = {
-#     "source": "imodels",
-#     "data_name": "diabetes"
-# }
 Y_PARAMS_DICT = {
     "source": "imodels",
-    "data_name": "juvenile"
+    "data_name": "diabetes"
 }
+# Y_PARAMS_DICT = {
+#     "source": "imodels",
+#     "data_name": "juvenile"
+# }
 
 # Y_PARAMS_DICT = {
 #     "source": "csv",

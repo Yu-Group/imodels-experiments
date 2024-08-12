@@ -7,14 +7,16 @@ import math
 import imodels
 import openml
 
-def sample_real_data_X(source=None, data_name=None, file_path=None, task_id=None, seed=4307, normalize=False, sample_row_n=None):
+def sample_real_data_X(source=None, data_name=None, file_path=None, data_id=None, seed=4307, normalize=False, sample_row_n=None):
     if source == "imodels":
         X, _, _ = imodels.get_clean_dataset(data_name)
     elif source == "openml":
-        task = openml.tasks.get_task(task_id)
-        dataset_id = task.dataset_id
-        dataset = openml.datasets.get_dataset(dataset_id)
-        X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
+        # task = openml.tasks.get_task(task_id)
+        # dataset_id = task.dataset_id
+        # dataset = openml.datasets.get_dataset(dataset_id)
+        # X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
+        dataset = openml.datasets.get_dataset(data_id)
+        X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute, dataset_format="array")
     elif source == "csv":
         X = pd.read_csv(file_path).to_numpy()
     if normalize:
@@ -26,15 +28,17 @@ def sample_real_data_X(source=None, data_name=None, file_path=None, task_id=None
     return X
     
 
-def sample_real_data_y(X=None, source=None, data_name=None, file_path=None, task_id=None,
+def sample_real_data_y(X=None, source=None, data_name=None, file_path=None, data_id=None,
                      seed=4307, sample_row_n=None, return_support=True):
     if source == "imodels":
         _, y, _ = imodels.get_clean_dataset(data_name)
     elif source == "openml":
-        task = openml.tasks.get_task(task_id)
-        dataset_id = task.dataset_id
-        dataset = openml.datasets.get_dataset(dataset_id)
-        _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
+        # task = openml.tasks.get_task(task_id)
+        # dataset_id = task.dataset_id
+        # dataset = openml.datasets.get_dataset(dataset_id)
+        # _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
+        dataset = openml.datasets.get_dataset(data_id)
+        _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute, dataset_format="array")
     elif source == "csv":
         y = pd.read_csv(file_path).to_numpy().flatten()
     if sample_row_n is not None:
@@ -128,7 +132,7 @@ def sample_normal_X(n, d, mean=0, scale=1, corr=0, Sigma=None):
     return X
 
 
-def sample_normal_X_subgroups(n, d, mean, scale):
+def sample_normal_X_subgroups(n, d, mean, scale, seed=None):
     """
     :param n: Number of samples
     :param d: Number of features
@@ -137,9 +141,17 @@ def sample_normal_X_subgroups(n, d, mean, scale):
     :return:
     """
     assert len(mean[0]) == len(scale[0]) == d
+    if seed is not None:
+        np.random.seed(seed)
     num_groups = len(mean)
     result = []
     group_size = n // num_groups
+    # for i in range(num_groups):
+    #     X = np.zeros((group_size, d+1))
+    #     for j in range(d):
+    #         X[:, j] = np.random.normal(mean[i][j], scale[i][j], size=group_size)
+    #     X[:, d] = i
+    #     result.append(X)
     for i in range(num_groups):
         X = np.zeros((group_size, d))
         for j in range(d):
@@ -214,7 +226,7 @@ def corrupt_leverage(x_train, y_train, mean_shift, corrupt_quantile, mode="norma
 
 def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
                  frac_corrupt=None, corrupt_how='permute', corrupt_size=None, 
-                 corrupt_mean=None, return_support=False):
+                 corrupt_mean=None, return_support=False, seed=None):
     """
     This method is used to crete responses from a linear model with hard sparsity
     Parameters:
@@ -231,7 +243,8 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         for j in range(s):
             linear_term += x[j] * beta[j]
         return linear_term
-
+    if seed is not None:
+        np.random.seed(seed)
     beta = generate_coef(beta, s)
     y_train = np.array([create_y(X[i, :], s, beta) for i in range(len(X))])
     if heritability is not None:
@@ -285,7 +298,7 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
 
 def linear_model_two_groups(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
                  frac_corrupt=None, corrupt_how='permute', corrupt_size=None, 
-                 corrupt_mean=None, return_support=False):
+                 corrupt_mean=None, return_support=False, seed=None):
     """
     This method is used to crete responses for two groups from a linear model with hard sparsity
     Parameters:
@@ -306,6 +319,9 @@ def linear_model_two_groups(X, sigma, s, beta, heritability=None, snr=None, erro
         for j in range(s):
             linear_term += x[start+j] * beta[j]
         return linear_term
+    
+    if seed is not None:
+        np.random.seed(seed)
 
     # Generate two coefficient vectors for each subgroup
     beta_group1 = generate_coef(beta, s)
@@ -362,7 +378,7 @@ def linear_model_two_groups(X, sigma, s, beta, heritability=None, snr=None, erro
     if return_support:
         support_group1 = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
         support_group2 = np.concatenate((np.zeros(s), np.ones(s), np.zeros(X.shape[1] - 2*s)))
-        return y_train, support_group1, support_group2, beta_group1, beta_group2
+        return y_train, support_group1, support_group2
     else:
         return y_train
     ### Update for local MDI+ done
