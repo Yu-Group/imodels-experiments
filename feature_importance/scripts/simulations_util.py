@@ -106,7 +106,7 @@ def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
     return X.to_numpy()
 
 
-def sample_normal_X(n, d, mean=0, scale=1, corr=0, Sigma=None):
+def sample_normal_X(n_train, n_test, d, mean=0, scale=1, corr=0, Sigma=None, seed=None):
     """
     Sample X with iid normal entries
     :param n:
@@ -117,6 +117,9 @@ def sample_normal_X(n, d, mean=0, scale=1, corr=0, Sigma=None):
     :param Sigma:
     :return:
     """
+    n = n_train + n_test
+    if seed is not None:
+        np.random.seed(seed)
     if Sigma is not None:
         if np.isscalar(mean):
             mean = np.repeat(mean, d)
@@ -136,22 +139,17 @@ def sample_normal_X_subgroups(n, d, mean, scale, seed=None):
     """
     :param n: Number of samples
     :param d: Number of features
-    :param mean: Nested list of mean of normal distribution for each subgroup
-    :param scale: Nested ist of scale of normal distribution for each subgroup
+    :param mean: Nested list of mean of normal distribution for each subgroup, e.g, [[0]*10,[0]*5+[0]*5]
+    :param scale: Nested list of scale of normal distribution for each subgroup, e.g, [[1]*10,[1]*10]
     :return:
     """
-    assert len(mean[0]) == len(scale[0]) == d
+    for i in range(len(mean)):
+        assert len(mean[i]) == len(scale[i]) == d
     if seed is not None:
         np.random.seed(seed)
     num_groups = len(mean)
     result = []
     group_size = n // num_groups
-    # for i in range(num_groups):
-    #     X = np.zeros((group_size, d+1))
-    #     for j in range(d):
-    #         X[:, j] = np.random.normal(mean[i][j], scale[i][j], size=group_size)
-    #     X[:, d] = i
-    #     result.append(X)
     for i in range(num_groups):
         X = np.zeros((group_size, d))
         for j in range(d):
@@ -296,7 +294,7 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         return y_train
     
 
-def linear_model_two_groups(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
+def linear_model_two_groups(X, sigma, s, beta, group_intercept=0.5, heritability=None, snr=None, error_fun=None,
                  frac_corrupt=None, corrupt_how='permute', corrupt_size=None, 
                  corrupt_mean=None, return_support=False, seed=None):
     """
@@ -324,23 +322,25 @@ def linear_model_two_groups(X, sigma, s, beta, heritability=None, snr=None, erro
         np.random.seed(seed)
 
     # Generate two coefficient vectors for each subgroup
-    beta_group1 = generate_coef(beta, s)
-    beta_group2 = generate_coef(beta, s)
-    # Generate two response vectors for each subgroup
-    y_train_group1 = np.array([create_y(X[i, :], s, beta_group1, group_index=0) for i in range(n//2)])
-    y_train_group2 = np.array([create_y(X[i, :], s, beta_group2, group_index=1) for i in range(n//2, n)])
+    beta = generate_coef(beta, s) 
+    # Generate two response vectors for each subgroup5
+    y_train_group1 = np.array([create_y(X[i, :], s, beta, group_index=0) for i in range(n//2)]) - group_intercept
+    y_train_group2 = np.array([create_y(X[i, :], s, beta, group_index=1) for i in range(n//2, n)]) + group_intercept
     y_train = np.concatenate((y_train_group1, y_train_group2))
     ### Update for local MDI+ done
-
     if heritability is not None:
-        sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
+        sigma_group1 = (np.var(y_train_group1) * ((1.0 - heritability) / heritability)) ** 0.5
+        sigma_group2 = (np.var(y_train_group2) * ((1.0 - heritability) / heritability)) ** 0.5
+        sigma = (sigma_group1 + sigma_group2) / 2
     if snr is not None:
+        assert False
         sigma = (np.var(y_train) / snr) ** 0.5
     if error_fun is None:
         error_fun = np.random.randn
     if frac_corrupt is None and corrupt_size is None:
         y_train = y_train + sigma * error_fun(n)
     else:
+        assert False
         if frac_corrupt is None:
             frac_corrupt = 0
         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
@@ -373,19 +373,19 @@ def linear_model_two_groups(X, sigma, s, beta, heritability=None, snr=None, erro
             y_train = y_train + sigma * error_fun(n)
             corrupt_idx = np.random.choice(range(s, p), size=1)
             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
-
     ### Update start for local MDI+
     if return_support:
         support_group1 = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
         support_group2 = np.concatenate((np.zeros(s), np.ones(s), np.zeros(X.shape[1] - 2*s)))
-        return y_train, support_group1, support_group2
+        support_groups = (support_group1, support_group2)
+        return y_train, support_groups, beta
     else:
         return y_train
     ### Update for local MDI+ done
 
 def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None, min_active=None,
               frac_corrupt=None, corrupt_how='permute', corrupt_size=None, corrupt_mean=None,
-              return_support=False):
+              return_support=False, seed=None):
     """
     This method creates response from an LSS model
 
@@ -401,6 +401,8 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
     """
     n, p = X.shape
     assert p >= m * r  # Cannot have more interactions * size than the dimension
+    if seed is not None:
+        np.random.seed(seed)
 
     def lss_func(x, beta):
         x_bool = (x - tau) > 0
@@ -495,6 +497,130 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
     else:
         return y_train
 
+def lss_model_two_groups(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None, min_active=None,
+              frac_corrupt=None, corrupt_how='permute', corrupt_size=None, corrupt_mean=None,
+              return_support=False, seed=None):
+    """
+    This method creates response from an LSS model
+
+    X: data matrix
+    m: number of interaction terms
+    r: max order of interaction
+    tau: threshold
+    sigma: standard deviation of noise
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+
+    :return
+    y_train: numpy array of shape (n)
+    """
+    n, p = X.shape
+    assert p >= m * r  # Cannot have more interactions * size than the dimension
+    if seed is not None:
+        np.random.seed(seed)
+
+    def lss_func_two_group(x, beta, group_index):
+        assert group_index in [0, 1]
+        start = group_index * m * r
+        x_bool = (x - tau) > 0
+        y = 0
+        for j in range(m):
+            lss_term_components = x_bool[start+(j*r):start+(j*r)+r]
+            lss_term = int(all(lss_term_components))
+            y += lss_term * beta[j]
+        return y
+
+    # def lss_vector_fun(x, beta):
+    #     x_bool = (x - tau) > 0
+    #     y = 0
+    #     max_iter = 100
+    #     features = np.arange(p)
+    #     support_idx = []
+    #     for j in range(m):
+    #         cnt = 0
+    #         while True:
+    #             int_features = np.random.choice(features, size=r, replace=False)
+    #             lss_term_components = x_bool[:, int_features]
+    #             lss_term = np.apply_along_axis(all, 1, lss_term_components)
+    #             cnt += 1
+    #             if np.mean(lss_term) >= min_active or cnt > max_iter:
+    #                 y += lss_term * beta[j]
+    #                 features = list(set(features).difference(set(int_features)))
+    #                 support_idx.append(int_features)
+    #                 if cnt > max_iter:
+    #                     warnings.warn("Could not find interaction {} with min active >= {}".format(j, min_active))
+    #                 break
+    #     support_idx = np.stack(support_idx).ravel()
+    #     support = np.zeros(p)
+    #     for j in support_idx:
+    #         support[j] = 1
+    #     return y, support
+
+    beta = generate_coef(beta, m)
+    if tau == 'median':
+        tau = np.median(X,axis = 0)
+    
+    if min_active is None:
+        y_train_group1 = np.array([lss_func_two_group(X[i, :], beta, group_index=0) for i in range(n//2)])
+        y_train_group2 = np.array([lss_func_two_group(X[i, :], beta, group_index=1) for i in range(n//2, n)])
+        y_train = np.concatenate((y_train_group1, y_train_group2))
+        support_group1 = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
+        support_group2 = np.concatenate((np.zeros(m * r), np.ones(m * r), np.zeros(X.shape[1] - 2*(m * r))))
+        support_groups = (support_group1, support_group2)
+    else:
+        assert False
+        y_train, support = lss_vector_fun(X, beta)
+
+    if heritability is not None:
+        sigma_group1 = (np.var(y_train_group1) * ((1.0 - heritability) / heritability)) ** 0.5
+        sigma_group2 = (np.var(y_train_group2) * ((1.0 - heritability) / heritability)) ** 0.5
+        sigma = (sigma_group1 + sigma_group2) / 2
+    if snr is not None:
+        assert False
+        sigma = (np.var(y_train) / snr) ** 0.5
+    if error_fun is None:
+        error_fun = np.random.randn
+
+    if frac_corrupt is None and corrupt_size is None:
+        y_train = y_train + sigma * error_fun(n)
+    else:
+        assert False
+        if frac_corrupt is None:
+            frac_corrupt = 0
+        num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
+        corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
+        if corrupt_how == 'permute':
+            corrupt_array = y_train[corrupt_indices]
+            corrupt_array = random.sample(list(corrupt_array), len(corrupt_array))
+            for i,index in enumerate(corrupt_indices):
+                y_train[index] = corrupt_array[i]
+            y_train = y_train + sigma * error_fun(n)           
+        elif corrupt_how == 'cauchy':
+            for i in range(len(y_train)):
+                if i in corrupt_indices:
+                    y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
+                else:
+                     y_train[i] = y_train[i] + sigma*error_fun()
+        elif corrupt_how == "leverage_constant":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
+            y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(m*r, p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
+        elif corrupt_how == "leverage_normal":
+            if isinstance(corrupt_size, int):
+                corrupt_quantile = corrupt_size / n
+            else:
+                corrupt_quantile = corrupt_size
+            y_train = y_train + sigma * error_fun(n)
+            corrupt_idx = np.random.choice(range(m*r, p), size=1)
+            y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
+  
+    if return_support:
+        return y_train, support_groups, beta
+    else:
+        return y_train
 
 def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, snr=None, error_fun=None,
                              min_active=None, frac_corrupt=None, corrupt_how='permute', corrupt_size=None,

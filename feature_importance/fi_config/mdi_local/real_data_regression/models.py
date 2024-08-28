@@ -14,6 +14,9 @@ ESTIMATORS = [
 ]
 
 FI_ESTIMATORS = [
+   # [FIModelConfig('Local_MDI+_fit_on_OOB_2', LFI_evaluation_RFPlus_oob_2, model_type='tree', base_model="RFPlus_oob", splitting_strategy = "train-test")],
+    # [FIModelConfig('Local_MDI+_fit_on_all_evaluate_on_all_2', LFI_evaluation_RFPlus_all_2, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
+    # [FIModelConfig('Local_MDI+_fit_on_all_evaluate_on_oob_2', LFI_evaluation_RFPlus_oob_2, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
     [FIModelConfig('TreeSHAP_RF', tree_shap_evaluation_RF, model_type='tree', base_model="RF", splitting_strategy = "train-test")],
     [FIModelConfig('Local_MDI+_fit_on_inbag_RFPlus', LFI_evaluation_RFPlus_inbag, model_type='tree', base_model="RFPlus_inbag", splitting_strategy = "train-test", ascending = False)],
     [FIModelConfig('Local_MDI+_fit_on_OOB_RFPlus', LFI_evaluation_RFPlus_oob, model_type='tree', base_model="RFPlus_oob", splitting_strategy = "train-test", ascending = False)],
@@ -22,6 +25,13 @@ FI_ESTIMATORS = [
     [FIModelConfig('Kernel_SHAP_RF_plus', kernel_shap_evaluation_RF_plus, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
     [FIModelConfig('LIME_RF_plus', lime_evaluation_RF_plus, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
     [FIModelConfig('Random', random, model_type='tree', base_model="None", splitting_strategy = "train-test")],
-    #[FIModelConfig('Oracle_test_RFPlus', LFI_evaluation_oracle_RF_plus, base_model="RFPlus_default", model_type='tree', splitting_strategy = "train-test")],
-    #[FIModelConfig('Local_MDI+_global_MDI_plus_RFPlus', LFI_global_MDI_plus_RF_Plus, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")]
+    [FIModelConfig('Local_MDI+_fit_on_OOB_RFPlus_subtract_intercept', LFI_evaluation_RFPlus_oob_subtract_intercept, model_type='tree', base_model="RFPlus_oob", splitting_strategy = "train-test")],
+    [FIModelConfig('Local_MDI+_fit_on_all_evaluate_on_all_RFPlus_subtract_intercept', LFI_evaluation_RFPlus_all_subtract_intercept, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
+    [FIModelConfig('Local_MDI+_fit_on_all_evaluate_on_oob_RFPlus_subtract_intercept', LFI_evaluation_RFPlus_oob_subtract_intercept, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
+    [FIModelConfig('Local_MDI+_fit_on_OOB_RFPlus_subtract_train_mean', LFI_evaluation_RFPlus_oob_subtract_train_mean, model_type='tree', base_model="RFPlus_oob", splitting_strategy = "train-test")],
+    [FIModelConfig('Local_MDI+_fit_on_all_evaluate_on_all_RFPlus_subtract_train_mean', LFI_evaluation_RFPlus_all_subtract_train_mean, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
+    [FIModelConfig('Local_MDI+_fit_on_all_evaluate_on_oob_RFPlus_subtract_train_mean', LFI_evaluation_RFPlus_oob_subtract_train_mean, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
+    [FIModelConfig('Local_MDI+_fit_on_OOB_RFPlus_subtract_pred_mean', LFI_evaluation_RFPlus_oob_subtract_pred_mean, model_type='tree', base_model="RFPlus_oob", splitting_strategy = "train-test")],
+    [FIModelConfig('Local_MDI+_fit_on_all_evaluate_on_all_RFPlus_subtract_pred_mean', LFI_evaluation_RFPlus_all_subtract_pred_mean, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
+    [FIModelConfig('Local_MDI+_fit_on_all_evaluate_on_oob_RFPlus_subtract_pred_mean', LFI_evaluation_RFPlus_oob_subtract_pred_mean, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
 ]

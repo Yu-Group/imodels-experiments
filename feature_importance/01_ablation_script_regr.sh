@@ -1,6 +1,6 @@
 #!/bin/bash
 
-slurm_script="01_ablation_regression_script_synthetic.sh"
+slurm_script="01_ablation_regression_script.sh"
 
 for rep in {1..10}
 do

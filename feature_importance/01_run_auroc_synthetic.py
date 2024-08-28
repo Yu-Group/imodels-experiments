@@ -31,132 +31,14 @@ from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score
 import dill
 warnings.filterwarnings("ignore", message="Bins whose width")
 
-#RUN THE FILE
-def rbo(s, t, p, k=None, side="top", uneven_lengths=False):
-    """
-    Rank-based overlap (RBO) metric.
-    Proposed in "A Similarity Measure for Indefinite Rankings" by
-    Webber et al. (2010). This is the python implementation
-    of gespeR::rbo from R.
-
-    Parameters
-    ----------
-    s: array-like of shape (n,)
-        Numeric vector.
-    t: array-like of shape (n,)
-        Numeric vector of same length as s.
-    p: float between 0 and 1
-        Weighting parameter in [0, 1]. High p implies strong emphasis
-        on the top-ranked elements (i.e, the larger elements).
-    k: None or int
-        Evaluation depth for extrapolation
-    side: string in {"top", "bottom"}
-        Evaluate similarity between the top or the bottom of the
-        ranked lists.
-    uneven_lengths: bool
-        Indicator if lists have uneven lengths.
-
-    Returns
-    -------
-    Scalar value between 0 and 1, quantifying how much the
-    rankings of x and y agree with each other. A higher
-    values indicates greater similarity.
-
-    """
-    assert side in ["top", "bottom"]
-    if k is None:
-        k = int(np.floor(max(len(s), len(t)) / 2))
-    if side == "top":
-        ids = {"s": _select_ids(s, "top"),
-               "t": _select_ids(t, "top")}
-    elif side == "bottom":
-        ids = {"s": _select_ids(s, "bottom"),
-               "t": _select_ids(t, "bottom")}
-    return min(1, _rbo_ext(ids["s"], ids["t"], p, k, uneven_lengths=uneven_lengths))
-
-
-def _select_ids(x, side="top"):
-    assert side in ["top", "bottom"]
-    if side == "top":
-        return np.argsort(-x)
-    elif side == "bottom":
-        return np.argsort(x)
-
-
-def _rbo_ext(x, y, p, k, uneven_lengths=True):
-    if len(x) <= len(y):
-        S = x
-        L = y
-    else:
-        S = y
-        L = x
-    l = min(k, len(L))
-    s = min(k, len(S))
-    if uneven_lengths:
-        Xd = [len(np.intersect1d(S[:(i+1)], L[:(i+1)])) for i in range(l)]
-        if l > s:
-            sl_range = np.arange(s+1, l+1)
-        else:
-            sl_range = np.arange(l, s+2)
-        result = ((1 - p) / p) * \
-                 ((sum(Xd[:l] / np.arange(1, l+1) * p**np.arange(1, l+1))) +
-                  (sum(Xd[s-1] * (sl_range - s) / (s * sl_range) * p**sl_range))) + \
-                 ((Xd[l-1] - Xd[s-1]) / l + (Xd[s-1] / s)) * p**l
-    else:
-        k = min(s, k)
-        Xd = [len(np.intersect1d(x[:(i+1)], y[:(i+1)])) for i in range(k)]
-        Xk = Xd[k-1]
-        result = (Xk / k) * p**k + (((1 - p) / p) * sum((Xd / np.arange(1, k+1)) * p**np.arange(1, k+1)))
-    return result
-
-# def rank_biased_overlap(list1, list2, p=0.9):
-#     """
-#     Compute the Rank-Biased Overlap (RBO) between two ranked lists.
-
-#     Parameters:
-#     - list1: numpy array or list of the first ranked list
-#     - list2: numpy array or list of the second ranked list
-#     - p: the discount factor (default is 0.9, which is commonly used)
-
-#     Returns:
-#     - rbo: the Rank-Biased Overlap score
-#     """
-
-#     # Convert lists to numpy arrays if they're not already
-#     list1 = np.asarray(list1)
-#     list2 = np.asarray(list2)
-
-#     # Get the indices that would sort the arrays in descending order
-#     sorted_indices1 = np.argsort(-list1)
-#     sorted_indices2 = np.argsort(-list2)
-
-#     # Rank lists based on sorted indices
-#     ranked_list1 = sorted_indices1
-#     ranked_list2 = sorted_indices2
-
-#     # Initialize the overlap
-#     overlap = 0.0
-#     min_len = min(len(ranked_list1), len(ranked_list2))
-    
-#     # Compute the RBO
-#     for i in range(min_len):
-#         # Calculate the overlap at rank i
-#         rank_i_overlap = len(set(ranked_list1[:i+1]) & set(ranked_list2[:i+1]))
-        
-#         # Add the discounted overlap to the total
-#         overlap += (rank_i_overlap / (i + 1)) * (p ** (i + 1))
-    
-#     # Normalize the score
-#     normalization = (1 - p) / (1 - p ** (min_len + 1))
-#     rbo = overlap * normalization
-    
-#     return rbo
+from rbo_implementation import rbo_dict
 
 def compare_estimators(estimators: List[ModelConfig],
                        fi_estimators: List[FIModelConfig],
-                       X, y, support: List,
+                       X, y, support,
                        metrics: List[Tuple[str, Callable]],
-                       args, ) -> Tuple[dict, dict]:
+                       args, 
+                       vary_setting) -> Tuple[dict, dict]:
     """Calculates results given estimators, feature importance estimators, datasets, and metrics.
     Called in run_comparison
     """
@@ -183,6 +65,17 @@ def compare_estimators(estimators: List[ModelConfig],
         for fi_est in fi_estimators:
             fi_ests_dict[fi_est.splitting_strategy].append(fi_est)
 
+        multi_groups = False
+        if isinstance(support, tuple):
+            new_column = np.zeros(X.shape[0])
+            new_column[X.shape[0] // 2:] = 1
+            new_column = new_column.reshape(-1, 1)
+            X = np.hstack((X, new_column))
+            support_group_1 = support[0]
+            support_group_2 = support[1]
+            multi_groups = True
+        print("multi_groups", multi_groups)
+
         # loop over splitting strategies
         for splitting_strategy, fi_ests in fi_ests_dict.items():
             # implement provided splitting strategy
@@ -206,12 +99,6 @@ def compare_estimators(estimators: List[ModelConfig],
 
             #####
             print(X_train)
-            print(y_train)
-            print(X_test)
-            print(y_test)
-            print(y_train.mean())
-
-
             if args.fit_model:
                 print("Fitting Models")
                 # fit RF model
@@ -238,25 +125,30 @@ def compare_estimators(estimators: List[ModelConfig],
                 end_rf_plus_inbag = time.time()
 
                 # get test results
-                # test_all_mse_rf = mean_squared_error(y_test, est.predict(X_test))
-                # test_all_r2_rf = r2_score(y_test, est.predict(X_test))
-                # test_all_mse_rf_plus = mean_squared_error(y_test, rf_plus_base.predict(X_test))
-                # test_all_r2_rf_plus = r2_score(y_test, rf_plus_base.predict(X_test))
-                # test_all_mse_rf_plus_oob = mean_squared_error(y_test, rf_plus_base_oob.predict(X_test))
-                # test_all_r2_rf_plus_oob = r2_score(y_test, rf_plus_base_oob.predict(X_test))
-                # test_all_mse_rf_plus_inbag = mean_squared_error(y_test, rf_plus_base_inbag.predict(X_test))
-                # test_all_r2_rf_plus_inbag = r2_score(y_test, rf_plus_base_inbag.predict(X_test))
+                test_all_mse_rf = mean_squared_error(y_test, est.predict(X_test))
+                test_all_r2_rf = r2_score(y_test, est.predict(X_test))
+                test_all_mse_rf_plus = mean_squared_error(y_test, rf_plus_base.predict(X_test))
+                test_all_r2_rf_plus = r2_score(y_test, rf_plus_base.predict(X_test))
+                test_all_mse_rf_plus_oob = mean_squared_error(y_test, rf_plus_base_oob.predict(X_test))
+                test_all_r2_rf_plus_oob = r2_score(y_test, rf_plus_base_oob.predict(X_test))
+                test_all_mse_rf_plus_inbag = mean_squared_error(y_test, rf_plus_base_inbag.predict(X_test))
+                test_all_r2_rf_plus_inbag = r2_score(y_test, rf_plus_base_inbag.predict(X_test))
 
-                # fitted_results = {
-                #         "Model": ["RF", "RF_plus", "RF_plus_oob", "RF_plus_inbag"],
-                #         "MSE": [test_all_mse_rf, test_all_mse_rf_plus, test_all_mse_rf_plus_oob, test_all_mse_rf_plus_inbag],
-                #         "R2": [test_all_r2_rf, test_all_r2_rf_plus, test_all_r2_rf_plus_oob, test_all_r2_rf_plus_inbag],
-                #         "Time": [end_rf - start_rf, end_rf_plus - start_rf_plus, end_rf_plus_oob - start_rf_plus_oob, end_rf_plus_inbag - start_rf_plus_inbag]
-                # }
+                fitted_results = {
+                        "Model": ["RF", "RF_plus", "RF_plus_oob", "RF_plus_inbag"],
+                        "MSE": [test_all_mse_rf, test_all_mse_rf_plus, test_all_mse_rf_plus_oob, test_all_mse_rf_plus_inbag],
+                        "R2": [test_all_r2_rf, test_all_r2_rf_plus, test_all_r2_rf_plus_oob, test_all_r2_rf_plus_inbag],
+                        "Time": [end_rf - start_rf, end_rf_plus - start_rf_plus, end_rf_plus_oob - start_rf_plus_oob, end_rf_plus_inbag - start_rf_plus_inbag]
+                }
+                temp = ""
+                for vary_name in vary_setting:
+                    fitted_results[vary_name] = [vary_setting[vary_name]] * 4
+                    temp += f"{vary_name}_{vary_setting[vary_name]}_"
+        
                 
-                # os.makedirs(f"/scratch/users/zhongyuan_liang/saved_models/auroc/{args.folder_name}", exist_ok=True)
-                # results_df = pd.DataFrame(fitted_results)
-                # results_df.to_csv(f"/scratch/users/zhongyuan_liang/saved_models/auroc/{args.folder_name}/RFPlus_fitted_summary_{args.split_seed}.csv", index=False)
+                os.makedirs(f"/scratch/users/zhongyuan_liang/saved_models/auroc/{args.folder_name}", exist_ok=True)
+                results_df = pd.DataFrame(fitted_results)
+                results_df.to_csv(f"/scratch/users/zhongyuan_liang/saved_models/auroc/{args.folder_name}/RFPlus_fitted_summary_{args.simulation_seed}_{temp}.csv", index=False)
                             
 
                 # pickle_file = f"/scratch/users/zhongyuan_liang/saved_models/auroc/{args.folder_name}/RF_{args.split_seed}.dill"
@@ -340,55 +232,113 @@ def compare_estimators(estimators: List[ModelConfig],
                 metric_results['load_model_time'] = end - start
                 print(f"done with loading models: {end - start}")
 
+                if loaded_model is not None:
+                    y_train_pred = loaded_model.predict(X_train)
+                else:
+                    y_train_pred = None
                 local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, X_train_subset = X_train_subset, y_train_subset=y_train_subset,
                                                                                                                                 X_test=X_test, y_test=y_test, X_test_subset=X_test_subset, y_test_subset=y_test_subset,
-                                                                                                                                fit=loaded_model, mode="absolute")
+                                                                                                                                fit=loaded_model, mode="absolute",y_train_pred=y_train_pred)
                 if fi_est.name.startswith("Local_MDI+"):
                     local_fi_score_train_subset = local_fi_score_train[indices_train]
                 feature_importance_list["absolute"][fi_est.name] = [local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset]
-                
-                all_data = {"train_subset": local_fi_score_train_subset, "test_subset": local_fi_score_test_subset,
+                all_x_data = {"train_subset": X_train_subset, "test_subset": X_test_subset, "test": X_test}
+                all_fi_data = {"train_subset": local_fi_score_train_subset, "test_subset": local_fi_score_test_subset,
                             "test": local_fi_score_test}
-                all_x = {"train_subset": np.abs(X_train_subset), "test_subset": np.abs(X_test_subset),
+                all_ground_truth_fi = {"train_subset": np.abs(X_train_subset), "test_subset": np.abs(X_test_subset),
                             "test": np.abs(X_test)}
-                # for d in all_data:
-                #     data = all_data[d]
-                #     if not isinstance(data, np.ndarray):
-                #         metric_results[f'auroc_{d}'] = None
-                #         metric_results[f'auprc_{d}'] = None
-                #     else:
-                #         auroc = []
-                #         auprc = []
-                #         for i in range(data.shape[0]):
-                #             if fi_est.ascending:
-                #                 auroc.append(roc_auc_score(support, data[i]))
-                #                 auprc.append(average_precision_score(support, data[i]))
-                #             else:
-                #                 auroc.append(roc_auc_score(support, -1*data[i]))
-                #                 auprc.append(average_precision_score(support, -1*data[i]))
-                #         metric_results[f'auroc_{d}'] = np.array(auroc).mean()
-                #         metric_results[f'auprc_{d}'] = np.array(auprc).mean()
-                #     print(f"{fi_est.name} done with {d} data with auroc: {metric_results[f'auroc_{d}']} and auprc: {metric_results[f'auprc_{d}']}")
-                for d in all_data:
-                    data = all_data[d]
-                    if not isinstance(data, np.ndarray):
-                        metric_results[f'rbo_{d}'] = None
-                        metric_results[f'rbo_{d}'] = None
+                for d in all_fi_data:
+                    x_data = all_x_data[d]
+                    fi_data = all_fi_data[d]
+                    ground_truth_fi = all_ground_truth_fi[d]
+                    if not isinstance(fi_data, np.ndarray):
+                        metric_results[f'auroc_{d}'] = None
+                        metric_results[f'auprc_{d}'] = None
+                        metric_results[f'rbo_09_{d}'] = None
+                        metric_results[f'rbo_06_{d}'] = None
+                        metric_results[f'rbo_095_{d}'] = None
+                        for k in range(50):
+                            metric_results[f'num_captured_{d}_{k}'] = None
                     else:
-                        support_d = all_x[d]
-                        support_d[:, -5:] = 0
-                        rbo_lst = []
-                        for i in range(data.shape[0]):
-                            # if fi_est.ascending:
-                            #     rbo_lst.append(rbo.RankingSimilarity(support_d[i], data[i]).rbo())
-                            # else:
-                            #     rbo_lst.append(rbo.RankingSimilarity(support_d[i], -1*data[i]).rbo())
+                        if multi_groups:
+                            fi_data = all_fi_data[d][:, :-1]
+                            ground_truth_fi = all_ground_truth_fi[d][:, :-1]
+                        auroc = []
+                        auprc = []
+                        rbo_lst_06 = []
+                        rbo_lst_09 = []
+                        rbo_lst_095 = []
+                        num_captured = [0]*50 #placeholder
+                        for i in range(fi_data.shape[0]):
+                            if multi_groups:
+                                if x_data[i][-1] == 0:
+                                    support = support_group_1
+                                elif x_data[i][-1] == 1:
+                                    support = support_group_2
+                            fi_data_i = fi_data[i]
+                            ground_truth_fi_i = copy.deepcopy(ground_truth_fi[i])
+                            ground_truth_fi_i[support == 0] = 0
+                            dict_predictions = dict(enumerate(fi_data_i))
+                            dict_ground_truth = dict(enumerate(ground_truth_fi_i))      
+                            num_signal_features = int(np.sum(support))            
                             if fi_est.ascending:
-                                rbo_lst.append(rbo(support_d[i], data[i], 0.9))
+                                auroc.append(roc_auc_score(support, fi_data_i))
+                                auprc.append(average_precision_score(support, fi_data_i))
+                                rbo_lst_095.append(rbo_dict(dict1=dict_ground_truth, dict2=dict_predictions, p=0.95)[2])
+                                rbo_lst_06.append(rbo_dict(dict1=dict_ground_truth, dict2=dict_predictions, p=0.6)[2])
+                                rbo_lst_09.append(rbo_dict(dict1=dict_ground_truth, dict2=dict_predictions, p=0.9)[2])
+                                sorted_indices = np.argsort(-fi_data_i)
+                                for k in range(num_signal_features):
+                                    top_indices = sorted_indices[:k+1]
+                                    actual_signal_features = np.sum(support[top_indices])
+                                    num_captured[k] += actual_signal_features
                             else:
-                                rbo_lst.append(rbo(support_d[i], -1*data[i], 0.9))  
-                        metric_results[f'rbo_{d}'] = np.array(rbo_lst).mean()
-                    print(f"{fi_est.name} done with {d} data with rbo: {metric_results[f'rbo_{d}']}")
+                                auroc.append(roc_auc_score(support, -1*fi_data_i))
+                                auprc.append(average_precision_score(support, -1*fi_data_i))
+                                rbo_lst_095.append(rbo_dict(dict1=dict_ground_truth, dict2=dict_predictions, p=0.95, sort_ascending_dict2=False)[2])
+                                rbo_lst_06.append(rbo_dict(dict1=dict_ground_truth, dict2=dict_predictions, p=0.6, sort_ascending_dict2=False)[2])
+                                rbo_lst_09.append(rbo_dict(dict1=dict_ground_truth, dict2=dict_predictions, p=0.9, sort_ascending_dict2=False)[2])
+                                sorted_indices = np.argsort(fi_data_i)
+                                for k in range(num_signal_features):
+                                    top_indices = sorted_indices[:k+1]
+                                    actual_signal_features = np.sum(support[top_indices])
+                                    num_captured[k] += actual_signal_features
+                        metric_results[f'auroc_{d}'] = np.array(auroc).mean()
+                        metric_results[f'auprc_{d}'] = np.array(auprc).mean()
+                        metric_results[f'rbo_09_{d}'] = np.array(rbo_lst_09).mean()
+                        metric_results[f'rbo_06_{d}'] = np.array(rbo_lst_06).mean()
+                        metric_results[f'rbo_095_{d}'] = np.array(rbo_lst_095).mean()
+                        for k in range(50):
+                            num_captured[k] /= fi_data.shape[0]
+                            metric_results[f'num_captured_{d}_{k}'] = num_captured[k]
+                    print(f"{fi_est.name} done with {d} data with auroc: {metric_results[f'auroc_{d}']}, auprc: {metric_results[f'auprc_{d}']} and rbo: {metric_results[f'rbo_09_{d}']}")
+                    
+                    # if not isinstance(data, np.ndarray):
+                    #     metric_results[f'rbo_{d}'] = None
+                    #     metric_results[f'rbo_{d}'] = None
+                    # else:
+                    #     if multi_groups:
+                    #         if data[i][-1] == 0:
+                    #             support = support_group_1
+                    #         elif data[i][-1] == 1:
+                    #             support = support_group_2
+                    #     print("support", support)
+                    #     ground_truth = ground_truth_fi[d]
+                    #     ground_truth[:, support == 0] = 0
+                    #     rbo_lst = []
+                    #     for i in range(data.shape[0]):
+                    #         dict_ground_truth = dict(enumerate(ground_truth[i]))
+                    #         if multi_groups:
+                    #             dict_predictions = dict(enumerate(data[i][:-1]))
+                    #         else:
+                    #             dict_predictions = dict(enumerate(data[i]))
+                    #         if fi_est.ascending:
+                    #             rbo_lst.append(rbo_dict(dict1=dict_ground_truth, dict2=dict_predictions, p=0.9)[2])
+                    #         else:
+                    #             rbo_lst.append(rbo_dict(dict1=dict_ground_truth, dict2=dict_predictions, p=0.9, sort_ascending_dict2=False)[2])
+                    #     metric_results[f'rbo_{d}'] = np.array(rbo_lst).mean()
+                    # print(f"{fi_est.name} done with {d} data with rbo: {metric_results[f'rbo_{d}']}")
+
                 # initialize results with metadata and metric results
                 kwargs: dict = model.kwargs  # dict
                 for k in kwargs:
@@ -408,7 +358,8 @@ def run_comparison(path: str,
                    metrics: List[Tuple[str, Callable]],
                    estimators: List[ModelConfig],
                    fi_estimators: List[FIModelConfig],
-                   args):
+                   args,
+                   vary_setting):
     estimator_name = estimators[0].name.split(' - ')[0]
     fi_estimators_all = [fi_estimator for fi_estimator in itertools.chain(*fi_estimators) \
                          if fi_estimator.model_type in estimators[0].model_type]
@@ -439,7 +390,8 @@ def run_comparison(path: str,
                                  fi_estimators=fi_estimators,
                                  X=X, y=y, support=support,
                                  metrics=metrics,
-                                 args=args)
+                                 args=args,
+                                 vary_setting=vary_setting)
 
     estimators_list = [e.name for e in estimators]
     metrics_list = [m[0] for m in metrics]
@@ -483,14 +435,14 @@ def reformat_results(results):
     # return results_df
     return results
 
-def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args):
+def run_simulation(i, simulation_seed, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args, vary_setting):
     os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
-    #np.random.seed(i)
+    np.random.seed(i)
     max_iter = 100
     iter = 0
     while iter <= max_iter:  # regenerate data if y is constant
         X = X_dgp(**X_params_dict)
-        y, support, beta = y_dgp(X, **y_params_dict, seed = i, return_support=True)
+        y, support, beta = y_dgp(X, **y_params_dict, seed = simulation_seed, return_support=True)
         if not all(y == y[0]):
             break
         iter += 1
@@ -508,7 +460,8 @@ def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp
                                  metrics=metrics,
                                  estimators=est,
                                  fi_estimators=fi_ests,
-                                 args=args)
+                                 args=args,
+                                 vary_setting=vary_setting)
     return True
 
 
@@ -601,6 +554,9 @@ if __name__ == '__main__':
         keys, values = zip(*vary_param_vals.items())
         vary_param_dicts = [dict(zip(keys, v)) for v in itertools.product(*values)]
         vary_type = {}
+        #### Added
+        vary_setting = {}
+        ####
         for vary_param_dict in vary_param_dicts:
             for param_name, param_val in vary_param_dict.items():
                 if param_name in X_params_dict.keys() and param_name in y_params_dict.keys():
@@ -622,11 +578,14 @@ if __name__ == '__main__':
                         vary_type[param_name] = "fi_est"
                     else:
                         raise ValueError('Invalid vary_param_name.')
+                #### Added
+                vary_setting[param_name] = param_val
+                ####
 
             if args.parallel:
                 futures = [
                     dask.delayed(run_simulation)(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp,
-                                                 y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in
+                                                 y_params_dict, y_dgp, ests, fi_ests, metrics, args, vary_setting) for i in
                     range(args.nreps)]
                 results = dask.compute(*futures)
             else:
@@ -634,8 +593,8 @@ if __name__ == '__main__':
                 #     run_simulation(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict,
                 #                    y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
                 results = [
-                    run_simulation(args.simulation_seed, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict,
-                                   y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
+                    run_simulation(i, args.simulation_seed, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict,
+                                   y_dgp, ests, fi_ests, metrics, args, vary_setting) for i in range(args.nreps)]
             assert all(results)
 
     else:  # only on parameter is being varied over
@@ -667,7 +626,7 @@ if __name__ == '__main__':
                 results = dask.compute(*futures)
             else:
                 results = [
-                    run_simulation(args.simulation_seed, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict,
+                    run_simulation(i, args.simulation_seed, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict,
                                    y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
                 # results = [run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests,
                 #                           metrics, args) for i in range(args.nreps)]

@@ -289,6 +289,11 @@ def compare_estimators(estimators: List[ModelConfig],
                         mode.append("positive")
                     if args.negative_masking:
                         mode.append("negative")
+
+                    if loaded_model is not None:
+                        y_train_pred = loaded_model.predict(X_train)
+                    else:
+                        y_train_pred = None
                     
                     for m in mode:
                         start = time.time()
@@ -296,7 +301,7 @@ def compare_estimators(estimators: List[ModelConfig],
                         # Compute feature importance
                         local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset = fi_est.cls(X_train=X_train, y_train=y_train, X_train_subset = X_train_subset, y_train_subset=y_train_subset,
                                                                                                                                         X_test=X_test, y_test=y_test, X_test_subset=X_test_subset, y_test_subset=y_test_subset,
-                                                                                                                                        fit=loaded_model, mode=m)
+                                                                                                                                        fit=loaded_model, mode=m, y_train_pred=y_train_pred)
                         if fi_est.name.startswith("Local_MDI+"):
                             local_fi_score_train_subset = local_fi_score_train[indices_train]
                         

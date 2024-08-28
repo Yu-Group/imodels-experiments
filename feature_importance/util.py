@@ -70,7 +70,7 @@ class FIModelConfig:
 
         assert splitting_strategy in {
             'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata',
-            'train-test-prediction', None
+            'train-test-prediction', None, 'test-300'
         }
         assert base_model in ["None", "RF", "RFPlus_default", "RFPlus_inbag", "RFPlus_oob"]
 
@@ -188,6 +188,8 @@ def apply_splitting_strategy(X: np.ndarray,
         test_size = 0.90  # X.shape[0] - X.shape[0] * 0.1
     elif splitting_strategy == "train-test":
         test_size = 0.33
+    elif splitting_strategy == "test-300":
+        test_size = 300
     else:
         test_size = 0.2
 
