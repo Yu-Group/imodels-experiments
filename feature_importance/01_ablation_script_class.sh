@@ -1,6 +1,6 @@
 #!/bin/bash
 
-slurm_script="01_ablation_classification_script.sh"
+slurm_script="01_ablation_classification_script_average.sh"
 
 for rep in {1..10}
 do

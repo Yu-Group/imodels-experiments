@@ -6,6 +6,7 @@ import warnings
 import math
 import imodels
 import openml
+from ucimlrepo import fetch_ucirepo
 
 def sample_real_data_X(source=None, data_name=None, file_path=None, data_id=None, seed=4307, normalize=False, sample_row_n=None):
     if source == "imodels":
@@ -17,6 +18,12 @@ def sample_real_data_X(source=None, data_name=None, file_path=None, data_id=None
         # X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
         dataset = openml.datasets.get_dataset(data_id)
         X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute, dataset_format="array")
+    elif source == "uci":
+        dataset = fetch_ucirepo(id=data_id)
+        temp = dataset.data.features.replace('?', np.nan)
+        temp= temp.dropna(axis=1)
+        temp = temp.drop(columns=['communityname'])
+        X = temp.to_numpy()
     elif source == "csv":
         X = pd.read_csv(file_path).to_numpy()
     if normalize:
@@ -39,6 +46,12 @@ def sample_real_data_y(X=None, source=None, data_name=None, file_path=None, data
         # _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
         dataset = openml.datasets.get_dataset(data_id)
         _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute, dataset_format="array")
+    elif source == "uci":
+        dataset = fetch_ucirepo(id=data_id)
+        if dataset.data.targets.to_numpy().shape[1] > 1:
+            y = dataset.data.targets.iloc[:, 0].to_numpy().flatten()
+        else:
+            y = dataset.data.targets.to_numpy().flatten()
     elif source == "csv":
         y = pd.read_csv(file_path).to_numpy().flatten()
     if sample_row_n is not None:
@@ -497,7 +510,7 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
     else:
         return y_train
 
-def lss_model_two_groups(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None, min_active=None,
+def lss_model_two_groups(X, sigma, m, r, tau, beta, group_intercept=0.5, heritability=None, snr=None, error_fun=None, min_active=None,
               frac_corrupt=None, corrupt_how='permute', corrupt_size=None, corrupt_mean=None,
               return_support=False, seed=None):
     """
@@ -560,8 +573,8 @@ def lss_model_two_groups(X, sigma, m, r, tau, beta, heritability=None, snr=None,
         tau = np.median(X,axis = 0)
     
     if min_active is None:
-        y_train_group1 = np.array([lss_func_two_group(X[i, :], beta, group_index=0) for i in range(n//2)])
-        y_train_group2 = np.array([lss_func_two_group(X[i, :], beta, group_index=1) for i in range(n//2, n)])
+        y_train_group1 = np.array([lss_func_two_group(X[i, :], beta, group_index=0) for i in range(n//2)]) - group_intercept
+        y_train_group2 = np.array([lss_func_two_group(X[i, :], beta, group_index=1) for i in range(n//2, n)]) + group_intercept
         y_train = np.concatenate((y_train_group1, y_train_group2))
         support_group1 = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
         support_group2 = np.concatenate((np.zeros(m * r), np.ones(m * r), np.zeros(X.shape[1] - 2*(m * r))))
@@ -757,7 +770,7 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
                     
 def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None,
                       frac_corrupt=None, corrupt_how='permute', corrupt_size=None,
-                      corrupt_mean=None, error_fun=None, return_support=False):
+                      corrupt_mean=None, error_fun=None, return_support=False ,seed=None):
     """
     This method creates response from an Linear + LSS model
 
@@ -775,12 +788,18 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
     n, p = X.shape
     assert p >= m * r
 
+    if seed is not None:
+        np.random.seed(seed)
+
     def reg_func(x, beta):
         y = 0
         for i in range(m):
             hier_term = 1.0
             for j in range(r):
-                hier_term += x[i * r + j] * hier_term
+                if j == 0:
+                    hier_term = x[i * r + j]
+                else:
+                    hier_term += x[i * r + j] * hier_term
             y += hier_term * beta[i]
         return y
 

@@ -15,37 +15,29 @@ from sklearn.ensemble import RandomForestRegressor
 from imodels.tree.rf_plus.feature_importance.rfplus_explainer import *
 from sklearn.metrics import r2_score, mean_absolute_error, accuracy_score, roc_auc_score, mean_squared_error
 
-### Helper function that mask the matrix
-def feature_importance_mask(feature_importance, mask_matrix, mode, mask_to = "zero"):
-    assert mode in ["positive", "negative"]
-    assert mask_to in ["zero", "inf"]
-    masked_feature_importance = feature_importance.copy()
-    if mode == "positive":
-        mask = mask_matrix > 0
-    elif mode == "negative":
-        mask = mask_matrix < 0
-    if mask_to == "zero":
-        masked_feature_importance[~mask] = 0
-    else:
-        masked_feature_importance[~mask] = sys.maxsize - 1
-    return masked_feature_importance
+# ### Helper function that mask the matrix
+# def feature_importance_mask(feature_importance, mask_matrix, mode, mask_to = "zero"):
+#     assert mode in ["positive", "negative"]
+#     assert mask_to in ["zero", "inf"]
+#     masked_feature_importance = feature_importance.copy()
+#     if mode == "positive":
+#         mask = mask_matrix > 0
+#     elif mode == "negative":
+#         mask = mask_matrix < 0
+#     if mask_to == "zero":
+#         masked_feature_importance[~mask] = 0
+#     else:
+#         masked_feature_importance[~mask] = sys.maxsize - 1
+#     return masked_feature_importance
 
-#### Baseline Methods
-def random(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", y_train_pred=None):
-    local_fi_score_train = None
-    local_fi_score_train_subset = np.random.randn(*X_train_subset.shape)
-    local_fi_score_test = np.random.randn(*X_test.shape)
-    local_fi_score_test_subset = np.random.randn(*X_test_subset.shape)
+
+def random_retrain(X_train, y_train, fit=None, mode="absolute"):
+    local_fi_score_train = np.random.randn(*X_train.shape)
     if mode == "absolute":
-        return None, np.abs(local_fi_score_train_subset), np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
-    else:
-        local_fi_score_train_subset = feature_importance_mask(local_fi_score_train_subset, local_fi_score_train_subset, mode, mask_to = "zero")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
-        return local_fi_score_train, np.abs(local_fi_score_train_subset), np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+        return np.abs(local_fi_score_train)
 
 
-def tree_shap_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", y_train_pred=None):
+def tree_shap_evaluation_RF_retrain(X_train, y_train, fit=None, mode="absolute"):
     """
     Compute average treeshap value across observations.
     Larger absolute values indicate more important features.
@@ -55,274 +47,613 @@ def tree_shap_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_
     :return: dataframe of shape: (n_samples, n_features)
     """
     explainer = shap.TreeExplainer(fit)
-    local_fi_score_train = None
+    local_fi_score_train = explainer.shap_values(X_train, check_additivity=False)
+    if sklearn.base.is_classifier(fit):
+        if mode == "absolute":
+            return np.abs(local_fi_score_train[:,:,1])
+    if mode == "absolute":
+        return np.abs(local_fi_score_train)
+     
+
+def lime_evaluation_RF_retrain(X_train, y_train, fit=None, mode="absolute"):
+    result = np.zeros((X_train.shape[0], X_train.shape[1]))
+    if sklearn.base.is_classifier(fit):
+        task = "classification"
+    else:
+        task = "regression"
+    if task == "classification":
+        explainer = lime.lime_tabular.LimeTabularExplainer(X_train,verbose=False,mode=task)
+        num_features = X_train.shape[1]
+        for i in range(X_train.shape[0]):
+            exp = explainer.explain_instance(X_train[i,:], fit.predict_proba, num_features=num_features)
+            original_feature_importance = exp.as_map()[1]
+            sorted_feature_importance = sorted(original_feature_importance,key = lambda x: x[0])
+            for j in range(num_features):
+                result[i,j] = sorted_feature_importance[j][1] #abs(sorted_feature_importance[j][1])
+    elif task == "regression":
+        explainer = lime.lime_tabular.LimeTabularExplainer(X_train,verbose=False,mode=task)
+        num_features = X_train.shape[1]
+        for i in range(X_train.shape[0]):
+            exp = explainer.explain_instance(X_train[i,:], fit.predict, num_features=num_features)
+            original_feature_importance = exp.as_map()[1]
+            sorted_feature_importance = sorted(original_feature_importance,key = lambda x: x[0])
+            for j in range(num_features):
+                result[i,j] = sorted_feature_importance[j][1]
+    if mode == "absolute":
+        lime_values = np.abs(result)
+        return lime_values
+
+
+def LFI_evaluation_RFPlus_inbag_retrain(X_train, y_train, fit=None, mode="absolute"):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    rf_plus_mdi = RFPlusMDI(fit, mode = 'only_k', evaluate_on="inbag")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train)
+
+
+def LFI_evaluation_RFPlus_oob_retrain(X_train, y_train, fit=None, mode="absolute"):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    rf_plus_mdi = AloRFPlusMDI(fit, mode = 'only_k', evaluate_on="oob")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train)
+
+def LFI_evaluation_RFPlus_all_retrain(X_train, y_train, fit=None, mode="absolute"):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    rf_plus_mdi = AloRFPlusMDI(fit, mode = 'only_k', evaluate_on="all")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train)
+    
+
+def LFI_evaluation_RFPlus_inbag_l2_norm_sign_retrain(X_train, y_train, fit=None, mode="absolute"):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    rf_plus_mdi = RFPlusMDI(fit, mode = 'only_k', evaluate_on="inbag")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True, sign=True)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train)
+
+
+def LFI_evaluation_RFPlus_oob_l2_norm_sign_retrain(X_train, y_train, fit=None, mode="absolute"):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    rf_plus_mdi = AloRFPlusMDI(fit, mode = 'only_k', evaluate_on="oob")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True, sign=True)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train)
+
+def LFI_evaluation_RFPlus_all_l2_norm_sign_retrain(X_train, y_train, fit=None, mode="absolute"):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    rf_plus_mdi = AloRFPlusMDI(fit, mode = 'only_k', evaluate_on="all")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True, sign=True)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train)
+
+
+def LFI_evaluation_RFPlus_inbag_l2_norm_retrain(X_train, y_train, fit=None, mode="absolute"):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    rf_plus_mdi = RFPlusMDI(fit, mode = 'only_k', evaluate_on="inbag")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True, sign=False)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train)
+
+
+def LFI_evaluation_RFPlus_oob_l2_norm_retrain(X_train, y_train, fit=None, mode="absolute"):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    rf_plus_mdi = AloRFPlusMDI(fit, mode = 'only_k', evaluate_on="oob")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True, sign=False)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train)
+
+def LFI_evaluation_RFPlus_all_l2_norm_retrain(X_train, y_train, fit=None, mode="absolute"):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    rf_plus_mdi = AloRFPlusMDI(fit, mode = 'only_k', evaluate_on="all")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True, sign=False)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#### Baseline Methods
+def random(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", train_only=False):
+    local_fi_score_train = np.random.randn(*X_train.shape)
+    local_fi_score_train_subset = np.random.randn(*X_train_subset.shape)
+    local_fi_score_test = np.random.randn(*X_test.shape)
+    local_fi_score_test_subset = np.random.randn(*X_test_subset.shape)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train), np.abs(local_fi_score_train_subset), np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+    else:
+        return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+        # local_fi_score_train_subset = feature_importance_mask(local_fi_score_train_subset, local_fi_score_train_subset, mode, mask_to = "zero")
+        # local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
+        # local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
+        # return local_fi_score_train, np.abs(local_fi_score_train_subset), np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+
+
+def tree_shap_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", train_only=False):
+    """
+    Compute average treeshap value across observations.
+    Larger absolute values indicate more important features.
+    :param X: design matrix
+    :param y: response
+    :param fit: fitted model of interest (tree-based)
+    :return: dataframe of shape: (n_samples, n_features)
+    """
+    explainer = shap.TreeExplainer(fit)
+    local_fi_score_train = explainer.shap_values(X_train, check_additivity=False)
     local_fi_score_train_subset = explainer.shap_values(X_train_subset, check_additivity=False)
     local_fi_score_test = explainer.shap_values(X_test, check_additivity=False)
     local_fi_score_test_subset = explainer.shap_values(X_test_subset, check_additivity=False)
     if sklearn.base.is_classifier(fit):
         if mode == "absolute":
-            return None, np.sum(np.abs(local_fi_score_train_subset),axis=-1), np.sum(np.abs(local_fi_score_test),axis=-1), np.sum(np.abs(local_fi_score_test_subset),axis=-1)
+            #return None, np.sum(np.abs(local_fi_score_train_subset),axis=-1), np.sum(np.abs(local_fi_score_test),axis=-1), np.sum(np.abs(local_fi_score_test_subset),axis=-1)
+            return np.abs(local_fi_score_train[:,:,1]), np.abs(local_fi_score_train_subset[:,:,1]), np.abs(local_fi_score_test[:,:,1]), np.abs(local_fi_score_test_subset[:,:,1])
         else:
-            return None, local_fi_score_train_subset[:,:,1], local_fi_score_test[:,:,1], local_fi_score_test_subset[:,:,1]
+            return local_fi_score_train[:,:,1], local_fi_score_train_subset[:,:,1], local_fi_score_test[:,:,1], local_fi_score_test_subset[:,:,1]
     else:
         if mode == "absolute":
-            return None, np.abs(local_fi_score_train_subset), np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+            return np.abs(local_fi_score_train), np.abs(local_fi_score_train_subset), np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
         else:
-            local_fi_score_train_subset = feature_importance_mask(local_fi_score_train_subset, local_fi_score_train_subset, mode, mask_to = "zero")
-            local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
-            local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
-            return local_fi_score_train, np.abs(local_fi_score_train_subset), np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+            # local_fi_score_train_subset = feature_importance_mask(local_fi_score_train_subset, local_fi_score_train_subset, mode, mask_to = "zero")
+            # local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
+            # local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
+            return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+def lime_evaluation_RF(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", train_only=False):
+    if train_only:
+        result = np.zeros((X_train.shape[0], X_train.shape[1]))
+        if sklearn.base.is_classifier(fit):
+            task = "classification"
+        else:
+            task = "regression"
+        
+        if task == "classification":
+            explainer = lime.lime_tabular.LimeTabularExplainer(X_train,verbose=False,mode=task)
+            num_features = X_train.shape[1]
+            for i in range(X_train.shape[0]):
+                exp = explainer.explain_instance(X_train[i,:], fit.predict_proba, num_features=num_features)
+                original_feature_importance = exp.as_map()[1]
+                sorted_feature_importance = sorted(original_feature_importance,key = lambda x: x[0])
+                for j in range(num_features):
+                    result[i,j] = sorted_feature_importance[j][1] #abs(sorted_feature_importance[j][1])
+        elif task == "regression":
+            explainer = lime.lime_tabular.LimeTabularExplainer(X_train,verbose=False,mode=task)
+            num_features = X_train.shape[1]
+            for i in range(X_train.shape[0]):
+                exp = explainer.explain_instance(X_train[i,:], fit.predict, num_features=num_features)
+                original_feature_importance = exp.as_map()[1]
+                sorted_feature_importance = sorted(original_feature_importance,key = lambda x: x[0])
+                for j in range(num_features):
+                    result[i,j] = sorted_feature_importance[j][1]
+        if mode == "absolute":
+            lime_values = np.abs(result)
+        else:
+            lime_values = result
+
+        return lime_values, None, None, None
+
+
+
+# def kernel_shap_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_kernel_shap = RFPlusKernelSHAP(fit)
+#     local_fi_score_train = None
+#     local_fi_score_train_subset = rf_plus_kernel_shap.explain(X_train=X_train, X_test=X_train_subset)
+#     local_fi_score_test = None
+#     local_fi_score_test_subset = rf_plus_kernel_shap.explain(X_train=X_train, X_test=X_test_subset)
+#     if sklearn.base.is_classifier(fit):
+#         if mode == "absolute":
+#             #return None, np.sum(np.abs(local_fi_score_train_subset),axis=-1), np.sum(np.abs(local_fi_score_test),axis=-1), np.sum(np.abs(local_fi_score_test_subset),axis=-1)
+#             return None, np.abs(local_fi_score_train_subset[:,:,1]), None, np.abs(local_fi_score_test_subset[:,:,1])
+#         else:
+#             return None, local_fi_score_train_subset[:,:,1], None, local_fi_score_test_subset[:,:,1]
+#     else:
+#         if mode == "absolute":
+#             return None, np.abs(local_fi_score_train_subset), None, np.abs(local_fi_score_test_subset)
+#         else:
+#             # local_fi_score_train_subset = feature_importance_mask(local_fi_score_train_subset, local_fi_score_train_subset, mode, mask_to = "zero")
+#             # local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
+#             return None, local_fi_score_train_subset, None, local_fi_score_test_subset
         
 
-def kernel_shap_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", y_train_pred=None):
-    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_kernel_shap = RFPlusKernelSHAP(fit)
-    local_fi_score_train = None
-    local_fi_score_train_subset = rf_plus_kernel_shap.explain(X_train=X_train, X_test=X_train_subset)
-    local_fi_score_test = None
-    local_fi_score_test_subset = rf_plus_kernel_shap.explain(X_train=X_train, X_test=X_test_subset)
-    if sklearn.base.is_classifier(fit):
-        if mode == "absolute":
-            return None, np.sum(np.abs(local_fi_score_train_subset),axis=-1), None, np.sum(np.abs(local_fi_score_test_subset),axis=-1)
-        else:
-            return None, local_fi_score_train_subset[:,:,1], None, local_fi_score_test_subset[:,:,1]
-    else:
-        if mode == "absolute":
-            return None, np.abs(local_fi_score_train_subset), None, np.abs(local_fi_score_test_subset)
-        else:
-            local_fi_score_train_subset = feature_importance_mask(local_fi_score_train_subset, local_fi_score_train_subset, mode, mask_to = "zero")
-            local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
-            return local_fi_score_train, np.abs(local_fi_score_train_subset), local_fi_score_test, np.abs(local_fi_score_test_subset)
-        
+# def lime_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_lime = RFPlusLime(fit)
+#     local_fi_score_train = None
+#     local_fi_score_train_subset = rf_plus_lime.explain(X_train=X_train, X_test=X_train_subset).values
+#     local_fi_score_test = None
+#     local_fi_score_test_subset = rf_plus_lime.explain(X_train=X_train, X_test=X_test_subset).values
+#     if mode == "absolute":
+#         return None, np.abs(local_fi_score_train_subset), None, np.abs(local_fi_score_test_subset)
+#     else:
+#         return None, local_fi_score_train_subset, None, local_fi_score_test_subset
+#         # local_fi_score_train_subset = feature_importance_mask(local_fi_score_train_subset, local_fi_score_train_subset, mode, mask_to = "zero")
+#         # local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
+#         # return local_fi_score_train, np.abs(local_fi_score_train_subset), local_fi_score_test, np.abs(local_fi_score_test_subset)
 
-def lime_evaluation_RF_plus(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", y_train_pred=None):
-    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_lime = RFPlusLime(fit)
-    local_fi_score_train = None
-    local_fi_score_train_subset = rf_plus_lime.explain(X_train=X_train, X_test=X_train_subset).values
-    local_fi_score_test = None
-    local_fi_score_test_subset = rf_plus_lime.explain(X_train=X_train, X_test=X_test_subset).values
-    if mode == "absolute":
-        return None, np.abs(local_fi_score_train_subset), None, np.abs(local_fi_score_test_subset)
-    else:
-        local_fi_score_train_subset = feature_importance_mask(local_fi_score_train_subset, local_fi_score_train_subset, mode, mask_to = "zero")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
-        return local_fi_score_train, np.abs(local_fi_score_train_subset), local_fi_score_test, np.abs(local_fi_score_test_subset)
+
+
+
+
+
+
+
+
+
 
 ### Feature Importance Methods for RF+
-def LFI_evaluation_RFPlus_inbag(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", y_train_pred=None):
+    
+# def LFI_evaluation_RFPlus_inbag(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = RFPlusMDI(fit, evaluate_on="inbag")
+#     local_fi_score_train = np.abs(rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train))
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test, y=None))
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None))
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+def LFI_evaluation_RFPlus_oob(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", train_only=False):
     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_mdi_train = RFPlusMDI(fit, evaluate_on="inbag")
-    rf_plus_mdi_test = RFPlusMDI(fit, evaluate_on="all")
-    local_fi_score_train = np.abs(rf_plus_mdi_train.explain(X=X_train, y=y_train)[0])
+    rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="oob")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train)
     local_fi_score_train_subset = None
-    local_fi_score_test = np.abs(rf_plus_mdi_test.explain(X=X_test, y=None)[0])
-    local_fi_score_test_subset = np.abs(rf_plus_mdi_test.explain(X=X_test_subset, y=None)[0])
-    if mode != "absolute":
-        local_fi_score_train_mask = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train)
-        local_fi_score_test_mask = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None)
-        local_fi_score_test_subset_mask = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None)
-        local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train_mask, mode, mask_to = "inf")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test_mask, mode, mask_to = "inf")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset_mask, mode, mask_to = "inf")
-    return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+    local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None)
+    local_fi_score_test_subset = rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train), None, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+    else:
+        return local_fi_score_train, None, local_fi_score_test, local_fi_score_test_subset
 
 
-def LFI_evaluation_RFPlus_oob(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", y_train_pred=None):
-    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_mdi_train = AloRFPlusMDI(fit, evaluate_on="oob")
-    rf_plus_mdi_test = AloRFPlusMDI(fit, evaluate_on="all")
-    local_fi_score_train = np.abs(rf_plus_mdi_train.explain(X=X_train, y=y_train)[0])
-    local_fi_score_train_subset = None
-    local_fi_score_test = np.abs(rf_plus_mdi_test.explain(X=X_test, y=None)[0])
-    local_fi_score_test_subset = np.abs(rf_plus_mdi_test.explain(X=X_test_subset, y=None)[0])
-    if mode != "absolute":
-        local_fi_score_train_mask = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train)
-        local_fi_score_test_mask = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None)
-        local_fi_score_test_subset_mask = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None)
-        local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train_mask, mode, mask_to = "inf")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test_mask, mode, mask_to = "inf")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset_mask, mode, mask_to = "inf")
-    return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
-
-
-def LFI_evaluation_RFPlus_all(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", y_train_pred=None):
+def LFI_evaluation_RFPlus_all(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", train_only=False):
     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
-    local_fi_score_train = np.abs(rf_plus_mdi.explain(X=X_train, y=y_train)[0])
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train)
     local_fi_score_train_subset = None
-    local_fi_score_test = np.abs(rf_plus_mdi.explain(X=X_test, y=None)[0])
-    local_fi_score_test_subset = np.abs(rf_plus_mdi.explain(X=X_test_subset, y=None)[0])
-    if mode != "absolute":
-        local_fi_score_train_mask = rf_plus_mdi.explain_subtract_intercept(X=X_train, y=y_train)
-        local_fi_score_test_mask = rf_plus_mdi.explain_subtract_intercept(X=X_test, y=None)
-        local_fi_score_test_subset_mask = rf_plus_mdi.explain_subtract_intercept(X=X_test_subset, y=None)
-        local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train_mask, mode, mask_to = "inf")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test_mask, mode, mask_to = "inf")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset_mask, mode, mask_to = "inf")
-    return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+    local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None)
+    local_fi_score_test_subset = rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train), None, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+    else:
+        return local_fi_score_train, None, local_fi_score_test, local_fi_score_test_subset
 
 
 
-### Feature Importance Methods for RF+ avg leaf
-def LFI_evaluation_RFPlus_inbag_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", y_train_pred=None):
+def LFI_evaluation_RFPlus_oob_error_metric(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", train_only=False):
+    assert train_only == True
     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_mdi_train = RFPlusMDI(fit, evaluate_on="inbag")
-    rf_plus_mdi_test = RFPlusMDI(fit, evaluate_on="all")
-    local_fi_score_train = np.abs(rf_plus_mdi_train.explain(X=X_train, y=y_train, leaf_average=True)[0])
-    local_fi_score_train_subset = None
-    local_fi_score_test = np.abs(rf_plus_mdi_test.explain(X=X_test, y=None, leaf_average=True)[0])
-    local_fi_score_test_subset = np.abs(rf_plus_mdi_test.explain(X=X_test_subset, y=None, leaf_average=True)[0])
-    if mode != "absolute":
-        local_fi_score_train_mask = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train)
-        local_fi_score_test_mask = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None)
-        local_fi_score_test_subset_mask = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None)
-        local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train_mask, mode, mask_to = "inf")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test_mask, mode, mask_to = "inf")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset_mask, mode, mask_to = "inf")
-    return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+    rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="oob")
+    local_fi_score_train = rf_plus_mdi.explain(X=X_train, y=y_train)[0]
+    if mode == "absolute":
+        return np.abs(local_fi_score_train), None, None, None
+    else:
+        return local_fi_score_train, None, None, None
 
-
-def LFI_evaluation_RFPlus_oob_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", y_train_pred=None):
-    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_mdi_train = AloRFPlusMDI(fit, evaluate_on="oob")
-    rf_plus_mdi_test = AloRFPlusMDI(fit, evaluate_on="all")
-    local_fi_score_train = np.abs(rf_plus_mdi_train.explain(X=X_train, y=y_train, leaf_average=True)[0])
-    local_fi_score_train_subset = None
-    local_fi_score_test = np.abs(rf_plus_mdi_test.explain(X=X_test, y=None, leaf_average=True)[0])
-    local_fi_score_test_subset = np.abs(rf_plus_mdi_test.explain(X=X_test_subset, y=None, leaf_average=True)[0])
-    if mode != "absolute":
-        local_fi_score_train_mask = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train)
-        local_fi_score_test_mask = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None)
-        local_fi_score_test_subset_mask = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None)
-        local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train_mask, mode, mask_to = "inf")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test_mask, mode, mask_to = "inf")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset_mask, mode, mask_to = "inf")
-    return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
-
-
-def LFI_evaluation_RFPlus_all_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", y_train_pred=None):
+def LFI_evaluation_RFPlus_all_error_metric(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", train_only=False):
+    assert train_only == True
     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
-    local_fi_score_train = np.abs(rf_plus_mdi.explain(X=X_train, y=y_train, leaf_average=True)[0])
-    local_fi_score_train_subset = None
-    local_fi_score_test = np.abs(rf_plus_mdi.explain(X=X_test, y=None, leaf_average=True)[0])
-    local_fi_score_test_subset = np.abs(rf_plus_mdi.explain(X=X_test_subset, y=None, leaf_average=True)[0])
-    if mode != "absolute":
-        local_fi_score_train_mask = rf_plus_mdi.explain_subtract_intercept(X=X_train, y=y_train)
-        local_fi_score_test_mask = rf_plus_mdi.explain_subtract_intercept(X=X_test, y=None)
-        local_fi_score_test_subset_mask = rf_plus_mdi.explain_subtract_intercept(X=X_test_subset, y=None)
-        local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train_mask, mode, mask_to = "inf")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test_mask, mode, mask_to = "inf")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset_mask, mode, mask_to = "inf")
-    return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
-
-
-### No intercept
-def LFI_evaluation_RFPlus_inbag_subtract_intercept(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", y_train_pred=None):
-    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_mdi_train = RFPlusMDI(fit, evaluate_on="inbag")
-    rf_plus_mdi_test = RFPlusMDI(fit, evaluate_on="all")
-    local_fi_score_train = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train)
-    local_fi_score_train_subset = None
-    local_fi_score_test = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None)
-    local_fi_score_test_subset = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None)
+    local_fi_score_train = rf_plus_mdi.explain(X=X_train, y=y_train)[0]
     if mode == "absolute":
-        return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+        return np.abs(local_fi_score_train), None, None, None
     else:
-        local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train, mode, mask_to = "zero")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
-        return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+        return local_fi_score_train, None, None, None
 
 
-def LFI_evaluation_RFPlus_oob_subtract_intercept(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", y_train_pred=None):
+# ##### Average Leaf
+# def LFI_evaluation_RFPlus_inbag_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = RFPlusMDI(fit, evaluate_on="inbag")
+#     local_fi_score_train = np.abs(rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, leaf_average=True))
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test, y=None,leaf_average=True))
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None, leaf_average=True))
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+# def LFI_evaluation_RFPlus_oob_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="oob")
+#     local_fi_score_train = np.abs(rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train,leaf_average=True))
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test, y=None,leaf_average=True))
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None,leaf_average=True))
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+# def LFI_evaluation_RFPlus_all_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
+#     local_fi_score_train = np.abs(rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train,leaf_average=True))
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test, y=None,leaf_average=True))
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None,leaf_average=True))
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+
+##### l2 norm with sign
+# def LFI_evaluation_RFPlus_inbag_l2_norm_sign(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = RFPlusMDI(fit, evaluate_on="inbag")
+#     local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True, sign=True)
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, l2norm=True, sign=True)
+#     local_fi_score_test_subset = rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None, l2norm=True, sign=True)
+#     if mode == "absolute":
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+#     else:
+#         return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+def LFI_evaluation_RFPlus_oob_l2_norm_sign(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", train_only=False):
     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_mdi_train = AloRFPlusMDI(fit, evaluate_on="oob")
-    rf_plus_mdi_test = AloRFPlusMDI(fit, evaluate_on="all")
-    local_fi_score_train = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train)
+    rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="oob")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True, sign=True)
     local_fi_score_train_subset = None
-    local_fi_score_test = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None)
-    local_fi_score_test_subset = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None)
+    local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, l2norm=True, sign=True)
+    local_fi_score_test_subset = rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None, l2norm=True, sign=True)
     if mode == "absolute":
-        return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+        return np.abs(local_fi_score_train), None, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
     else:
-        local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train, mode, mask_to = "zero")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
-        return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+        return local_fi_score_train, None, local_fi_score_test, local_fi_score_test_subset
 
 
-
-def LFI_evaluation_RFPlus_all_subtract_intercept(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", y_train_pred=None):
-    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
-    local_fi_score_train = rf_plus_mdi.explain_subtract_intercept(X=X_train, y=y_train)
-    local_fi_score_train_subset = None
-    local_fi_score_test = rf_plus_mdi.explain_subtract_intercept(X=X_test, y=None)
-    local_fi_score_test_subset = rf_plus_mdi.explain_subtract_intercept(X=X_test_subset, y=None)
-    if mode == "absolute":
-        return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
-    else:
-        local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train, mode, mask_to = "zero")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
-        return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
-
-
-
-
-
-### No intercept and average leaf
-def LFI_evaluation_RFPlus_inbag_subtract_intercept_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", y_train_pred=None):
-    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_mdi_train = RFPlusMDI(fit, evaluate_on="inbag")
-    rf_plus_mdi_test = RFPlusMDI(fit, evaluate_on="all")
-    local_fi_score_train = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train, leaf_average=True)
-    local_fi_score_train_subset = None
-    local_fi_score_test = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None, leaf_average=True)
-    local_fi_score_test_subset = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None, leaf_average=True)
-    if mode == "absolute":
-        return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
-    else:
-        local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train, mode, mask_to = "zero")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
-        return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
-
-
-def LFI_evaluation_RFPlus_oob_subtract_intercept_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", y_train_pred=None):
-    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_mdi_train = AloRFPlusMDI(fit, evaluate_on="oob")
-    rf_plus_mdi_test = AloRFPlusMDI(fit, evaluate_on="all")
-    local_fi_score_train = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train, leaf_average=True)
-    local_fi_score_train_subset = None
-    local_fi_score_test = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None, leaf_average=True)
-    local_fi_score_test_subset = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None, leaf_average=True)
-    if mode == "absolute":
-        return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
-    else:
-        local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train, mode, mask_to = "zero")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
-        return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
-
-
-
-def LFI_evaluation_RFPlus_all_subtract_intercept_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", y_train_pred=None):
+def LFI_evaluation_RFPlus_all_l2_norm_sign(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", train_only=False):
     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
-    local_fi_score_train = rf_plus_mdi.explain_subtract_intercept(X=X_train, y=y_train, leaf_average=True)
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True, sign=True)
     local_fi_score_train_subset = None
-    local_fi_score_test = rf_plus_mdi.explain_subtract_intercept(X=X_test, y=None, leaf_average=True)
-    local_fi_score_test_subset = rf_plus_mdi.explain_subtract_intercept(X=X_test_subset, y=None, leaf_average=True)
+    local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, l2norm=True, sign=True)
+    local_fi_score_test_subset = rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None, l2norm=True, sign=True)
     if mode == "absolute":
-        return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+        return np.abs(local_fi_score_train), None, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
     else:
-        local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train, mode, mask_to = "zero")
-        local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
-        local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
-        return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+        return local_fi_score_train, None, local_fi_score_test, local_fi_score_test_subset
+
+
+# ##### l2 norm
+# def LFI_evaluation_RFPlus_inbag_l2_norm(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = RFPlusMDI(fit, evaluate_on="inbag")
+#     local_fi_score_train = np.abs(rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True))
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test, y=None, l2norm=True))
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None, l2norm=True))
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+# def LFI_evaluation_RFPlus_oob_l2_norm(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="oob")
+#     local_fi_score_train = np.abs(rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True))
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test, y=None, l2norm=True))
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None, l2norm=True))
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+# def LFI_evaluation_RFPlus_all_l2_norm(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
+#     local_fi_score_train = np.abs(rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True))
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test, y=None, l2norm=True))
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None, l2norm=True))
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+# ##### Average Leaf and l2 norm
+# def LFI_evaluation_RFPlus_inbag_l2_norm_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = RFPlusMDI(fit, evaluate_on="inbag")
+#     local_fi_score_train = np.abs(rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True, leaf_average=True))
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test, y=None, l2norm=True ,leaf_average=True))
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None, l2norm=True ,leaf_average=True))
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+# def LFI_evaluation_RFPlus_oob_l2_norm_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="oob")
+#     local_fi_score_train = np.abs(rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True, leaf_average=True))
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test, y=None, l2norm=True, leaf_average=True))
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None, l2norm=True, leaf_average=True))
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+# def LFI_evaluation_RFPlus_all_l2_norm_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
+#     local_fi_score_train = np.abs(rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, l2norm=True, leaf_average=True))
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test, y=None, l2norm=True, leaf_average=True))
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi.explain_linear_partial(X=X_test_subset, y=None, l2norm=True, leaf_average=True))
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+
+
+
+# ### Feature Importance Methods for RF+ avg leaf
+# def LFI_evaluation_RFPlus_inbag_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi_train = RFPlusMDI(fit, evaluate_on="inbag")
+#     rf_plus_mdi_test = RFPlusMDI(fit, evaluate_on="all")
+#     local_fi_score_train = np.abs(rf_plus_mdi_train.explain(X=X_train, y=y_train, leaf_average=True)[0])
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi_test.explain(X=X_test, y=None, leaf_average=True)[0])
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi_test.explain(X=X_test_subset, y=None, leaf_average=True)[0])
+#     if mode != "absolute":
+#         local_fi_score_train_mask = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train)
+#         local_fi_score_test_mask = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None)
+#         local_fi_score_test_subset_mask = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None)
+#         local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train_mask, mode, mask_to = "inf")
+#         local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test_mask, mode, mask_to = "inf")
+#         local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset_mask, mode, mask_to = "inf")
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+# def LFI_evaluation_RFPlus_oob_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi_train = AloRFPlusMDI(fit, evaluate_on="oob")
+#     rf_plus_mdi_test = AloRFPlusMDI(fit, evaluate_on="all")
+#     local_fi_score_train = np.abs(rf_plus_mdi_train.explain(X=X_train, y=y_train, leaf_average=True)[0])
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi_test.explain(X=X_test, y=None, leaf_average=True)[0])
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi_test.explain(X=X_test_subset, y=None, leaf_average=True)[0])
+#     if mode != "absolute":
+#         local_fi_score_train_mask = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train)
+#         local_fi_score_test_mask = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None)
+#         local_fi_score_test_subset_mask = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None)
+#         local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train_mask, mode, mask_to = "inf")
+#         local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test_mask, mode, mask_to = "inf")
+#         local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset_mask, mode, mask_to = "inf")
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+# def LFI_evaluation_RFPlus_all_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
+#     local_fi_score_train = np.abs(rf_plus_mdi.explain(X=X_train, y=y_train, leaf_average=True)[0])
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = np.abs(rf_plus_mdi.explain(X=X_test, y=None, leaf_average=True)[0])
+#     local_fi_score_test_subset = np.abs(rf_plus_mdi.explain(X=X_test_subset, y=None, leaf_average=True)[0])
+#     if mode != "absolute":
+#         local_fi_score_train_mask = rf_plus_mdi.explain_subtract_intercept(X=X_train, y=y_train)
+#         local_fi_score_test_mask = rf_plus_mdi.explain_subtract_intercept(X=X_test, y=None)
+#         local_fi_score_test_subset_mask = rf_plus_mdi.explain_subtract_intercept(X=X_test_subset, y=None)
+#         local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train_mask, mode, mask_to = "inf")
+#         local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test_mask, mode, mask_to = "inf")
+#         local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset_mask, mode, mask_to = "inf")
+#     return local_fi_score_train, local_fi_score_train_subset, local_fi_score_test, local_fi_score_test_subset
+
+
+# ### No intercept
+# def LFI_evaluation_RFPlus_inbag_subtract_intercept(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi_train = RFPlusMDI(fit, evaluate_on="inbag")
+#     rf_plus_mdi_test = RFPlusMDI(fit, evaluate_on="all")
+#     local_fi_score_train = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train)
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None)
+#     local_fi_score_test_subset = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None)
+#     if mode == "absolute":
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+#     else:
+#         local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train, mode, mask_to = "zero")
+#         local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
+#         local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+
+
+# def LFI_evaluation_RFPlus_oob_subtract_intercept(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi_train = AloRFPlusMDI(fit, evaluate_on="oob")
+#     rf_plus_mdi_test = AloRFPlusMDI(fit, evaluate_on="all")
+#     local_fi_score_train = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train)
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None)
+#     local_fi_score_test_subset = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None)
+#     if mode == "absolute":
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+#     else:
+#         local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train, mode, mask_to = "zero")
+#         local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
+#         local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+
+
+
+# def LFI_evaluation_RFPlus_all_subtract_intercept(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
+#     local_fi_score_train = rf_plus_mdi.explain_subtract_intercept(X=X_train, y=y_train)
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = rf_plus_mdi.explain_subtract_intercept(X=X_test, y=None)
+#     local_fi_score_test_subset = rf_plus_mdi.explain_subtract_intercept(X=X_test_subset, y=None)
+#     if mode == "absolute":
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+#     else:
+#         local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train, mode, mask_to = "zero")
+#         local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
+#         local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+
+
+
+
+
+# ### No intercept and average leaf
+# def LFI_evaluation_RFPlus_inbag_subtract_intercept_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi_train = RFPlusMDI(fit, evaluate_on="inbag")
+#     rf_plus_mdi_test = RFPlusMDI(fit, evaluate_on="all")
+#     local_fi_score_train = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train, leaf_average=True)
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None, leaf_average=True)
+#     local_fi_score_test_subset = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None, leaf_average=True)
+#     if mode == "absolute":
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+#     else:
+#         local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train, mode, mask_to = "zero")
+#         local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
+#         local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+
+
+# def LFI_evaluation_RFPlus_oob_subtract_intercept_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi_train = AloRFPlusMDI(fit, evaluate_on="oob")
+#     rf_plus_mdi_test = AloRFPlusMDI(fit, evaluate_on="all")
+#     local_fi_score_train = rf_plus_mdi_train.explain_subtract_intercept(X=X_train, y=y_train, leaf_average=True)
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = rf_plus_mdi_test.explain_subtract_intercept(X=X_test, y=None, leaf_average=True)
+#     local_fi_score_test_subset = rf_plus_mdi_test.explain_subtract_intercept(X=X_test_subset, y=None, leaf_average=True)
+#     if mode == "absolute":
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+#     else:
+#         local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train, mode, mask_to = "zero")
+#         local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
+#         local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+
+
+
+# def LFI_evaluation_RFPlus_all_subtract_intercept_avg_leaf(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
+#     local_fi_score_train = rf_plus_mdi.explain_subtract_intercept(X=X_train, y=y_train, leaf_average=True)
+#     local_fi_score_train_subset = None
+#     local_fi_score_test = rf_plus_mdi.explain_subtract_intercept(X=X_test, y=None, leaf_average=True)
+#     local_fi_score_test_subset = rf_plus_mdi.explain_subtract_intercept(X=X_test_subset, y=None, leaf_average=True)
+#     if mode == "absolute":
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
+#     else:
+#         local_fi_score_train = feature_importance_mask(local_fi_score_train, local_fi_score_train, mode, mask_to = "zero")
+#         local_fi_score_test = feature_importance_mask(local_fi_score_test, local_fi_score_test, mode, mask_to = "zero")
+#         local_fi_score_test_subset = feature_importance_mask(local_fi_score_test_subset, local_fi_score_test_subset, mode, mask_to = "zero")
+#         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
 
 
 
@@ -330,7 +661,7 @@ def LFI_evaluation_RFPlus_all_subtract_intercept_avg_leaf(X_train, y_train, X_tr
 
 
 # ### Subtract train mean
-# def LFI_evaluation_RFPlus_inbag_subtract_train_mean(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", y_train_pred=None):
+# def LFI_evaluation_RFPlus_inbag_subtract_train_mean(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute"):
 #     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
 #     rf_plus_mdi_train = RFPlusMDI(fit, evaluate_on="inbag")
 #     rf_plus_mdi_test = RFPlusMDI(fit, evaluate_on="all")
@@ -348,7 +679,7 @@ def LFI_evaluation_RFPlus_all_subtract_intercept_avg_leaf(X_train, y_train, X_tr
 #         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
 
 
-# def LFI_evaluation_RFPlus_oob_subtract_train_mean(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", y_train_pred=None):
+# def LFI_evaluation_RFPlus_oob_subtract_train_mean(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
 #     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
 #     rf_plus_mdi_train = AloRFPlusMDI(fit, evaluate_on="oob")
 #     rf_plus_mdi_test = AloRFPlusMDI(fit, evaluate_on="all")
@@ -367,7 +698,7 @@ def LFI_evaluation_RFPlus_all_subtract_intercept_avg_leaf(X_train, y_train, X_tr
 
 
 
-# def LFI_evaluation_RFPlus_all_subtract_train_mean(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", y_train_pred=None):
+# def LFI_evaluation_RFPlus_all_subtract_train_mean(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
 #     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
 #     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
 #     constant = np.mean(y_train)
@@ -385,7 +716,7 @@ def LFI_evaluation_RFPlus_all_subtract_intercept_avg_leaf(X_train, y_train, X_tr
 
 
 # ### subtract pred mean
-# def LFI_evaluation_RFPlus_inbag_subtract_pred_mean(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute", y_train_pred=None):
+# def LFI_evaluation_RFPlus_inbag_subtract_pred_mean(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset, fit=None, mode="absolute"):
 #     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
 #     rf_plus_mdi_train = RFPlusMDI(fit, evaluate_on="inbag")
 #     rf_plus_mdi_test = RFPlusMDI(fit, evaluate_on="all")
@@ -403,7 +734,7 @@ def LFI_evaluation_RFPlus_all_subtract_intercept_avg_leaf(X_train, y_train, X_tr
 #         return np.abs(local_fi_score_train), local_fi_score_train_subset, np.abs(local_fi_score_test), np.abs(local_fi_score_test_subset)
 
 
-# def LFI_evaluation_RFPlus_oob_subtract_pred_mean(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", y_train_pred=None):
+# def LFI_evaluation_RFPlus_oob_subtract_pred_mean(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
 #     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
 #     rf_plus_mdi_train = AloRFPlusMDI(fit, evaluate_on="oob")
 #     rf_plus_mdi_test = AloRFPlusMDI(fit, evaluate_on="all")
@@ -422,7 +753,7 @@ def LFI_evaluation_RFPlus_all_subtract_intercept_avg_leaf(X_train, y_train, X_tr
 
 
 
-# def LFI_evaluation_RFPlus_all_subtract_pred_mean(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute", y_train_pred=None):
+# def LFI_evaluation_RFPlus_all_subtract_pred_mean(X_train, y_train, X_train_subset, y_train_subset, X_test, y_test, X_test_subset, y_test_subset,  fit=None, mode="absolute"):
 #     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
 #     rf_plus_mdi = AloRFPlusMDI(fit, evaluate_on="all")
 #     constant = np.mean(y_train_pred)

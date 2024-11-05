@@ -8,7 +8,6 @@ X_PARAMS_DICT = {
     "n_train": 1000,
     "n_test": 300,
     "d": 10,
-    "seed": 42
 }
 Y_DGP = lss_model
 Y_PARAMS_DICT = {
@@ -28,7 +27,7 @@ Y_PARAMS_DICT = {
 # vary two parameters in a grid
 VARY_PARAM_NAME = ["heritability", "n_train"]
 VARY_PARAM_VALS = {"heritability": {"0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
-                   "n_train": {"100": 100, "250": 250, "500": 500, "750": 750, "1000": 1000}}
+                   "n_train": {"100": 100, "250": 250, "750": 750}}
 # # vary over n_estimators in RF model in models.py
 # VARY_PARAM_NAME = "n_estimators"
 # VARY_PARAM_VALS = {"placeholder": 0}
