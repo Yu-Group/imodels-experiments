@@ -1,6 +1,6 @@
 #!/bin/bash
 
-slurm_script="00_ablation_regression_script4.sh"
+slurm_script="00_ablation_classification_script4.sh"
 
 for split_seed in {1..3}; do
     for rf_seed in {1..5}; do

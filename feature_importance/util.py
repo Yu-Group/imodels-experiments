@@ -72,7 +72,7 @@ class FIModelConfig:
             'train-test', 'train-tune-test', 'train-test-lowdata', 'train-tune-test-lowdata',
             'train-test-prediction', None, 'test-300'
         }
-        assert base_model in ["None", "RF", "RFPlus_default", "RFPlus_inbag", "RFPlus_oob"]
+        # assert base_model in ["None", "RF", "RFPlus_default", "RFPlus_inbag", "RFPlus_oob"]
 
         self.name = name
         self.cls = cls

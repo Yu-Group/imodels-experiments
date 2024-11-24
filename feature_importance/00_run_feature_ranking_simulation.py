@@ -16,41 +16,27 @@ import sys
 from collections import defaultdict
 from typing import Callable, List, Tuple
 import itertools
-from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score, mean_squared_error, average_precision_score, log_loss
+from sklearn.metrics import roc_auc_score, f1_score, average_precision_score, recall_score, precision_score, mean_squared_error, r2_score
 from sklearn import preprocessing
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.linear_model import LogisticRegressionCV
+from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
-from sklearn.svm import SVC
 import xgboost as xgb
 from imodels.tree.rf_plus.rf_plus.rf_plus_models import RandomForestPlusRegressor, RandomForestPlusClassifier
+from sklearn.linear_model import Ridge
 sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../..")
 import fi_config
 from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, auroc_score, auprc_score, compute_nsg_feat_corr_w_sig_subspace, apply_splitting_strategy
-from sklearn.linear_model import Ridge
-warnings.filterwarnings("ignore", message="Bins whose width")
 import dill
-
-#RUN THE FILE
-# python 01_run_ablation_classification.py --nreps 5 --config mdi_local.real_data_classification --split_seed 331 --ignore_cache --create_rmd --result_name diabetes_classification
-
-
-def select_top_features(array, sorted_indices, percentage):
-    array = copy.deepcopy(array)
-    num_features = array.shape[1]
-    num_selected = int(np.ceil(num_features * percentage))
-    selected_indices = sorted_indices[:num_selected]
-    selected_array = array[:, selected_indices]
-    return num_selected, selected_array
-
+warnings.filterwarnings("ignore", message="Bins whose width")
 
 def compare_estimators(estimators: List[ModelConfig],
                        fi_estimators: List[FIModelConfig],
-                       X, y, support: List,
+                       X, y, support,
                        metrics: List[Tuple[str, Callable]],
-                       args, ) -> Tuple[dict, dict]:
+                       args, 
+                       vary_setting) -> Tuple[dict, dict]:
     """Calculates results given estimators, feature importance estimators, datasets, and metrics.
     Called in run_comparison
     """
@@ -61,11 +47,11 @@ def compare_estimators(estimators: List[ModelConfig],
 
     # initialize results
     results = defaultdict(lambda: [])
-    feature_importance_list = {"positive": {}, "negative": {}, "absolute": {}}
+    feature_importance_list = {"absolute": {}}
 
     # loop over model estimators
     for model in estimators:
-        # est = model.cls(**model.kwargs)
+        est = model.cls(**model.kwargs)
 
         # get kwargs for all fi_ests
         fi_kwargs = {}
@@ -84,139 +70,104 @@ def compare_estimators(estimators: List[ModelConfig],
                 X_train, X_tune, X_test, y_train, y_tune, y_test = apply_splitting_strategy(X, y, splitting_strategy, args.split_seed)
             else:
                 X_train = X
-                X_tune = X
                 X_test = X
                 y_train = y
-                y_tune = y
                 y_test = y
+            
+            # check if there are NA values in the data
+            if np.isnan(X_train).any() or np.isnan(y_train).any():
+                raise ValueError("There are NA values in the data")
+            if np.isnan(X_test).any() or np.isnan(y_test).any():
+                raise ValueError("There are NA values in the data")
 
-            if args.fit_model:
-                print("Fitting Models")
-                # fit RF model
-                start_rf = time.time()
-                est = RandomForestClassifier(n_estimators=100, min_samples_leaf=3, max_features='sqrt', random_state=args.rf_seed)
-                est.fit(X_train, y_train)
-                end_rf = time.time()
+            # fit RF model
+            start_rf = time.time()
+            est.fit(X_train, y_train)
+            end_rf = time.time()
 
-                # fit default RF_plus model
-                start_rf_plus = time.time()
-                rf_plus_base = RandomForestPlusClassifier(rf_model=est)
-                rf_plus_base.fit(X_train, y_train)
-                end_rf_plus = time.time()
+            # fit default RF_plus model
+            start_rf_plus = time.time()
+            rf_plus_base = RandomForestPlusRegressor(rf_model=est)
+            rf_plus_base.fit(X_train, y_train)
+            end_rf_plus = time.time()
 
-                # fit oob RF_plus model
-                start_rf_plus_oob = time.time()
-                rf_plus_base_oob = RandomForestPlusClassifier(rf_model=est, fit_on="oob")
-                rf_plus_base_oob.fit(X_train, y_train)
-                end_rf_plus_oob = time.time()
+            # get test results
+            test_all_mse_rf = mean_squared_error(y_test, est.predict(X_test))
+            test_all_r2_rf = r2_score(y_test, est.predict(X_test))
+            test_all_mse_rf_plus = mean_squared_error(y_test, rf_plus_base.predict(X_test))
+            test_all_r2_rf_plus = r2_score(y_test, rf_plus_base.predict(X_test))
 
-                #fit inbag RF_plus model
-                start_rf_plus_inbag = time.time()
-                est_regressor = RandomForestRegressor(n_estimators=100, min_samples_leaf=3, max_features='sqrt', random_state=args.rf_seed)
-                est_regressor.fit(X_train, y_train)
-                rf_plus_base_inbag = RandomForestPlusRegressor(rf_model=est_regressor, include_raw=False, fit_on="inbag", prediction_model=LinearRegression())
-                rf_plus_base_inbag.fit(X_train, y_train)
-                end_rf_plus_inbag = time.time()
+            fitted_results = {
+                    "Model": ["RF", "RF_plus"],
+                    "MSE": [test_all_mse_rf, test_all_mse_rf_plus],
+                    "R2": [test_all_r2_rf, test_all_r2_rf_plus],
+                    "Time": [end_rf - start_rf, end_rf_plus - start_rf_plus],
+                    "Y_seed": [args.y_seed, args.y_seed],
+                    "Split_seed": [args.split_seed, args.split_seed]
+            }
+            temp = ""
+            for vary_name in vary_setting:
+                fitted_results[vary_name] = [vary_setting[vary_name]] * 3
+                temp += f"{vary_name}_{vary_setting[vary_name]}_"
 
-                # get test results
-                test_all_auc_rf = roc_auc_score(y_test, est.predict_proba(X_test)[:, 1])
-                test_all_auprc_rf = average_precision_score(y_test, est.predict_proba(X_test)[:, 1])
-                test_all_f1_rf = f1_score(y_test, est.predict_proba(X_test)[:, 1] > 0.5)
-                test_all_auc_rf_plus = roc_auc_score(y_test, rf_plus_base.predict_proba(X_test)[:, 1])
-                test_all_auprc_rf_plus = average_precision_score(y_test, rf_plus_base.predict_proba(X_test)[:, 1])
-                test_all_f1_rf_plus = f1_score(y_test, rf_plus_base.predict_proba(X_test)[:, 1] > 0.5)
-                test_all_auc_rf_plus_oob = roc_auc_score(y_test, rf_plus_base_oob.predict_proba(X_test)[:, 1])
-                test_all_auprc_rf_plus_oob = average_precision_score(y_test, rf_plus_base_oob.predict_proba(X_test)[:, 1])
-                test_all_f1_rf_plus_oob = f1_score(y_test, rf_plus_base_oob.predict_proba(X_test)[:, 1] > 0.5)
-                # test_all_auc_rf_plus_inbag = roc_auc_score(y_test, rf_plus_base_inbag.predict_proba(X_test)[:, 1])
-                # test_all_auprc_rf_plus_inbag = average_precision_score(y_test, rf_plus_base_inbag.predict_proba(X_test)[:, 1])
-                # test_all_f1_rf_plus_inbag = f1_score(y_test, rf_plus_base_inbag.predict_proba(X_test)[:, 1] > 0.5)
+            print(fitted_results)
+            
+            os.makedirs(f"/scratch/users/zhongyuan_liang/saved_models/auroc/{args.folder_name}", exist_ok=True)
+            results_df = pd.DataFrame(fitted_results)
+            results_df.to_csv(f"/scratch/users/zhongyuan_liang/saved_models/auroc/{args.folder_name}/RFPlus_fitted_summary_{args.y_seed}_{args.split_seed}_{temp}.csv", index=False)
 
-                fitted_results = {
-                    "Model": ["RF", "RF_plus", "RF_plus_oob"],#, "RF_plus_inbag"],
-                    "AUC": [test_all_auc_rf, test_all_auc_rf_plus, test_all_auc_rf_plus_oob],#, test_all_auc_rf_plus_inbag],
-                    "AUPRC": [test_all_auprc_rf, test_all_auprc_rf_plus, test_all_auprc_rf_plus_oob],#, test_all_auprc_rf_plus_inbag],
-                    "F1": [test_all_f1_rf, test_all_f1_rf_plus, test_all_f1_rf_plus_oob],#, test_all_f1_rf_plus_inbag],
-                    "Time": [end_rf - start_rf, end_rf_plus - start_rf_plus, end_rf_plus_oob - start_rf_plus_oob]#, end_rf_plus_inbag - start_rf_plus_inbag]
+            # loop over fi estimators
+            for fi_est in tqdm(fi_ests):
+                metric_results = {
+                    'model': model.name,
+                    'fi': fi_est.name,
+                    'train_size': X_train.shape[0],
+                    'test_size': X_test.shape[0],
+                    'num_features': X_train.shape[1],
+                    'data_split_seed': args.split_seed,
                 }
 
-                os.makedirs(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}", exist_ok=True)
-                results_df = pd.DataFrame(fitted_results)
-                results_df.to_csv(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RFPlus_fitted_summary_rf_seed_{args.rf_seed}_split_seed_{args.split_seed}.csv", index=False)
-                            
-                if args.num_features_masked is None:
-                    num_features_masked = X_train.shape[1]
-                else:
-                    num_features_masked = args.num_features_masked
+                if fi_est.base_model == "None":
+                    loaded_model = None
+                elif fi_est.base_model == "RF":
+                   loaded_model = est
+                elif fi_est.base_model == "RFPlus_default":
+                    loaded_model = rf_plus_base
 
-                for fi_est in tqdm(fi_ests):
-                    metric_results = {
-                        'model': model.name,
-                        'fi': fi_est.name,
-                        'train_size': X_train.shape[0],
-                        'test_size': X_test.shape[0],
-                        'num_features': X_train.shape[1],
-                        'data_split_seed': args.split_seed,
-                        'rf_seed': args.rf_seed,
-                        'num_features_masked': num_features_masked
-                    }
-                    if fi_est.base_model == "None":
-                        loaded_model = None
-                    elif fi_est.base_model == "RF":
-                        loaded_model = est
-                    elif fi_est.base_model == "RFPlus_oob":
-                        loaded_model = rf_plus_base_oob
-                    elif fi_est.base_model == "RFPlus_inbag":
-                        loaded_model = rf_plus_base_inbag
-                    elif fi_est.base_model == "RFPlus_default":
-                        loaded_model = rf_plus_base
+                local_fi_score_train, local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train, X_test=X_test, fit=loaded_model, mode="absolute")
+                feature_importance_list["absolute"][fi_est.name] = [local_fi_score_train, local_fi_score_test]
+                all_fi_data = {"train": local_fi_score_train, "test": local_fi_score_test}
 
-                    m= "absolute"
-                    start = time.time()
-                    print(f"Compute feature importance")
-                    local_fi_score_train = fi_est.cls(X_train=X_train, y_train=y_train, fit=loaded_model, mode="absolute")
-                    train_fi_mean = np.mean(local_fi_score_train, axis=0)
-                    print(f"Train FI Mean: {train_fi_mean}")
-                    if fi_est.ascending:
-                        sorted_feature = np.argsort(-train_fi_mean)
+                for d in all_fi_data:
+                    fi_data = all_fi_data[d]
+                    if not isinstance(fi_data, np.ndarray):
+                        metric_results[f'auroc_{d}'] = None
+                        metric_results[f'auprc_{d}'] = None
                     else:
-                        sorted_feature = np.argsort(train_fi_mean)
-                    print(f"Sorted Feature: {sorted_feature}")
-                    end = time.time()
-                    metric_results[f'fi_time_{m}'] = end - start
+                        auroc = []
+                        auprc = []
+                        for i in range(fi_data.shape[0]):
+                            fi_data_i = fi_data[i]    
+                            if fi_est.ascending:
+                                auroc.append(roc_auc_score(support, fi_data_i))
+                                auprc.append(average_precision_score(support, fi_data_i))
+                            else:
+                                auroc.append(roc_auc_score(support, -1*fi_data_i))
+                                auprc.append(average_precision_score(support, -1*fi_data_i))
+                        metric_results[f'auroc_{d}'] = np.array(auroc).mean()
+                        metric_results[f'auprc_{d}'] = np.array(auprc).mean()
 
-                    ablation_models = {"RF_Classifier": RandomForestClassifier(n_estimators=100, min_samples_leaf=3, max_features='sqrt', random_state=args.rf_seed),
-                                       "Logistic_Regression": LogisticRegressionCV(cv=5, max_iter=5000),}
-                    if X_train.shape[1] > 20:
-                        mask_ratio = [0.01, 0.05, 0.1, 0.15, 0.25, 0.4, 0.5, 0.7, 0.9]
+                # initialize results with metadata and metric results
+                kwargs: dict = model.kwargs  # dict
+                for k in kwargs:
+                    results[k].append(kwargs[k])
+                for k in fi_kwargs:
+                    if k in fi_est.kwargs:
+                        results[k].append(str(fi_est.kwargs[k]))
                     else:
-                        mask_ratio = [0.05, 0.1, 0.15, 0.25, 0.4, 0.5, 0.7, 0.9]
-                    print(f"X_train_0: {X_train[0]}")
-                    for mask in mask_ratio:
-                        print(f"Mask ratio: {mask}")
-                        num_features_selected, X_train_masked = select_top_features(X_train, sorted_feature, mask)
-                        print(f"Train shape: {X_train_masked.shape}")
-                        num_features_selected, X_test_masked = select_top_features(X_test, sorted_feature, mask)
-                        print(f"Test shape: {X_test_masked.shape}")
-                        print(f"X_train_masked_0: {X_train_masked[0]}")
-                        metric_results[f'num_features_selected_{mask}'] = num_features_selected
-                        for a_model in ablation_models:
-                            ablation_models[a_model].fit(X_train_masked, y_train)
-                            y_pred = ablation_models[a_model].predict_proba(X_test_masked)[:, 1]
-                            metric_results[f'{a_model}_LogLoss_top_{mask}'] = log_loss(y_test, y_pred)
-                            metric_results[f'{a_model}_AUROC_top_{mask}'] = roc_auc_score(y_test, y_pred)
-
-                    # initialize results with metadata and metric results
-                    kwargs: dict = model.kwargs  # dict
-                    for k in kwargs:
-                        results[k].append(kwargs[k])
-                    for k in fi_kwargs:
-                        if k in fi_est.kwargs:
-                            results[k].append(str(fi_est.kwargs[k]))
-                        else:
-                            results[k].append(None)
-                    for met_name, met_val in metric_results.items():
-                        results[met_name].append(met_val)
+                        results[k].append(None)
+                for met_name, met_val in metric_results.items():
+                    results[met_name].append(met_val)
     return results, feature_importance_list
 
 
@@ -225,7 +176,8 @@ def run_comparison(path: str,
                    metrics: List[Tuple[str, Callable]],
                    estimators: List[ModelConfig],
                    fi_estimators: List[FIModelConfig],
-                   args):
+                   args,
+                   vary_setting):
     estimator_name = estimators[0].name.split(' - ')[0]
     fi_estimators_all = [fi_estimator for fi_estimator in itertools.chain(*fi_estimators) \
                          if fi_estimator.model_type in estimators[0].model_type]
@@ -248,13 +200,16 @@ def run_comparison(path: str,
         else:
             fi_estimators.append(fi_estimator)
             model_comparison_files.append(model_comparison_file)
+
     if len(fi_estimators) == 0:
         return
+
     results, fi_lst = compare_estimators(estimators=estimators,
                                  fi_estimators=fi_estimators,
                                  X=X, y=y, support=support,
                                  metrics=metrics,
-                                 args=args)
+                                 args=args,
+                                 vary_setting=vary_setting)
 
     estimators_list = [e.name for e in estimators]
     metrics_list = [m[0] for m in metrics]
@@ -298,16 +253,14 @@ def reformat_results(results):
     # return results_df
     return results
 
-
-
-def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args):
+def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests, metrics, args, vary_setting):
     os.makedirs(oj(path, val_name, "rep" + str(i)), exist_ok=True)
     np.random.seed(i)
     max_iter = 100
     iter = 0
     while iter <= max_iter:  # regenerate data if y is constant
         X = X_dgp(**X_params_dict)
-        y, support, beta = y_dgp(X, **y_params_dict, return_support=True)
+        y, support, beta = y_dgp(X, **y_params_dict, seed = args.y_seed, return_support=True)
         if not all(y == y[0]):
             break
         iter += 1
@@ -325,7 +278,8 @@ def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp
                                  metrics=metrics,
                                  estimators=est,
                                  fi_estimators=fi_ests,
-                                 args=args)
+                                 args=args,
+                                 vary_setting=vary_setting)
     return True
 
 
@@ -348,12 +302,6 @@ if __name__ == '__main__':
 
     ### Newly added arguments
     parser.add_argument('--folder_name', type=str, default=None)
-    parser.add_argument('--fit_model', type=bool, default=False)
-    parser.add_argument('--absolute_masking', type=bool, default=False)
-    parser.add_argument('--positive_masking', type=bool, default=False)
-    parser.add_argument('--negative_masking', type=bool, default=False)
-    parser.add_argument('--num_features_masked', type=int, default=None)
-    parser.add_argument('--rf_seed', type=int, default=0)
 
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)
@@ -363,6 +311,7 @@ if __name__ == '__main__':
     parser.add_argument('--n_cores', type=int, default=None)
     parser.add_argument('--split_seed', type=int, default=0)
     parser.add_argument('--results_path', type=str, default=default_dir)
+    parser.add_argument('--y_seed', type=int, default=0)
 
     # arguments for rmd output of results
     parser.add_argument('--create_rmd', action='store_true', default=False)
@@ -407,9 +356,11 @@ if __name__ == '__main__':
         results_dir = oj(args.results_path, args.config, args.folder_name)
 
     if isinstance(vary_param_name, list):
-        path = oj(results_dir, "varying_" + "_".join(vary_param_name), "split_seed_" + str(args.split_seed)+"rf_seed_" + str(args.rf_seed))
+        #path = oj(results_dir, "varying_" + "_".join(vary_param_name), "seed" + str(args.split_seed))
+        path = oj(results_dir, "varying_" + "_".join(vary_param_name), "seed" + str(args.y_seed)+ str(args.split_seed))
     else:
-        path = oj(results_dir, "varying_" + vary_param_name, "split_seed_" + str(args.split_seed)+"rf_seed_" + str(args.rf_seed))
+        #path = oj(results_dir, "varying_" + vary_param_name, "seed" + str(args.split_seed))
+        path = oj(results_dir, "varying_" + vary_param_name, "seed" + str(args.y_seed)+ str(args.split_seed))
     os.makedirs(path, exist_ok=True)
 
     eval_out = defaultdict(list)
@@ -420,6 +371,9 @@ if __name__ == '__main__':
         keys, values = zip(*vary_param_vals.items())
         vary_param_dicts = [dict(zip(keys, v)) for v in itertools.product(*values)]
         vary_type = {}
+        #### Added
+        vary_setting = {}
+        ####
         for vary_param_dict in vary_param_dicts:
             for param_name, param_val in vary_param_dict.items():
                 if param_name in X_params_dict.keys() and param_name in y_params_dict.keys():
@@ -441,17 +395,23 @@ if __name__ == '__main__':
                         vary_type[param_name] = "fi_est"
                     else:
                         raise ValueError('Invalid vary_param_name.')
+                #### Added
+                vary_setting[param_name] = param_val
+                ####
 
             if args.parallel:
                 futures = [
                     dask.delayed(run_simulation)(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp,
-                                                 y_params_dict, y_dgp, ests, fi_ests, metrics, args) for i in
+                                                 y_params_dict, y_dgp, ests, fi_ests, metrics, args, vary_setting) for i in
                     range(args.nreps)]
                 results = dask.compute(*futures)
             else:
+                # results = [
+                #     run_simulation(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict,
+                #                    y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
                 results = [
                     run_simulation(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict,
-                                   y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
+                                   y_dgp, ests, fi_ests, metrics, args, vary_setting) for i in range(args.nreps)]
             assert all(results)
 
     else:  # only on parameter is being varied over
@@ -482,8 +442,11 @@ if __name__ == '__main__':
                                                  fi_ests, metrics, args) for i in range(args.nreps)]
                 results = dask.compute(*futures)
             else:
-                results = [run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests,
-                                          metrics, args) for i in range(args.nreps)]
+                results = [
+                    run_simulation(i, path, "_".join(vary_param_dict.values()), X_params_dict, X_dgp, y_params_dict,
+                                   y_dgp, ests, fi_ests, metrics, args) for i in range(args.nreps)]
+                # results = [run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp, ests, fi_ests,
+                #                           metrics, args) for i in range(args.nreps)]
             assert all(results)
 
     print('completed all experiments successfully!')
