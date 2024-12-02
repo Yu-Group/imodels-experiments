@@ -22,7 +22,6 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 import xgboost as xgb
 from imodels.tree.rf_plus.rf_plus.rf_plus_models import RandomForestPlusRegressor, RandomForestPlusClassifier
-from sklearn.linear_model import Ridge
 sys.path.append(".")
 sys.path.append("..")
 sys.path.append("../..")
@@ -30,7 +29,7 @@ import fi_config
 from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, auroc_score, auprc_score, compute_nsg_feat_corr_w_sig_subspace, apply_splitting_strategy
 import dill
 warnings.filterwarnings("ignore", message="Bins whose width")
-
+from sklearn.linear_model import RidgeCV, LassoCV
 def compare_estimators(estimators: List[ModelConfig],
                        fi_estimators: List[FIModelConfig],
                        X, y, support,
@@ -47,7 +46,6 @@ def compare_estimators(estimators: List[ModelConfig],
 
     # initialize results
     results = defaultdict(lambda: [])
-    feature_importance_list = {"absolute": {}}
 
     # loop over model estimators
     for model in estimators:
@@ -91,23 +89,32 @@ def compare_estimators(estimators: List[ModelConfig],
             rf_plus_base.fit(X_train, y_train)
             end_rf_plus = time.time()
 
+            rf_plus_base_ridge = RandomForestPlusRegressor(rf_model=est, prediction_model=RidgeCV(cv=5))
+            rf_plus_base_ridge.fit(X_train, y_train)
+
+            rf_plus_base_lasso = RandomForestPlusRegressor(rf_model=est, prediction_model=LassoCV(cv=5, max_iter=8000))
+            rf_plus_base_lasso.fit(X_train, y_train)
+
             # get test results
             test_all_mse_rf = mean_squared_error(y_test, est.predict(X_test))
             test_all_r2_rf = r2_score(y_test, est.predict(X_test))
             test_all_mse_rf_plus = mean_squared_error(y_test, rf_plus_base.predict(X_test))
             test_all_r2_rf_plus = r2_score(y_test, rf_plus_base.predict(X_test))
+            test_all_mse_rf_plus_ridge = mean_squared_error(y_test, rf_plus_base_ridge.predict(X_test))
+            test_all_r2_rf_plus_ridge = r2_score(y_test, rf_plus_base_ridge.predict(X_test))
+            test_all_mse_rf_plus_lasso = mean_squared_error(y_test, rf_plus_base_lasso.predict(X_test))
+            test_all_r2_rf_plus_lasso = r2_score(y_test, rf_plus_base_lasso.predict(X_test))
 
             fitted_results = {
-                    "Model": ["RF", "RF_plus"],
-                    "MSE": [test_all_mse_rf, test_all_mse_rf_plus],
-                    "R2": [test_all_r2_rf, test_all_r2_rf_plus],
-                    "Time": [end_rf - start_rf, end_rf_plus - start_rf_plus],
-                    "Y_seed": [args.y_seed, args.y_seed],
-                    "Split_seed": [args.split_seed, args.split_seed]
+                    "Model": ["RF", "RF_plus", "RF_plus_ridge", "RF_plus_lasso"],
+                    "MSE": [test_all_mse_rf, test_all_mse_rf_plus, test_all_mse_rf_plus_ridge, test_all_mse_rf_plus_lasso],
+                    "R2": [test_all_r2_rf, test_all_r2_rf_plus, test_all_r2_rf_plus_ridge, test_all_r2_rf_plus_lasso],
+                    "Y_seed": [args.y_seed, args.y_seed, args.y_seed, args.y_seed],
+                    "Split_seed": [args.split_seed, args.split_seed, args.split_seed, args.split_seed],
             }
             temp = ""
             for vary_name in vary_setting:
-                fitted_results[vary_name] = [vary_setting[vary_name]] * 3
+                fitted_results[vary_name] = [vary_setting[vary_name]] * 4
                 temp += f"{vary_name}_{vary_setting[vary_name]}_"
 
             print(fitted_results)
@@ -130,32 +137,31 @@ def compare_estimators(estimators: List[ModelConfig],
                 if fi_est.base_model == "None":
                     loaded_model = None
                 elif fi_est.base_model == "RF":
-                   loaded_model = est
+                    loaded_model = est
                 elif fi_est.base_model == "RFPlus_default":
                     loaded_model = rf_plus_base
+                elif fi_est.base_model == "RFPlus_ridge":
+                    loaded_model = rf_plus_base_ridge
+                elif fi_est.base_model == "RFPlus_lasso":
+                    loaded_model = rf_plus_base_lasso
 
                 local_fi_score_train, local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train, X_test=X_test, fit=loaded_model, mode="absolute")
-                feature_importance_list["absolute"][fi_est.name] = [local_fi_score_train, local_fi_score_test]
                 all_fi_data = {"train": local_fi_score_train, "test": local_fi_score_test}
 
                 for d in all_fi_data:
                     fi_data = all_fi_data[d]
-                    if not isinstance(fi_data, np.ndarray):
-                        metric_results[f'auroc_{d}'] = None
-                        metric_results[f'auprc_{d}'] = None
-                    else:
-                        auroc = []
-                        auprc = []
-                        for i in range(fi_data.shape[0]):
-                            fi_data_i = fi_data[i]    
-                            if fi_est.ascending:
-                                auroc.append(roc_auc_score(support, fi_data_i))
-                                auprc.append(average_precision_score(support, fi_data_i))
-                            else:
-                                auroc.append(roc_auc_score(support, -1*fi_data_i))
-                                auprc.append(average_precision_score(support, -1*fi_data_i))
-                        metric_results[f'auroc_{d}'] = np.array(auroc).mean()
-                        metric_results[f'auprc_{d}'] = np.array(auprc).mean()
+                    auroc = []
+                    auprc = []
+                    for i in range(fi_data.shape[0]):
+                        fi_data_i = fi_data[i]    
+                        if fi_est.ascending:
+                            auroc.append(roc_auc_score(support, fi_data_i))
+                            auprc.append(average_precision_score(support, fi_data_i))
+                        else:
+                            auroc.append(roc_auc_score(support, -1*fi_data_i))
+                            auprc.append(average_precision_score(support, -1*fi_data_i))
+                    metric_results[f'auroc_{d}'] = np.array(auroc).mean()
+                    metric_results[f'auprc_{d}'] = np.array(auprc).mean()
 
                 # initialize results with metadata and metric results
                 kwargs: dict = model.kwargs  # dict
@@ -168,7 +174,7 @@ def compare_estimators(estimators: List[ModelConfig],
                         results[k].append(None)
                 for met_name, met_val in metric_results.items():
                     results[met_name].append(met_val)
-    return results, feature_importance_list
+    return results
 
 
 def run_comparison(path: str,
@@ -204,7 +210,7 @@ def run_comparison(path: str,
     if len(fi_estimators) == 0:
         return
 
-    results, fi_lst = compare_estimators(estimators=estimators,
+    results = compare_estimators(estimators=estimators,
                                  fi_estimators=fi_estimators,
                                  X=X, y=y, support=support,
                                  metrics=metrics,
@@ -223,8 +229,6 @@ def run_comparison(path: str,
     for col in nosave_cols:
         if col in df.columns:
             df = df.drop(columns=[col])
-
-    pkl.dump(fi_lst, open(feature_importance_all, 'wb'))
 
     for model_comparison_file, fi_estimator in zip(model_comparison_files, fi_estimators):
         output_dict = {

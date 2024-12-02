@@ -36,6 +36,14 @@ warnings.filterwarnings("ignore", message="Bins whose width")
 #RUN THE FILE
 # python 01_run_ablation_regression.py --nreps 5 --config mdi_local.real_data_regression --split_seed 331 --ignore_cache --create_rmd --result_name diabetes_regression
 
+def select_top_features(array, sorted_indices, percentage):
+    array = copy.deepcopy(array)
+    num_features = array.shape[1]
+    num_selected = int(np.ceil(num_features * percentage))
+    selected_indices = sorted_indices[:num_selected]
+    selected_array = array[:, selected_indices]
+    return num_selected, selected_array
+
 
 def compare_estimators(estimators: List[ModelConfig],
                        fi_estimators: List[FIModelConfig],
@@ -78,22 +86,10 @@ def compare_estimators(estimators: List[ModelConfig],
                 y_train = y
                 y_test = y
 
-            top_features_ratio = [0.05, 0.1, 0.2, 0.4]
-            top_features = [int(X_train.shape[1] * ratio) for ratio in top_features_ratio]
-            top_features_dict = {}
-            for fi_est in fi_ests:
-                top_features_dict[fi_est.name] = {}
-                for num_feature in top_features:
-                    top_features_dict[fi_est.name][num_feature] = {"train": [], "test": [], "all": []}
-                    for i in range(X_train.shape[0]):
-                        top_features_dict[fi_est.name][num_feature]["train"].append([])
-                    for i in range(X_test.shape[0]):
-                        top_features_dict[fi_est.name][num_feature]["test"].append([])
-                    for i in range(X.shape[0]):
-                        top_features_dict[fi_est.name][num_feature]["all"].append([])
-                    
-            for rf_seed in range(5):
-                est = RandomForestRegressor(n_estimators=100, min_samples_leaf=5, max_features=0.33, random_state=rf_seed)
+            if args.fit_model:
+                print("Fitting Models")
+                # fit RF model
+                est = RandomForestRegressor(n_estimators=100, min_samples_leaf=5, max_features=0.33, random_state=args.rf_seed)
                 est.fit(X_train, y_train)
 
                 rf_plus_base = RandomForestPlusRegressor(rf_model=est)
@@ -105,7 +101,42 @@ def compare_estimators(estimators: List[ModelConfig],
                 rf_plus_base_lasso = RandomForestPlusRegressor(rf_model=est, prediction_model=LassoCV(cv=5, max_iter=5000))
                 rf_plus_base_lasso.fit(X_train, y_train)
 
+                test_all_mse_rf = mean_squared_error(y_test, est.predict(X_test))
+                test_all_r2_rf = r2_score(y_test, est.predict(X_test))
+                test_all_mse_rf_plus = mean_squared_error(y_test, rf_plus_base.predict(X_test))
+                test_all_r2_rf_plus = r2_score(y_test, rf_plus_base.predict(X_test))
+                test_all_mse_rf_plus_ridge = mean_squared_error(y_test, rf_plus_base_ridge.predict(X_test))
+                test_all_r2_rf_plus_ridge = r2_score(y_test, rf_plus_base_ridge.predict(X_test))
+                test_all_mse_rf_plus_lasso = mean_squared_error(y_test, rf_plus_base_lasso.predict(X_test))
+                test_all_r2_rf_plus_lasso = r2_score(y_test, rf_plus_base_lasso.predict(X_test))
+
+                fitted_results = {
+                        "Model": ["RF", "RF_plus", "RF_plus_ridge", "RF_plus_lasso"],
+                        "MSE": [test_all_mse_rf, test_all_mse_rf_plus, test_all_mse_rf_plus_ridge, test_all_mse_rf_plus_lasso],
+                        "R2": [test_all_r2_rf, test_all_r2_rf_plus, test_all_r2_rf_plus_ridge, test_all_r2_rf_plus_lasso]
+                }
+                
+                os.makedirs(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}", exist_ok=True)
+                results_df = pd.DataFrame(fitted_results)
+                results_df.to_csv(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RFPlus_fitted_summary_rf_seed_{args.rf_seed}_split_seed_{args.split_seed}.csv", index=False)
+
+                if args.num_features_masked is None:
+                    num_features_masked = X_train.shape[1]
+                else:
+                    num_features_masked = args.num_features_masked
+
+                # loop over fi estimators
                 for fi_est in tqdm(fi_ests):
+                    metric_results = {
+                        'model': model.name,
+                        'fi': fi_est.name,
+                        'train_size': X_train.shape[0],
+                        'test_size': X_test.shape[0],
+                        'num_features': X_train.shape[1],
+                        'data_split_seed': args.split_seed,
+                        'rf_seed': args.rf_seed,
+                        'num_features_masked': num_features_masked
+                    }
                     if fi_est.base_model == "None":
                         loaded_model = None
                     elif fi_est.base_model == "RF":
@@ -117,65 +148,48 @@ def compare_estimators(estimators: List[ModelConfig],
                     elif fi_est.base_model == "RFPlus_lasso":
                         loaded_model = rf_plus_base_lasso
 
-                    local_fi_score_train, local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train, X_test=X_test, fit=loaded_model, mode="absolute")
-
+                    print(f"Compute feature importance")
+                    local_fi_score_train, _ = fi_est.cls(X_train=X_train, y_train=y_train, X_test=X_test, fit=loaded_model, mode="absolute")
+                    train_fi_mean = np.mean(local_fi_score_train, axis=0)
+                    print(f"Train FI Mean: {train_fi_mean}")
                     if fi_est.ascending:
-                        sorted_feature_train = np.argsort(-local_fi_score_train)
-                        sorted_feature_test = np.argsort(-local_fi_score_test)
+                        sorted_feature = np.argsort(-train_fi_mean)
                     else:
-                        sorted_feature_train = np.argsort(local_fi_score_train)
-                        sorted_feature_test = np.argsort(local_fi_score_test)
+                        sorted_feature = np.argsort(train_fi_mean)
+                    print(f"Sorted Feature: {sorted_feature}")
 
-                    for i in range(X_train.shape[0]):
-                        for num_feature in top_features:
-                            top_features_dict[fi_est.name][num_feature]["train"][i].extend(sorted_feature_train[i][:num_feature].tolist())
-                            top_features_dict[fi_est.name][num_feature]["all"][i].extend(sorted_feature_train[i][:num_feature].tolist())
-                    
-                    for i in range(X_test.shape[0]):
-                        for num_feature in top_features:
-                            top_features_dict[fi_est.name][num_feature]["test"][i].extend(sorted_feature_test[i][:num_feature].tolist())
-                            top_features_dict[fi_est.name][num_feature]["all"][X_train.shape[0]+i].extend(sorted_feature_test[i][:num_feature].tolist())
-
-
-            for fi_est in tqdm(fi_ests):
-                metric_results = {
-                    'model': model.name,
-                    'fi': fi_est.name,
-                    'train_size': X_train.shape[0],
-                    'test_size': X_test.shape[0],
-                    'num_features': X_train.shape[1],
-                    'data_split_seed': args.split_seed,
-                }
-
-                for r in range(len(top_features_ratio)):
-                    metric_results[f"top_{int(top_features_ratio[r]*100)}"] = top_features[r]
-                    num_feature = top_features[r]
-                    total_train = 0
-                    for i in range(X_train.shape[0]):
-                        total_train += len(set(top_features_dict[fi_est.name][num_feature]["train"][i]))
-                    metric_results[f"avg_{int(top_features_ratio[r]*100)}_features_train"] = total_train / X_train.shape[0]
-
-                    total_test = 0
-                    for i in range(X_test.shape[0]):
-                        total_test += len(set(top_features_dict[fi_est.name][num_feature]["test"][i]))
-                    metric_results[f"avg_{int(top_features_ratio[r]*100)}_features_test"] = total_test / X_test.shape[0]
-
-                    total_all = 0
-                    for i in range(X.shape[0]):
-                        total_all += len(set(top_features_dict[fi_est.name][num_feature]["all"][i]))
-                    metric_results[f"avg_{int(top_features_ratio[r]*100)}_features_all"] = total_all / X.shape[0]
-                    
-            # initialize results with metadata and metric results
-                kwargs: dict = model.kwargs  # dict
-                for k in kwargs:
-                    results[k].append(kwargs[k])
-                for k in fi_kwargs:
-                    if k in fi_est.kwargs:
-                        results[k].append(str(fi_est.kwargs[k]))
+                    ablation_models = {"RF_Regressor": RandomForestRegressor(n_estimators=100,min_samples_leaf=5,max_features=0.33,random_state=args.rf_seed),
+                                       "xgboost_Regressor": xgb.XGBRegressor(random_state=args.rf_seed),
+                                       "Linear_Regressor": LinearRegression()}
+                    if X_train.shape[1] > 20:
+                        mask_ratio = [0.01, 0.05, 0.1, 0.15, 0.25, 0.4, 0.5, 0.7, 0.9]
                     else:
-                        results[k].append(None)
-                for met_name, met_val in metric_results.items():
-                    results[met_name].append(met_val)
+                        mask_ratio = [0.05, 0.1, 0.15, 0.25, 0.4, 0.5, 0.7, 0.9]
+                    print(f"X_train_0: {X_train[0]}")
+                    for mask in mask_ratio:
+                        print(f"Mask ratio: {mask}")
+                        num_features_selected, X_train_masked = select_top_features(X_train, sorted_feature, mask)
+                        print(f"Train shape: {X_train_masked.shape}")
+                        num_features_selected, X_test_masked = select_top_features(X_test, sorted_feature, mask)
+                        print(f"Test shape: {X_test_masked.shape}")
+                        print(f"X_train_masked_0: {X_train_masked[0]}")
+                        metric_results[f'num_features_selected_{mask}'] = num_features_selected
+                        for a_model in ablation_models:
+                            ablation_models[a_model].fit(X_train_masked, y_train)
+                            y_pred = ablation_models[a_model].predict(X_test_masked)
+                            metric_results[f'{a_model}_MSE_top_{mask}'] = mean_squared_error(y_test, y_pred)
+                            metric_results[f'{a_model}_R2_top_{mask}'] = r2_score(y_test, y_pred)
+
+                    kwargs: dict = model.kwargs
+                    for k in kwargs:
+                        results[k].append(kwargs[k])
+                    for k in fi_kwargs:
+                        if k in fi_est.kwargs:
+                            results[k].append(str(fi_est.kwargs[k]))
+                        else:
+                            results[k].append(None)
+                    for met_name, met_val in metric_results.items():
+                        results[met_name].append(met_val)
     # for key, value in results.items():
     #     print(f"{key}: {len(value)}")
     return results
@@ -307,6 +321,9 @@ if __name__ == '__main__':
 
     ### Newly added arguments
     parser.add_argument('--folder_name', type=str, default=None)
+    parser.add_argument('--fit_model', type=bool, default=False)
+    parser.add_argument('--num_features_masked', type=int, default=None)
+    parser.add_argument('--rf_seed', type=int, default=0)
 
     # for multiple reruns, should support varying split_seed
     parser.add_argument('--ignore_cache', action='store_true', default=False)
@@ -364,9 +381,9 @@ if __name__ == '__main__':
     # else:
     #     path = oj(results_dir, "varying_" + vary_param_name, "seed" + str(args.split_seed))
     if isinstance(vary_param_name, list):
-        path = oj(results_dir, "varying_" + "_".join(vary_param_name), "split_seed_" + str(args.split_seed))
+        path = oj(results_dir, "varying_" + "_".join(vary_param_name), "split_seed_" + str(args.split_seed)+"rf_seed_" + str(args.rf_seed))
     else:
-        path = oj(results_dir, "varying_" + vary_param_name, "split_seed_" + str(args.split_seed))
+        path = oj(results_dir, "varying_" + vary_param_name, "split_seed_" + str(args.split_seed)+"rf_seed_" + str(args.rf_seed))
     os.makedirs(path, exist_ok=True)
 
     eval_out = defaultdict(list)

@@ -1,8 +1,10 @@
 #!/bin/bash
 
-slurm_script="00_ablation_regression_stability_script4.sh"
+slurm_script="00_ablation_regression_stability_script.sh"
 
-for split_seed in {1..3}; do
-    sbatch $slurm_script $split_seed # Submit SLURM job with both split_seed and rf_seed as arguments
-    sleep 2
+for data_name in "temperature" "performance" "parkinsons" "CCLE_PD_0325901"; do
+    for split_seed in {1..3}; do
+        sbatch $slurm_script $data_name $split_seed
+        sleep 2
+    done
 done
