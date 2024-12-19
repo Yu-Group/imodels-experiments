@@ -20,6 +20,12 @@ results.csv
 # Compiled python modules.
 *.pyc
 
+# results folders in feature_importance
+feature_importance/**/results/*
+
+# gene data files ending with .csv
+feature_importance/gene-data/*.csv
+
 # Setuptools distribution folder.
 /dist/
 
