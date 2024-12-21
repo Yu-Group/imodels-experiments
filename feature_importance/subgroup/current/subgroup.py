@@ -1,30 +1,55 @@
-# imports
+# standard data science packages
 import numpy as np
 import pandas as pd
-from subgroup_detection import *
-from subgroup_experiment import *
-from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression, LinearRegression
+from scipy import cluster
+
+# imodels imports
 from imodels.tree.rf_plus.rf_plus.rf_plus_models import \
     RandomForestPlusRegressor, RandomForestPlusClassifier
 from imodels.tree.rf_plus.feature_importance.rfplus_explainer import \
     RFPlusMDI, AloRFPlusMDI
-from scipy import cluster
-from scipy.cluster.hierarchy import fcluster, cut_tree
+
+# functions for subgroup experiments
+from subgroup_detection import *
+from subgroup_experiment import *
+import shap
+
+# sklearn imports
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.metrics import roc_auc_score, average_precision_score, f1_score, \
     accuracy_score, r2_score, f1_score, log_loss, root_mean_squared_error
-from imodels import get_clean_dataset
+
+# for reading data
 import openml
-from ucimlrepo import fetch_ucirepo
+
+# for saving results
 import argparse
 import os
 from os.path import join as oj
 
-def get_openml_data(id, num_samples=2000):
+# for function headers
+from typing import Tuple, Dict
+
+
+def get_openml_data(id: int,
+                    num_samples: int = 2000) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Get benchmark datasets from OpenML.
+    
+    Inputs:
+    - id (int): The OpenML dataset ID.
+    - num_samples (int): The number of samples to use. If None, use all samples.
+    
+    Outputs:
+    - X (np.ndarray): The feature matrix.
+    - y (np.ndarray): The target vector.
+    """
     
     # check that the dataset_id is in the set of tested datasets
     known_ids = {361247, 361243, 361242, 361251, 361253, 361260, 361259, 361256,
                  361254, 361622}
+    # error if not recognized, since we do not know if we need to transform
     if id not in known_ids:
         raise ValueError(f"Data ID {id} is not in the set of known datasets.")
     
@@ -53,33 +78,81 @@ def get_openml_data(id, num_samples=2000):
     
     return X, y
 
-def fit_models(X_train, y_train, task):
-    # fit models
+def fit_models(X_train: np.ndarray, y_train: np.ndarray, task: str):
+    """
+    Fit the prediction models for the subgroup experiments.
+    
+    Inputs:
+    - X_train (np.ndarray): The feature matrix for the training set.
+    - y_train (np.ndarray): The target vector for the training set.
+    - task (str): The task type, either 'classification' or 'regression'.
+    
+    Outputs:
+    - rf (RandomForestClassifier/RandomForestRegressor): The RF.
+    - rf_plus_baseline (RandomForestPlusClassifier/RandomForestPlusRegressor):
+                        The baseline RF+ (no raw feature, only on in-bag
+                        samples, regular linear/logistic prediction model).
+    - rf_plus (RandomForestPlusClassifier/RandomForestPlusRegressor): The RF+.
+    """
+    
+    # if classification, fit classifiers
     if task == "classification":
+
+        # fit random forest with params from MDI+
         rf = RandomForestClassifier(n_estimators=100, min_samples_leaf=3,
                                     max_features='sqrt', random_state=42)
         rf.fit(X_train, y_train)
+
+        # baseline rf+ includes no raw feature and only fits on in-bag samples
         rf_plus_baseline = RandomForestPlusClassifier(rf_model=rf,
                                         include_raw=False, fit_on="inbag",
                                         prediction_model=LogisticRegression())
         rf_plus_baseline.fit(X_train, y_train)
+
+        # standard rf+ uses default values
         rf_plus = RandomForestPlusClassifier(rf_model=rf)
         rf_plus.fit(X_train, y_train)
+
+    # if regression, fit regressors
     elif task == "regression":
+        
+        # fit random forest with params from MDI+
         rf = RandomForestRegressor(n_estimators=100, min_samples_leaf=5,
                                    max_features=0.33, random_state=42)
         rf.fit(X_train, y_train)
+        
+        # baseline rf+ includes no raw feature and only fits on in-bag samples
         rf_plus_baseline = RandomForestPlusRegressor(rf_model=rf,
                                         include_raw=False, fit_on="inbag",
                                         prediction_model=LinearRegression())
         rf_plus_baseline.fit(X_train, y_train)
+        
+        # standard rf+ uses default values
         rf_plus = RandomForestPlusRegressor(rf_model=rf)
         rf_plus.fit(X_train, y_train)
+    
+    # otherwise, throw error
     else:
         raise ValueError("Task must be 'classification' or 'regression'.")
+    
+    # return tuple of models
     return rf, rf_plus_baseline, rf_plus
 
-def get_shap(X, shap_explainer, task):
+def get_shap(X: np.ndarray, shap_explainer: shap.TreeExplainer, task: str):
+    """
+    Get the SHAP values and rankings for the given data.
+    
+    Inputs:
+    - X (np.ndarray): The feature matrix.
+    - shap_explainer (shap.TreeExplainer): The SHAP explainer object.
+    - task (str): The task type, either 'classification' or 'regression'.
+    
+    Outputs:
+    - shap_values (np.ndarray): The SHAP values.
+    - shap_rankings (np.ndarray): The SHAP rankings.
+    """
+    
+    # classification and regression get indexed differently
     if task == "classification":
         # the shap values are an array of shape
         # (# of samples, # of features, # of classes), and in this binary
@@ -92,88 +165,236 @@ def get_shap(X, shap_explainer, task):
         shap_values = shap_explainer.shap_values(X, check_additivity = False)
     else:
         raise ValueError("Task must be 'classification' or 'regression'.")
+    
     # get the rankings of the shap values. negative absolute value is taken
     # because np.argsort sorts from smallest to largest.
     shap_rankings = np.argsort(-np.abs(shap_values), axis = 1)
+    
     return shap_values, shap_rankings
 
-def get_lmdi_explainers(rf_plus, lmdi_variants, rf_plus_baseline = None):
-    # create the lmdi explainer objects
+def get_lmdi_explainers(rf_plus, lmdi_variants: Dict[str, Dict[str, bool]],
+                        rf_plus_baseline = None):
+    """
+    Create the LMDI explainer objects for the subgroup experiments.
+    
+    Inputs:
+    - rf_plus (RandomForestPlusClassifier/RandomForestPlusRegressor): The RF+.
+    - lmdi_variants (Dict[str, Dict[str, bool]]): The LMDI variants to use.
+                    Stored as a dictionary with keys corresponding to the name
+                    of the lmdi+ variant and the value correponding to the
+                    argument mapping. In the argument mapping, keys are strings
+                    corresponding to elements of the variant (e.g. "loo") and
+                    the values are bools to indicate if they have that property.
+    - rf_plus_baseline (RandomForestPlusClassifier/RandomForestPlusRegressor):
+                    The baseline RF+ (no raw feature, only on in-bag samples,
+                    regular linear/logistic prediction model).
+    
+    Outputs:
+    - lmdi_explainers (Dict[str, RFPlusMDI/AloRFPlusMDI]): The LMDI+ explainer
+                    objects. The keys correspond to the variant names, and the
+                    values are the explainer objects, where AloRFPlusMDIs are
+                    used if "loo" is True and RFPlusMDIs are used if "loo" is
+                    False. Unique objects are used for each variant to prevent
+                    saved fields from interfering with results.
+    """
+    
     lmdi_explainers = {}
+    
+    # if a baseline is provided, we need to treat it separately
     if rf_plus_baseline is not None:
+        # evaluate on inbag samples only
         lmdi_explainers["baseline"] = RFPlusMDI(rf_plus_baseline,
                                                 mode = "only_k",
                                                 evaluate_on = "inbag")
+    # create the explainer objects for each variant, using AloRFPlusMDI if loo
+    # is True and RFPlusMDI if loo is False
     for variant_name in lmdi_variants.keys():
         if lmdi_variants[variant_name]["loo"]:
             lmdi_explainers[variant_name] = AloRFPlusMDI(rf_plus,
                                                          mode = "only_k")
         else:
             lmdi_explainers[variant_name] = RFPlusMDI(rf_plus, mode = "only_k")
+    
     return lmdi_explainers
     
 
-def get_lmdi(X, y, lmdi_variants, lmdi_explainers):
+def get_lmdi(X: np.ndarray, y: np.ndarray,
+             lmdi_variants: Dict[str, Dict[str, bool]], lmdi_explainers):
+    """
+    Get the LMDI+ values and rankings for the given data.
+    
+    Inputs:
+    - X (np.ndarray): The feature matrix.
+    - y (np.ndarray): The target vector. For test data, y should be None.
+    - lmdi_variants (Dict[str, Dict[str, bool]]): The LMDI variants to use.
+                    Stored as a dictionary with keys corresponding to the name
+                    of the lmdi+ variant and the value correponding to the
+                    argument mapping. In the argument mapping, keys are strings
+                    corresponding to elements of the variant (e.g. "loo") and
+                    the values are bools to indicate if they have that property.
+    - lmdi_explainers (Dict[str, RFPlusMDI/AloRFPlusMDI]): The LMDI+ explainer
+                    objects. The keys correspond to the variant names, and the
+                    values are the explainer objects, where AloRFPlusMDIs are
+                    used if "loo" is True and RFPlusMDIs are used if "loo" is
+                    False. Unique objects are used for each variant to prevent
+                    saved fields from interfering with results.
+    
+    Outputs:
+    - lmdi_values (Dict[str, np.ndarray]): Mapping with variant names as keys
+                    and numpy arrays of the LMDI+ values as values.
+    - lmdi_rankings (Dict[str, np.ndarray]): Mapping with variant names as keys
+                    and numpy arrays of the LMDI+ rankings as values.
+    """
     
     # initialize storage mappings
     lmdi_values = {}
     lmdi_rankings = {}
     
-    # check if the explainer mapping has a "baseline"
+    # if the explainer mapping has a baseline, we need to treat it differently
     if len(lmdi_explainers) == len(lmdi_variants) + 1 and \
         "baseline" in lmdi_explainers:
-        lmdi_values["baseline"] = lmdi_explainers["baseline"].explain_linear_partial(X, y,
+        
+        # we need to get the values with all of the params set to False
+        lmdi_values["baseline"] = \
+            lmdi_explainers["baseline"].explain_linear_partial(X, y,
                                             l2norm=False, sign=False,
-                                            normalize=False,leaf_average=False)
-        lmdi_rankings["baseline"] = lmdi_explainers["baseline"].get_rankings(np.abs(lmdi_values["baseline"]))
+                                            normalize=False, leaf_average=False,
+                                            ranking=False)
+
+        # get the rankings using the method in the explainer class
+        lmdi_rankings["baseline"] = \
+            lmdi_explainers["baseline"].get_rankings(
+                np.abs(lmdi_values["baseline"])
+                )
     
+    # for all the other variants, we loop through the explainer objects,
+    # using their parameter mappings to set the arguments.
     for name, explainer in lmdi_explainers.items():
+        
+        # skip through the baseline model, since we have already done it
         if name == "baseline":
             continue
-        variant_args = lmdi_variants[name]        
+        
+        # get the argument mapping
+        variant_args = lmdi_variants[name]    
+        
+        # set the values by calling explain on the object with the args from
+        # input mapping    
         lmdi_values[name] = explainer.explain_linear_partial(X, y,
-                                            l2norm=variant_args["l2norm"],
-                                            sign=variant_args["sign"],
-                                            normalize=variant_args["normalize"],
-                                            leaf_average=variant_args["leaf_average"])
+                                        l2norm=variant_args["l2norm"],
+                                        sign=variant_args["sign"],
+                                        normalize=variant_args["normalize"],
+                                        leaf_average=variant_args["leaf_average"],
+                                        ranking=variant_args["ranking"])
+        
+        # get rankings using the method in the explainer class. absolute value
+        # taken to ensure that the rankings are based on the magnitude.
         lmdi_rankings[name] = explainer.get_rankings(np.abs(lmdi_values[name]))
         
     return lmdi_values, lmdi_rankings
 
-def get_train_clusters(lfi_train_values, method):
+def get_train_clusters(lfi_train_values: Dict[str, np.ndarray], method: str):
+    """
+    Get the clusters for the training data.
+    
+    Inputs:
+    - lfi_train_values (Dict[str, np.ndarray]): The LMDI+ values for the
+                    training data. The keys correspond to the method names and
+                    the values are numpy arrays of the LMDI+ values.
+    - method (str): The clustering method to use, either 'kmeans' or
+                    'hierarchical'.
+    
+    Outputs:
+    - method_to_labels (Dict[str, Dict[int, np.ndarray]]): Mapping with method
+                    names as keys and dictionaries as values. The inner
+                    dictionaries have the number of clusters as keys and numpy
+                    arrays of the cluster assignments as values.
+    - method_to_indices (Dict[str, Dict[int, Dict[int, np.ndarray]]]): Mapping
+                    with method names as keys and dictionaries as values. The
+                    inner dictionaries have the number of clusters as keys and
+                    dictionaries as values. The innermost dictionaries have the
+                    cluster numbers as keys and numpy arrays of the indices in
+                    each cluster as values.
+    """
+    
     # make sure method is valid
     if method not in ["kmeans", "hierarchical"]:
         raise ValueError("Method must be 'kmeans' or 'hierarchical'.")
+    
+    # case when hierarchical clustering
     if method == "hierarchical":
+
+        # store the linkage for each variant to compute clusters later
         train_linkage = {}
-        for method, values in lfi_train_values.items():
-            train_linkage[method] = cluster.hierarchy.ward(values)
-        train_clusters = {}
-        for method, link in train_linkage.items():
+        for variant, values in lfi_train_values.items():
+            # use ward linkage
+            train_linkage[variant] = cluster.hierarchy.ward(values)
+            
+        # store the clusters for each variant
+        method_to_labels = {}
+        # loop through each variant
+        for variant, link in train_linkage.items():
+            # each variant will have a mapping to store its clusters.
+            # the number of clusters will be the key, and the array of cluster
+            # assignments will be the value.
             num_cluster_map = {}
+            # number of clusters varies from 2 to 10
             for num_clusters in range(2, 11):
-                num_cluster_map[num_clusters] = cut_tree(link, n_clusters=num_clusters).flatten()
-            train_clusters[method] = num_cluster_map
-    elif method == "kmeans":
-        train_clusters = {}
-        for method, values in lfi_train_values.items():
+                # cut the tree at the specified number of clusters,
+                # saving the flattened array of cluster assignments
+                num_cluster_map[num_clusters] = \
+                    cluster.hierarchy.cut_tree(link,
+                                            n_clusters=num_clusters).flatten()
+            # store the mapping for the variant
+            method_to_labels[variant] = num_cluster_map
+            
+    # case when kmeans clustering
+    else:
+        # store the clusters for each variant
+        method_to_labels = {}
+        # loop through each variant
+        for variant, values in lfi_train_values.items():
+            # each variant will have a mapping to store its clusters.
+            # the number of clusters will be the key, and the array of cluster
+            # assignments will be the value.
             num_cluster_map = {}
+            # number of clusters varies from 2 to 10
             for num_clusters in range(2, 11):
-                centroids, _ = cluster.vq.kmeans(obs=values, k_or_guess=num_clusters)
+                # obtain the cluster centroids first (this is how they suggest
+                # doing it, although it feels weird)
+                centroids, _ = cluster.vq.kmeans(obs=values,
+                                                 k_or_guess=num_clusters)
+                # assign the values to the clusters using centroids
                 kmeans, _ = cluster.vq.vq(values, centroids)
                 num_cluster_map[num_clusters] = kmeans
-            train_clusters[method] = num_cluster_map
-    train_clusters_final = {}
-    for method, clusters in train_clusters.items():
+            # store the mapping for the variant
+            method_to_labels[variant] = num_cluster_map
+    
+    # at this point, we have method_to_labels, which is a mapping of variant
+    # name to another mapping. for each variant, the mapping is from the number
+    # of clusters c to the cluster assignments when there are c clusters.
+    # HOWEVER, what we want is a mapping that eventually goes from the variant
+    # name to the indices in each cluster. thus, we need to convert the cluster
+    # labels to the indexes that fall into each cluster.
+    
+    method_to_indices = {}
+    for variant, clusters in method_to_labels.items():
+        # this will be a mapping from the number of clusters to another mapping,
+        # which will be from the cluster number to the indices in that cluster.
         num_cluster_map = {}
         for num_clusters, cluster_labels in clusters.items():
+            # this is the inner mapping mentioned above
             cluster_map = {}
             for cluster_num in range(num_clusters):
+                # for each cluster, get the indices with that cluster label
                 cluster_indices = np.where(cluster_labels == cluster_num)[0]
                 cluster_map[cluster_num] = cluster_indices
             num_cluster_map[num_clusters] = cluster_map
-        train_clusters_final[method] = num_cluster_map
-    return train_clusters, train_clusters_final
+        method_to_indices[variant] = num_cluster_map
+        
+    # we need to return both versions because I don't want to have to rewrite
+    # functions that rely on different versions of the mapping.
+    return method_to_labels, method_to_indices
 
 def get_cluster_centroids(lfi_train_values, train_clusters):
     # for each method, for each number of clusters, get the clusters and compute their centroids
