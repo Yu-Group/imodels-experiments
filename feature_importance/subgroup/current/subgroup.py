@@ -305,16 +305,17 @@ def get_train_clusters(lfi_train_values: Dict[str, np.ndarray], method: str):
                     'hierarchical'.
     
     Outputs:
-    - method_to_labels (Dict[str, Dict[int, np.ndarray]]): Mapping with method
-                    names as keys and dictionaries as values. The inner
-                    dictionaries have the number of clusters as keys and numpy
-                    arrays of the cluster assignments as values.
     - method_to_indices (Dict[str, Dict[int, Dict[int, np.ndarray]]]): Mapping
                     with method names as keys and dictionaries as values. The
                     inner dictionaries have the number of clusters as keys and
                     dictionaries as values. The innermost dictionaries have the
                     cluster numbers as keys and numpy arrays of the indices in
                     each cluster as values.
+    Removed:
+    - method_to_labels (Dict[str, Dict[int, np.ndarray]]): Mapping with method
+                    names as keys and dictionaries as values. The inner
+                    dictionaries have the number of clusters as keys and numpy
+                    arrays of the cluster assignments as values.
     """
     
     # make sure method is valid
@@ -394,46 +395,161 @@ def get_train_clusters(lfi_train_values: Dict[str, np.ndarray], method: str):
         
     # we need to return both versions because I don't want to have to rewrite
     # functions that rely on different versions of the mapping.
-    return method_to_labels, method_to_indices
+    # return method_to_labels, method_to_indices
+    
+    return method_to_indices
 
-def get_cluster_centroids(lfi_train_values, train_clusters):
-    # for each method, for each number of clusters, get the clusters and compute their centroids
+# def get_cluster_centroids(lfi_train_values: Dict[str, np.ndarray],
+#                           method_to_labels: Dict[str, Dict[int, np.ndarray]]):
+#     """
+#     Gets the middle of each cluster so that test data can be assigned.
+    
+#     Inputs:
+#     - lfi_train_values (Dict[str, np.ndarray]): The LMDI+ values for the
+#                     training data. The keys correspond to the method names and
+#                     the values are numpy arrays of the LMDI+ values.
+#     - method_to_labels (Dict[str, Dict[int, np.ndarray]]): Mapping with method
+#                     names as keys and dictionaries as values. The inner
+#                     dictionaries have the number of clusters as keys and numpy
+#                     arrays of the cluster assignments as values.
+    
+#     Outputs:
+#     - cluster_centroids (Dict[str, Dict[int, np.ndarray]]): Mapping with method
+#                     names as keys and dictionaries as values. The inner
+#                     dictionaries have the number of clusters as keys and numpy
+#                     arrays of the cluster centroids as values.
+#     """
+#     # for each method, for each number of clusters, get the clusters and compute their centroids
+#     cluster_centroids = {}
+    
+#     # for each method, attain the mapping from # of clusters to labels
+#     for method, nclust_to_labels in method_to_labels.items():
+#         # store the centroids for each # of clusters
+#         num_cluster_centroids = {}
+#         for num_clusters, cluster_labels in nclust_to_labels.items():
+#             # the centroids are the mean of the values in each cluster,
+#             # which is a px1 vector
+#             centroids = np.zeros((num_clusters, X.shape[1]))
+#             # for each cluster 1, ..., c, get the indices and compute the mean
+#             for cluster_num in range(num_clusters):
+#                 cluster_indices = np.where(cluster_labels == cluster_num)[0]
+#                 cluster_values = lfi_train_values[method][cluster_indices]
+#                 centroids[cluster_num] = np.mean(cluster_values, axis = 0)
+#             num_cluster_centroids[num_clusters] = centroids
+#         cluster_centroids[method] = num_cluster_centroids
+#     return cluster_centroids
+
+def get_cluster_centroids(lfi_train_values: Dict[str, np.ndarray],
+                method_to_indices: Dict[str, Dict[int, Dict[int, np.ndarray]]]):
+    """
+    Gets the middle of each cluster so that test data can be assigned.
+    
+    Inputs:
+    - lfi_train_values (Dict[str, np.ndarray]): The LMDI+ values for the
+                    training data. The keys correspond to the method names and
+                    the values are numpy arrays of the LMDI+ values.
+    - method_to_indices (Dict[str, Dict[int, Dict[int, np.ndarray]]]): Mapping
+                    with method names as keys and dictionaries as values. The
+                    inner dictionaries have the number of clusters as keys and
+                    dictionaries as values. The innermost dictionaries have the
+                    cluster numbers as keys and numpy arrays of the indices in
+                    each cluster as values.
+    
+    Outputs:
+    - cluster_centroids (Dict[str, Dict[int, np.ndarray]]): Mapping with method
+                    names as keys and dictionaries as values. The inner
+                    dictionaries have the number of clusters as keys and numpy
+                    arrays of the cluster centroids as values.
+    """
+    
+    # map to be built out and returned
     cluster_centroids = {}
-    for method, clusters in train_clusters.items():
-        num_cluster_centroids = {}
-        for num_clusters, cluster_labels in clusters.items():
-            centroids = np.zeros((num_clusters, X.shape[1]))
-            for cluster_num in range(num_clusters):
-                cluster_indices = np.where(cluster_labels == cluster_num)[0]
-                cluster_values = lfi_train_values[method][cluster_indices]
-                centroids[cluster_num] = np.mean(cluster_values, axis = 0)
-            num_cluster_centroids[num_clusters] = centroids
-        cluster_centroids[method] = num_cluster_centroids
+    
+    # nclust_map has # of clusters as keys and an interior mapping of the
+    # clusters for that # of clusters as vals
+    for variant, nclust_map in method_to_indices.items():
+        # store the centroids for each # of clusters
+        nclust_centroids = {}
+        # cluster_map has cluster # as keys and an array of indices as vals
+        for nclust, cluster_map in nclust_map.items():
+            # centroids is a matrix of shape (c, p) where c is the number of
+            # clusters and p is the number of features
+            centroids = np.zeros((nclust, lfi_train_values[variant].shape[1]))
+            for c, idxs in cluster_map.items():
+                # assign to row c the mean of the values in the cluster
+                centroids[c] = np.mean(lfi_train_values[variant][idxs], axis=0)
+            # store the centroids for this number of clusters
+            nclust_centroids[nclust] = centroids
+        # store the centroids for this variant
+        cluster_centroids[variant] = nclust_centroids
+    
     return cluster_centroids
 
-def get_test_clusters(lfi_test_values, cluster_centroids):
-    # for each method, for its test values, assign the test values to the closest centroid
-    test_value_clusters = {}
-    for method, centroids in cluster_centroids.items():
+def get_test_clusters(lfi_test_values: Dict[str, np.ndarray],
+                      cluster_centroids: Dict[str, Dict[int, np.ndarray]]):
+    """
+    Assign the test observations to the closest centroid.
+    
+    Inputs:
+    - lfi_test_values (Dict[str, np.ndarray]): The LMDI+ values for the
+                    testing data. The keys correspond to the method names and
+                    the values are numpy arrays of the LMDI+ values.
+    - cluster_centroids (Dict[str, Dict[int, np.ndarray]]): Mapping with method
+                    names as keys and dictionaries as values. The inner
+                    dictionaries have the number of clusters as keys and numpy
+                    arrays of the cluster centroids as values.
+    
+    Outputs:
+    - test_clusters (Dict[str, Dict[int, Dict[int, np.ndarray]]]): Mapping with
+                    method names as keys and dictionaries as values. The inner
+                    dictionaries have the number of clusters as keys and
+                    dictionaries as values. The innermost dictionaries have the
+                    cluster numbers as keys and numpy arrays of the indices in
+                    each cluster as values.
+    """
+
+    # we first attain a map from variant to cluster assignments
+    method_to_labels = {}
+    
+    # for each variant, there is a map from the number of clusters to the
+    # cluster centroid array
+    for variant, centroid_map in cluster_centroids.items():
+        # each variant will have a mapping to store its clusters.
+        # the number of clusters will be the key, and the array of cluster
+        # assignments will be the value.
         num_cluster_map = {}
-        for num_clusters, centroid_values in centroids.items():
-            cluster_membership = np.zeros(len(lfi_test_values[method]))
-            for i, test_value in enumerate(lfi_test_values[method]):
-                distances = np.linalg.norm(centroid_values - test_value, axis=1)
+        # for each # of clusters, get the centroids and see which is closest
+        for nclust, centroid_array in centroid_map.items():
+            # store the cluster assignments for each test observation
+            cluster_membership = np.zeros(len(lfi_test_values[variant]))
+            # for each test observation, find the closest centroid
+            for i, test_value in enumerate(lfi_test_values[variant]):
+                # subtracting (p,) from (c, p) broadcasts to (c, p)
+                distances = np.linalg.norm(centroid_array - test_value, axis=1)
+                # assign to the closest centroid
                 cluster_membership[i] = np.argmin(distances)
-            num_cluster_map[num_clusters] = cluster_membership
-        test_value_clusters[method] = num_cluster_map
-    test_clusters = {}
-    for method, clusters in test_value_clusters.items():
+            # store the cluster assignments for this number of clusters
+            num_cluster_map[nclust] = cluster_membership
+        # store the mapping for the variant
+        method_to_labels[variant] = num_cluster_map
+        
+    # convert the cluster assignments to indices
+    method_to_indices = {}
+    for variant, nclust_map in method_to_labels.items():
+        # this will be a mapping from the number of clusters to another mapping,
+        # which will be from the cluster number to the indices in that cluster.
         num_cluster_map = {}
-        for num_clusters, cluster_labels in clusters.items():
+        for num_clusters, cluster_labels in nclust_map.items():
+            # this is the inner mapping mentioned above
             cluster_map = {}
             for cluster_num in range(num_clusters):
+                # for each cluster, get the indices with that cluster label
                 cluster_indices = np.where(cluster_labels == cluster_num)[0]
                 cluster_map[cluster_num] = cluster_indices
             num_cluster_map[num_clusters] = cluster_map
-        test_clusters[method] = num_cluster_map
-    return test_clusters
+        method_to_indices[variant] = num_cluster_map
+    
+    return method_to_indices
     
 
 if __name__ == '__main__':
@@ -517,8 +633,9 @@ if __name__ == '__main__':
     lfi_test_rankings["shap"] = shap_test_rankings
     
     # get the clusterings
-    train_clusters_for_centroids, train_clusters = get_train_clusters(lfi_train_values, clustertype)
-    cluster_centroids = get_cluster_centroids(lfi_train_values, train_clusters_for_centroids)
+    # method_to_labels, method_to_indices = get_train_clusters(lfi_train_values, clustertype)
+    train_clusters = get_train_clusters(lfi_train_values, clustertype)
+    cluster_centroids = get_cluster_centroids(lfi_train_values, train_clusters)
     test_clusters = get_test_clusters(lfi_test_values, cluster_centroids)
     
     # create a mapping of metrics to measure
