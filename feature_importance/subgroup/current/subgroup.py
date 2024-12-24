@@ -138,6 +138,44 @@ def fit_models(X_train: np.ndarray, y_train: np.ndarray, task: str):
     # return tuple of models
     return rf, rf_plus_baseline, rf_plus
 
+def create_lmdi_variant_map() -> Dict[str, Dict[str, bool]]:
+    """
+    Create a mapping of LMDI+ variants to argument mappings.
+    
+    Outputs:
+    - lmdi_variants (Dict[str, Dict[str, bool]]): The LMDI variants to use.
+    """
+    
+    # enumerate the different options when initializing a LMDI+ explainer.
+    loo = {True: "aloo", False: "nonloo"}
+    l2norm = {True: "l2", False: "nonl2"}
+    sign = {True: "signed", False: "unsigned"}
+    normalize = {True: "normed", False: "nonnormed"}
+    leaf_average = {True: "leafavg", False: "noleafavg"}
+    ranking = {True: "rank", False: "norank"}
+    
+    # create the mapping of variants to argument mappings
+    lmdi_variants = {}
+    for l in loo:
+        for n in l2norm:
+            for s in sign:
+                for nn in normalize:
+                    # sign and normalize are only relevant if l2norm is True
+                    if (not n) and (s or nn):
+                        continue
+                    for la in leaf_average:
+                        for r in ranking:
+                            # create the name the variant will be stored under
+                            variant_name = f"{loo[l]}_{l2norm[n]}_{sign[s]}" + \
+                            f"_{normalize[nn]}_{leaf_average[la]}_{ranking[r]}"
+                            # store the arguments for the lmdi+ explainer
+                            arg_map = {"loo": l, "l2norm": n, "sign": s,
+                                       "normalize": nn, "leaf_average": la,
+                                       "ranking": r}
+                            lmdi_variants[variant_name] = arg_map
+    
+    return lmdi_variants
+
 def get_shap(X: np.ndarray, shap_explainer: shap.TreeExplainer, task: str):
     """
     Get the SHAP values and rankings for the given data.
@@ -203,9 +241,9 @@ def get_lmdi_explainers(rf_plus, lmdi_variants: Dict[str, Dict[str, bool]],
     # if a baseline is provided, we need to treat it separately
     if rf_plus_baseline is not None:
         # evaluate on inbag samples only
-        lmdi_explainers["baseline"] = RFPlusMDI(rf_plus_baseline,
-                                                mode = "only_k",
-                                                evaluate_on = "inbag")
+        lmdi_explainers["lmdi_baseline"] = RFPlusMDI(rf_plus_baseline,
+                                                     mode = "only_k",
+                                                     evaluate_on = "inbag")
     # create the explainer objects for each variant, using AloRFPlusMDI if loo
     # is True and RFPlusMDI if loo is False
     for variant_name in lmdi_variants.keys():
@@ -252,19 +290,19 @@ def get_lmdi(X: np.ndarray, y: np.ndarray,
     
     # if the explainer mapping has a baseline, we need to treat it differently
     if len(lmdi_explainers) == len(lmdi_variants) + 1 and \
-        "baseline" in lmdi_explainers:
+        "lmdi_baseline" in lmdi_explainers:
         
         # we need to get the values with all of the params set to False
-        lmdi_values["baseline"] = \
-            lmdi_explainers["baseline"].explain_linear_partial(X, y,
+        lmdi_values["lmdi_baseline"] = \
+            lmdi_explainers["lmdi_baseline"].explain_linear_partial(X, y,
                                             l2norm=False, sign=False,
                                             normalize=False, leaf_average=False,
                                             ranking=False)
 
         # get the rankings using the method in the explainer class
-        lmdi_rankings["baseline"] = \
-            lmdi_explainers["baseline"].get_rankings(
-                np.abs(lmdi_values["baseline"])
+        lmdi_rankings["lmdi_baseline"] = \
+            lmdi_explainers["lmdi_baseline"].get_rankings(
+                np.abs(lmdi_values["lmdi_baseline"])
                 )
     
     # for all the other variants, we loop through the explainer objects,
@@ -272,7 +310,7 @@ def get_lmdi(X: np.ndarray, y: np.ndarray,
     for name, explainer in lmdi_explainers.items():
         
         # skip through the baseline model, since we have already done it
-        if name == "baseline":
+        if name == "lmdi_baseline":
             continue
         
         # get the argument mapping
@@ -550,8 +588,128 @@ def get_test_clusters(lfi_test_values: Dict[str, np.ndarray],
         method_to_indices[variant] = num_cluster_map
     
     return method_to_indices
-    
 
+def compute_performance(X_train: np.ndarray, X_test: np.ndarray,
+                        y_train: np.ndarray, y_test: np.ndarray,
+                    train_clusters: Dict[str, Dict[int, Dict[int, np.ndarray]]],
+                    test_clusters: Dict[str, Dict[int, Dict[int, np.ndarray]]],
+                    task: str):
+    """
+    Fit regression models on the train data for each cluster, and calculate
+    the performance on the test data.
+    
+    Inputs:
+    - X_train (np.ndarray): The feature matrix for the training set.
+    - X_test (np.ndarray): The feature matrix for the testing set.
+    - y_train (np.ndarray): The target vector for the training set.
+    - y_test (np.ndarray): The target vector for the testing set.
+    - train_clusters (Dict[str, Dict[int, Dict[int, np.ndarray]]]): Training
+                    cluster representation.
+    - test_clusters (Dict[str, Dict[int, Dict[int, np.ndarray]]]): Testing
+                    cluster representation.
+    - task (str): The task type, either 'classification' or 'regression'.
+    
+    Outputs:
+    - metrics_to_variants (Dict[str, Dict[str, Dict[int, float]]]): Mapping from
+                metrics (str) -> variants (str) -> nclust (int) -> score (float)
+    """
+    
+    # create a mapping of metrics to measure
+    if task == "classification":
+        metrics = {"accuracy": accuracy_score, "roc_auc": roc_auc_score,
+                   "average_precision": average_precision_score,
+                   "f1": f1_score, "log_loss": log_loss}
+    else:
+        metrics = {"r2": r2_score, "rmse": root_mean_squared_error}
+    
+    # metrics (str) -> variants (str) -> nclust (int) -> score (float)
+    metrics_to_variants = {}
+    for metric_name, metric_func in metrics.items():
+        variants_to_nclust = {}
+        for variant, nclust_map in train_clusters.items():
+            nclust_to_score = {}
+            # for each number of clusters, get each cluster, fit a model, and
+            # calculate the metric
+            for nclust in range(2, 11):
+                # store scores in list in case some clusters have no test points
+                cluster_scores = []
+                cluster_sizes = []
+                # c = 1, ..., nclust, get the cluster and fit a model
+                for c in range(nclust):
+                    # for train we can use nclust_map, but for test
+                    # we need to use test_clusters, since nclust_map is the
+                    # value for the training data
+                    X_cluster_train = X_train[nclust_map[nclust][c]]
+                    y_cluster_train = y_train[nclust_map[nclust][c]]
+                    X_cluster_test = X_test[test_clusters[variant][nclust][c]]
+                    y_cluster_test = y_test[test_clusters[variant][nclust][c]]
+                    
+                    # if no test points have been assigned to this cluster, skip
+                    if X_cluster_test.shape[0] == 0:
+                        continue
+                    
+                    # fit regression model to the cluster's training data
+                    if task == "classification":
+                        model = LogisticRegression()
+                    else:
+                        model = LinearRegression()
+                    model.fit(X_cluster_train, y_cluster_train)
+                    
+                    # store the cluster scores and sizes for weighted average
+                    y_cluster_pred = model.predict(X_cluster_test)
+                    cluster_scores.append(metric_func(y_cluster_test,
+                                                      y_cluster_pred))
+                    cluster_sizes.append(X_cluster_test.shape[0])
+                
+                # now back in loop over nclust
+                nclust_to_score[nclust] = \
+                                    weighted_metric(np.array(cluster_scores),
+                                                    np.array(cluster_sizes))
+            # now back in loop over variants
+            variants_to_nclust[variant] = nclust_to_score
+        # now back in loop over metrics
+        metrics_to_variants[metric_name] = variants_to_nclust
+
+    return metrics_to_variants
+
+def write_results(result_dir: str, dataid: int, seed: int, clustertype: str,
+                  metrics_to_scores: Dict[str, Dict[str, Dict[int, float]]]):
+    """
+    Writes the results to a csv file.
+    
+    Inputs:
+    - result_dir (str): The directory to save the results.
+    - dataid (int): The OpenML dataset ID.
+    - seed (int): The random seed used.
+    - clustertype (str): The clustering method used.
+    - metrics_to_scores (Dict[str, Dict[str, Dict[int, float]]]): Results
+                                            calculated from compute_performance.
+    
+    Outputs:
+    - None
+    """
+    
+    # for each metric, save the results
+    for metric_name in metrics_to_scores.keys():
+        # write the results to a csv file
+        print(f"Saving {metric_name} results...")
+        for variant in metrics_to_scores[metric_name].keys():
+            # create dataframe with # of clusters and scores as columns
+            df = pd.DataFrame(
+                list(metrics_to_scores[metric_name][variant].items()),
+                columns=["nclust", f"{metric_name}"]
+                )
+            # if the path does not exist, create it
+            if not os.path.exists(oj(result_dir, f"dataid{dataid}/seed{seed}"+ \
+                                     f"/metric{metric_name}/{clustertype}")):
+                os.makedirs(oj(result_dir, f"dataid{dataid}/seed{seed}" + \
+                               f"/metric{metric_name}/{clustertype}"))
+            # save the dataframe to a csv file
+            df.to_csv(oj(result_dir, f"dataid{dataid}/seed{seed}/metric" + \
+                         f"{metric_name}/{clustertype}", f"{variant}.csv"))
+
+    return
+        
 if __name__ == '__main__':
     
     # store command-line arguments
@@ -595,27 +753,7 @@ if __name__ == '__main__':
                                                     task)
     
     # create list of lmdi variants
-    loo = {True: "aloo", False: "nonloo"}
-    l2norm = {True: "l2", False: "nonl2"}
-    sign = {True: "signed", False: "unsigned"}
-    normalize = {True: "normed", False: "nonnormed"}
-    leaf_average = {True: "leafavg", False: "noleafavg"}
-    ranking = {True: "rank", False: "norank"}
-    lmdi_variants = {}
-    for l in loo:
-        for n in l2norm:
-            for s in sign:
-                for nn in normalize:
-                    # sign and normalize are only relevant if l2norm is True
-                    if (not n) and (s or nn):
-                        continue
-                    for la in leaf_average:
-                        for r in ranking:
-                            variant_name = f"{loo[l]}_{l2norm[n]}_{sign[s]}_{normalize[nn]}_{leaf_average[la]}_{ranking[r]}"
-                            arg_map = {"loo": l, "l2norm": n, "sign": s,
-                                       "normalize": nn, "leaf_average": la,
-                                       "ranking": r}
-                            lmdi_variants[variant_name] = arg_map
+    lmdi_variants = create_lmdi_variant_map()
     
     # obtain lmdi feature importances
     lmdi_explainers = get_lmdi_explainers(rf_plus, lmdi_variants,
@@ -632,69 +770,22 @@ if __name__ == '__main__':
     lfi_test_values["shap"] = shap_test_values
     lfi_test_rankings["shap"] = shap_test_rankings
     
+    # add the raw data to the dictionaries as a baseline of comparison
+    lfi_train_values["rawdata"] = X_train
+    lfi_test_values["rawdata"] = X_test
+        
     # get the clusterings
     # method_to_labels, method_to_indices = get_train_clusters(lfi_train_values, clustertype)
     train_clusters = get_train_clusters(lfi_train_values, clustertype)
     cluster_centroids = get_cluster_centroids(lfi_train_values, train_clusters)
     test_clusters = get_test_clusters(lfi_test_values, cluster_centroids)
     
-    # create a mapping of metrics to measure
-    if task == "classification":
-        metrics = {"accuracy": accuracy_score, "roc_auc": roc_auc_score,
-                   "average_precision": average_precision_score,
-                   "f1": f1_score, "log_loss": log_loss}
-    else:
-        metrics = {"r2": r2_score, "rmse": root_mean_squared_error}
-    
-    # for each method, for each number of clusters,
-    # train a linear model on the training set for each cluster and
-    # use it to predict the testing set for each cluster. save the results.
-    metrics_to_methods = {}
-    for metric_name, metric_func in metrics.items():
-        metrics_to_methods[metric_name] = {}
-        for method in train_clusters.keys():
-            methods_to_scores = {}
-            for num_clusters in range(2, 11):
-                cluster_scores = []
-                cluster_sizes = []
-                for cluster_idx in range(num_clusters):
-                    X_cluster_train = X_train[train_clusters[method][num_clusters][cluster_idx]]
-                    y_cluster_train = y_train[train_clusters[method][num_clusters][cluster_idx]]
-                    X_cluster_test = X_test[test_clusters[method][num_clusters][cluster_idx]]
-                    y_cluster_test = y_test[test_clusters[method][num_clusters][cluster_idx]]
-                    if X_cluster_test.shape[0] == 0:
-                        continue
-                    if task == "classification":
-                        model = LogisticRegression()
-                    else:
-                        model = LinearRegression()
-                    model.fit(X_cluster_train, y_cluster_train)
-                    # print("Method:", method, "; # Clusters:", num_clusters, "; Cluster:", cluster_idx)
-                    # print(X_cluster_test.shape)
-                    # print(X_cluster_train.shape)
-                    y_cluster_pred = model.predict(X_cluster_test)
-                    cluster_scores.append(metric_func(y_cluster_test, y_cluster_pred))
-                    cluster_sizes.append(X_cluster_test.shape[0])
-                methods_to_scores[num_clusters] = \
-                    weighted_metric(np.array(cluster_scores), np.array(cluster_sizes))
-            # average accuracy across clusters
-            metrics_to_methods[metric_name][method] = methods_to_scores
+    # compute the performance
+    metrics_to_scores = compute_performance(X_train, X_test, y_train, y_test,
+                                            train_clusters, test_clusters, task)
     
     # save the results
     result_dir = oj(os.path.dirname(os.path.realpath(__file__)), 'results/')
-    # print(result_dir)
-    # print(metrics_to_methods)
-    for metric_name in metrics_to_methods.keys():
-        # write the results to a csv file
-        print(f"Saving {metric_name} results...")
-        for method in metrics_to_methods[metric_name].keys():
-            print("Method:", method)
-            # print(metrics_to_methods[metric_name])
-            df = pd.DataFrame(list(metrics_to_methods[metric_name][method].items()), columns=["nclust", f"{metric_name}"])
-            # print(df)
-            if not os.path.exists(oj(result_dir, f"dataid{dataid}/seed{seed}/metric{metric_name}/{clustertype}")):
-                os.makedirs(oj(result_dir, f"dataid{dataid}/seed{seed}/metric{metric_name}/{clustertype}"))
-            df.to_csv(oj(result_dir,
-                    f"dataid{dataid}/seed{seed}/metric{metric_name}/{clustertype}", f"{method}.csv"))
+    write_results(result_dir, dataid, seed, clustertype, metrics_to_scores)
     
     print("Results saved!")
