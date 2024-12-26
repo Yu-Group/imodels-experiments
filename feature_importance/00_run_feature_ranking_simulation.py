@@ -17,7 +17,7 @@ from collections import defaultdict
 from typing import Callable, List, Tuple
 import itertools
 from sklearn.metrics import roc_auc_score, f1_score, average_precision_score, recall_score, precision_score, mean_squared_error, r2_score
-from sklearn import preprocessing
+from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import LinearRegression
 import xgboost as xgb
@@ -29,7 +29,9 @@ import fi_config
 from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, auroc_score, auprc_score, compute_nsg_feat_corr_w_sig_subspace, apply_splitting_strategy
 import dill
 warnings.filterwarnings("ignore", message="Bins whose width")
-from sklearn.linear_model import RidgeCV, LassoCV
+from sklearn.linear_model import RidgeCV, LassoCV, ElasticNetCV
+from imodels.tree.rf_plus.rf_plus_prediction_models.aloocv_regression import AloElasticNetRegressorCV
+
 def compare_estimators(estimators: List[ModelConfig],
                        fi_estimators: List[FIModelConfig],
                        X, y, support,
@@ -71,7 +73,11 @@ def compare_estimators(estimators: List[ModelConfig],
                 X_test = X
                 y_train = y
                 y_test = y
-            
+
+            scaler = StandardScaler()
+            X_train = scaler.fit_transform(X_train)
+            X_test = scaler.transform(X_test)
+
             # check if there are NA values in the data
             if np.isnan(X_train).any() or np.isnan(y_train).any():
                 raise ValueError("There are NA values in the data")
@@ -79,49 +85,53 @@ def compare_estimators(estimators: List[ModelConfig],
                 raise ValueError("There are NA values in the data")
 
             # fit RF model
-            start_rf = time.time()
             est.fit(X_train, y_train)
-            end_rf = time.time()
 
             # fit default RF_plus model
-            start_rf_plus = time.time()
-            rf_plus_base = RandomForestPlusRegressor(rf_model=est)
-            rf_plus_base.fit(X_train, y_train)
-            end_rf_plus = time.time()
+            # rf_plus_base = RandomForestPlusRegressor(rf_model=est, prediction_model = AloElasticNetRegressorCV(l1_ratio=[0.1,0.5,0.7,0.9,0.95,0.99]))
+            # rf_plus_base.fit(X_train, y_train)
 
             rf_plus_base_ridge = RandomForestPlusRegressor(rf_model=est, prediction_model=RidgeCV(cv=5))
             rf_plus_base_ridge.fit(X_train, y_train)
 
-            rf_plus_base_lasso = RandomForestPlusRegressor(rf_model=est, prediction_model=LassoCV(cv=5, max_iter=8000))
+            rf_plus_base_lasso = RandomForestPlusRegressor(rf_model=est, prediction_model=LassoCV(cv=5, max_iter=10000, random_state=0))
             rf_plus_base_lasso.fit(X_train, y_train)
 
-            # get test results
-            test_all_mse_rf = mean_squared_error(y_test, est.predict(X_test))
-            test_all_r2_rf = r2_score(y_test, est.predict(X_test))
-            test_all_mse_rf_plus = mean_squared_error(y_test, rf_plus_base.predict(X_test))
-            test_all_r2_rf_plus = r2_score(y_test, rf_plus_base.predict(X_test))
-            test_all_mse_rf_plus_ridge = mean_squared_error(y_test, rf_plus_base_ridge.predict(X_test))
-            test_all_r2_rf_plus_ridge = r2_score(y_test, rf_plus_base_ridge.predict(X_test))
-            test_all_mse_rf_plus_lasso = mean_squared_error(y_test, rf_plus_base_lasso.predict(X_test))
-            test_all_r2_rf_plus_lasso = r2_score(y_test, rf_plus_base_lasso.predict(X_test))
+            rf_plus_base_elastic = RandomForestPlusRegressor(rf_model=est, prediction_model=ElasticNetCV(cv=5, l1_ratio=[0.1,0.5,0.7,0.9,0.95,0.99], max_iter=10000,random_state=0))
+            rf_plus_base_elastic.fit(X_train, y_train)
 
-            fitted_results = {
-                    "Model": ["RF", "RF_plus", "RF_plus_ridge", "RF_plus_lasso"],
-                    "MSE": [test_all_mse_rf, test_all_mse_rf_plus, test_all_mse_rf_plus_ridge, test_all_mse_rf_plus_lasso],
-                    "R2": [test_all_r2_rf, test_all_r2_rf_plus, test_all_r2_rf_plus_ridge, test_all_r2_rf_plus_lasso],
-                    "Y_seed": [args.y_seed, args.y_seed, args.y_seed, args.y_seed],
-                    "Split_seed": [args.split_seed, args.split_seed, args.split_seed, args.split_seed],
-            }
-            temp = ""
-            for vary_name in vary_setting:
-                fitted_results[vary_name] = [vary_setting[vary_name]] * 4
-                temp += f"{vary_name}_{vary_setting[vary_name]}_"
+            rf_plus_base_inbag = RandomForestPlusRegressor(rf_model=est, include_raw=False, fit_on="inbag", prediction_model=LinearRegression())
+            rf_plus_base_inbag.fit(X_train, y_train)
 
-            print(fitted_results)
+            # # get test results
+            # test_all_mse_rf = mean_squared_error(y_test, est.predict(X_test))
+            # test_all_r2_rf = r2_score(y_test, est.predict(X_test))
+            # test_all_mse_rf_plus = mean_squared_error(y_test, rf_plus_base.predict(X_test))
+            # test_all_r2_rf_plus = r2_score(y_test, rf_plus_base.predict(X_test))
+            # test_all_mse_rf_plus_ridge = mean_squared_error(y_test, rf_plus_base_ridge.predict(X_test))
+            # test_all_r2_rf_plus_ridge = r2_score(y_test, rf_plus_base_ridge.predict(X_test))
+            # test_all_mse_rf_plus_lasso = mean_squared_error(y_test, rf_plus_base_lasso.predict(X_test))
+            # test_all_r2_rf_plus_lasso = r2_score(y_test, rf_plus_base_lasso.predict(X_test))
+
+            # fitted_results = {
+            #         "Model": ["RF", "RF_plus", "RF_plus_ridge", "RF_plus_lasso"],
+            #         "MSE": [test_all_mse_rf, test_all_mse_rf_plus, test_all_mse_rf_plus_ridge, test_all_mse_rf_plus_lasso],
+            #         "R2": [test_all_r2_rf, test_all_r2_rf_plus, test_all_r2_rf_plus_ridge, test_all_r2_rf_plus_lasso],
+            #         "Error_seed": [args.error_seed, args.error_seed, args.error_seed, args.error_seed],
+            #         "Feature_seed": [args.feature_seed, args.feature_seed, args.feature_seed, args.feature_seed],
+            #         "Split_seed": [args.split_seed, args.split_seed, args.split_seed, args.split_seed],
+            # }
+            # temp = ""
+            # for vary_name in vary_setting:
+            #     fitted_results[vary_name] = [vary_setting[vary_name]] * 4
+            #     temp += f"{vary_name}_{vary_setting[vary_name]}_"
+
+            support_indices = np.where(support == 1)[0]
+            print(f"Support indices: {support_indices}")
             
-            os.makedirs(f"/scratch/users/zhongyuan_liang/saved_models/auroc/{args.folder_name}", exist_ok=True)
-            results_df = pd.DataFrame(fitted_results)
-            results_df.to_csv(f"/scratch/users/zhongyuan_liang/saved_models/auroc/{args.folder_name}/RFPlus_fitted_summary_{args.y_seed}_{args.split_seed}_{temp}.csv", index=False)
+            # os.makedirs(f"/scratch/users/zhongyuan_liang/saved_models/auroc/{args.folder_name}", exist_ok=True)
+            # results_df = pd.DataFrame(fitted_results)
+            # results_df.to_csv(f"/scratch/users/zhongyuan_liang/saved_models/auroc/{args.folder_name}/RFPlus_fitted_summary_{args.error_seed}_{args.feature_seed}_{args.split_seed}_{temp}.csv", index=False)
 
             # loop over fi estimators
             for fi_est in tqdm(fi_ests):
@@ -134,16 +144,23 @@ def compare_estimators(estimators: List[ModelConfig],
                     'data_split_seed': args.split_seed,
                 }
 
+                for i in range(support_indices.shape[0]):
+                    metric_results[f"support_{i}"] = support_indices[i]
+
                 if fi_est.base_model == "None":
                     loaded_model = None
                 elif fi_est.base_model == "RF":
                     loaded_model = est
-                elif fi_est.base_model == "RFPlus_default":
-                    loaded_model = rf_plus_base
+                # elif fi_est.base_model == "RFPlus_default":
+                #     loaded_model = rf_plus_base
                 elif fi_est.base_model == "RFPlus_ridge":
                     loaded_model = rf_plus_base_ridge
                 elif fi_est.base_model == "RFPlus_lasso":
                     loaded_model = rf_plus_base_lasso
+                elif fi_est.base_model == "RFPlus_elastic":
+                    loaded_model = rf_plus_base_elastic
+                elif fi_est.base_model == "RFPlus_inbag":
+                    loaded_model = rf_plus_base_inbag
 
                 local_fi_score_train, local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train, X_test=X_test, fit=loaded_model, mode="absolute")
                 all_fi_data = {"train": local_fi_score_train, "test": local_fi_score_test}
@@ -264,7 +281,7 @@ def run_simulation(i, path, val_name, X_params_dict, X_dgp, y_params_dict, y_dgp
     iter = 0
     while iter <= max_iter:  # regenerate data if y is constant
         X = X_dgp(**X_params_dict)
-        y, support, beta = y_dgp(X, **y_params_dict, seed = args.y_seed, return_support=True)
+        y, support, beta = y_dgp(X, **y_params_dict, error_seed = args.error_seed, feature_seed = args.feature_seed, return_support=True)
         if not all(y == y[0]):
             break
         iter += 1
@@ -315,7 +332,8 @@ if __name__ == '__main__':
     parser.add_argument('--n_cores', type=int, default=None)
     parser.add_argument('--split_seed', type=int, default=0)
     parser.add_argument('--results_path', type=str, default=default_dir)
-    parser.add_argument('--y_seed', type=int, default=0)
+    parser.add_argument('--error_seed', type=int, default=0)
+    parser.add_argument('--feature_seed', type=int, default=0)
 
     # arguments for rmd output of results
     parser.add_argument('--create_rmd', action='store_true', default=False)
@@ -361,10 +379,10 @@ if __name__ == '__main__':
 
     if isinstance(vary_param_name, list):
         #path = oj(results_dir, "varying_" + "_".join(vary_param_name), "seed" + str(args.split_seed))
-        path = oj(results_dir, "varying_" + "_".join(vary_param_name), "seed" + str(args.y_seed)+ str(args.split_seed))
+        path = oj(results_dir, "varying_" + "_".join(vary_param_name), "seed" + str(args.error_seed)+ str(args.feature_seed))
     else:
         #path = oj(results_dir, "varying_" + vary_param_name, "seed" + str(args.split_seed))
-        path = oj(results_dir, "varying_" + vary_param_name, "seed" + str(args.y_seed)+ str(args.split_seed))
+        path = oj(results_dir, "varying_" + vary_param_name, "seed" + str(args.error_seed)+ str(args.feature_seed))
     os.makedirs(path, exist_ok=True)
 
     eval_out = defaultdict(list)

@@ -1,10 +1,8 @@
 #!/bin/bash
-#SBATCH --mail-user=zhongyuan_liang@berkeley.edu
-#SBATCH --mail-type=ALL
 #SBATCH --partition=yugroup
 source activate mdi
 # Need to specify --result_name --ablate_features(default all features) --fitted(default not fitted)
-command="00_run_feature_ranking_simulation.py --nreps 1 --config mdi_local.real_data_regression_${1}_${2} --split_seed 1 --y_seed ${3} --ignore_cache --create_rmd --folder_name ${1}_${2}"
+command="00_run_feature_ranking_simulation.py --nreps 1 --config mdi_local.real_data_regression_${1}_${2} --split_seed 1 --error_seed ${3} --feature_seed ${4} --ignore_cache --create_rmd --folder_name ${1}_${2}"
 
 # Execute the command
 python $command

@@ -11,91 +11,95 @@ from sklearn.preprocessing import OneHotEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import LabelEncoder
 
-def preprocessing_data_X(X):
-    categorical_cols = X.select_dtypes(include=["object", "category"]).columns
-    numerical_cols = X.select_dtypes(include=["number"]).columns
-    if X[numerical_cols].isnull().any().any():
-        num_imputer = SimpleImputer(strategy="mean")
-        X[numerical_cols] = num_imputer.fit_transform(X[numerical_cols])
-    if len(categorical_cols) > 0 and X[categorical_cols].isnull().any().any():
-        # Convert categorical columns to string to ensure consistent types
-        X[categorical_cols] = X[categorical_cols].astype(str)
-        cat_imputer = SimpleImputer(strategy="most_frequent")
-        X[categorical_cols] = cat_imputer.fit_transform(X[categorical_cols])
-    if len(categorical_cols) > 0:
-        encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-        X_categorical = encoder.fit_transform(X[categorical_cols])
-        X_categorical_df = pd.DataFrame(
-            X_categorical,
-            columns=encoder.get_feature_names_out(categorical_cols),
-            index=X.index
-        )
-        X = pd.concat([X[numerical_cols], X_categorical_df], axis=1)
-    else:
-        X = X[numerical_cols]
-    X = X.to_numpy()
-    if X.shape[0]>2000:
-        X = X[:2000,:]
-    return X
+# def preprocessing_data_X(X):
+#     categorical_cols = X.select_dtypes(include=["object", "category"]).columns
+#     numerical_cols = X.select_dtypes(include=["number"]).columns
+#     if X[numerical_cols].isnull().any().any():
+#         num_imputer = SimpleImputer(strategy="mean")
+#         X[numerical_cols] = num_imputer.fit_transform(X[numerical_cols])
+#     if len(categorical_cols) > 0 and X[categorical_cols].isnull().any().any():
+#         # Convert categorical columns to string to ensure consistent types
+#         X[categorical_cols] = X[categorical_cols].astype(str)
+#         cat_imputer = SimpleImputer(strategy="most_frequent")
+#         X[categorical_cols] = cat_imputer.fit_transform(X[categorical_cols])
+#     if len(categorical_cols) > 0:
+#         encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
+#         X_categorical = encoder.fit_transform(X[categorical_cols])
+#         X_categorical_df = pd.DataFrame(
+#             X_categorical,
+#             columns=encoder.get_feature_names_out(categorical_cols),
+#             index=X.index
+#         )
+#         X = pd.concat([X[numerical_cols], X_categorical_df], axis=1)
+#     else:
+#         X = X[numerical_cols]
+#     X = X.to_numpy()
+#     if X.shape[0]>2000:
+#         X = X[:2000,:]
+#     return X
 
-def preprocessing_data_y(y):
-    if y.to_numpy().shape[1] > 1:
-        y = y.iloc[:, 0].to_numpy().flatten()
-    else:
-        y = y.to_numpy().flatten()
-    if y.shape[0]>2000:
-        y = y[:2000]
+# def preprocessing_data_y(y):
+#     if y.to_numpy().shape[1] > 1:
+#         y = y.iloc[:, 0].to_numpy().flatten()
+#     else:
+#         y = y.to_numpy().flatten()
+#     if y.shape[0]>2000:
+#         y = y[:2000]
     
-    if np.all(np.vectorize(isinstance)(y, str)):
-        encoder = LabelEncoder()
-        y = encoder.fit_transform(y)
-    return y
+#     if np.all(np.vectorize(isinstance)(y, str)):
+#         encoder = LabelEncoder()
+#         y = encoder.fit_transform(y)
+#     return y
 
 
 
-def sample_real_data_X(source=None, data_name=None, file_path=None, data_id=None, seed=4307, normalize=False, sample_row_n=None):
+def sample_real_data_X(source=None, data_name=None, file_path=None, task_id=None, data_id=None, seed=4307, normalize=False, sample_row_n=None):
     if source == "imodels":
         X, _, _ = imodels.get_clean_dataset(data_name)
     elif source == "openml":
-        # task = openml.tasks.get_task(task_id)
-        # dataset_id = task.dataset_id
-        # dataset = openml.datasets.get_dataset(dataset_id)
-        # X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
-        dataset = openml.datasets.get_dataset(data_id)
-        X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute, dataset_format="array")
+        task = openml.tasks.get_task(task_id)
+        dataset = task.get_dataset()
+        X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
     elif source == "uci":
         dataset = fetch_ucirepo(id=data_id)
-        X = preprocessing_data_X(dataset.data.features)
+        # X = preprocessing_data_X(dataset.data.features)
     elif source == "csv":
         X = pd.read_csv(file_path).to_numpy()
-    if normalize:
-        X = (X - X.mean()) / X.std()
+    if X.shape[0]>2000:
+        np.random.seed(seed)
+        keep_idx = np.random.choice(X.shape[0], 2000, replace=False)
+        X = X[keep_idx, :]
     if sample_row_n is not None:
         np.random.seed(seed)
         keep_idx = np.random.choice(X.shape[0], sample_row_n, replace=False)
         X = X[keep_idx, :]
+    if normalize:
+        X = (X - X.mean(axis=0)) / X.std(axis=0)
     return X
     
 
-def sample_real_data_y(X=None, source=None, data_name=None, file_path=None, data_id=None,
+def sample_real_data_y(X=None, source=None, data_name=None, file_path=None, task_id=None, data_id=None,
                      seed=4307, sample_row_n=None, return_support=True):
     if source == "imodels":
         _, y, _ = imodels.get_clean_dataset(data_name)
     elif source == "openml":
-        # task = openml.tasks.get_task(task_id)
-        # dataset_id = task.dataset_id
-        # dataset = openml.datasets.get_dataset(dataset_id)
-        # _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
-        dataset = openml.datasets.get_dataset(data_id)
-        _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute, dataset_format="array")
+        task = openml.tasks.get_task(task_id)
+        dataset = task.get_dataset()
+        _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
+        if task_id == 361260 or task_id == 361622:
+            y = np.log(y)
     elif source == "uci":
         dataset = fetch_ucirepo(id=data_id)
-        y = preprocessing_data_y(dataset.data.targets)
+        # y = preprocessing_data_y(dataset.data.targets)
     elif source == "csv":
         y = pd.read_csv(file_path).to_numpy().flatten()
     if sample_row_n is not None:
         np.random.seed(seed)
         keep_idx = np.random.choice(y.shape[0], sample_row_n, replace=False)
+        y = y[keep_idx]
+    if y.shape[0]>2000:
+        np.random.seed(seed)
+        keep_idx = np.random.choice(y.shape[0], 2000, replace=False)
         y = y[keep_idx]
     if return_support:
         return y, np.ones(y.shape), None
@@ -346,6 +350,50 @@ def linear_model(X, sigma, s, beta, heritability=None, snr=None, error_fun=None,
         return y_train
     
 
+
+def linear_model_random_feature(X, s, beta, sigma=None, heritability=None, return_support=False, error_seed=None, feature_seed=None):
+    """
+    This method is used to crete responses from a linear model with hard sparsity
+    Parameters:
+    X: X matrix
+    s: sparsity
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+    sigma: s.d. of added noise
+    Returns:
+    numpy array of shape (n)
+    """
+    n, p = X.shape
+
+    def create_y(x, s, beta):
+        linear_term = 0
+        for j in range(s):
+            linear_term += x[j] * beta[j]
+        return linear_term
+    
+    if feature_seed is not None:
+        np.random.seed(feature_seed)
+    signal_indices = np.random.choice(p, size=s, replace=False)
+    X_signal = X[:, signal_indices]
+    support = np.zeros(p)
+    support[signal_indices] = 1
+    beta = generate_coef(beta, s)
+
+    y_train = np.array([create_y(X_signal[i, :], s, beta) for i in range(len(X))])
+
+    if heritability is not None:
+        sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
+    if error_seed is not None:
+        np.random.seed(error_seed)
+    error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun(n)
+
+    if return_support:
+        return y_train, support, beta
+    else:
+        return y_train
+
+
+
 # def linear_model_two_groups(X, sigma, s, beta, group_intercept=0.5, heritability=None, snr=None, error_fun=None,
 #                  frac_corrupt=None, corrupt_how='permute', corrupt_size=None, 
 #                  corrupt_mean=None, return_support=False, seed=None):
@@ -544,6 +592,56 @@ def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=
             corrupt_idx = np.random.choice(range(m*r, p), size=1)
             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
   
+    if return_support:
+        return y_train, support, beta
+    else:
+        return y_train
+
+def lss_model_random_feature(X, m, r, tau, beta, sigma=None, heritability=None, return_support=False, error_seed=None, feature_seed=None):
+    """
+    This method creates response from an LSS model
+
+    X: data matrix
+    m: number of interaction terms
+    r: max order of interaction
+    tau: threshold
+    sigma: standard deviation of noise
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+
+    :return
+    y_train: numpy array of shape (n)
+    """
+    n, p = X.shape
+    assert p >= m * r  # Cannot have more interactions * size than the dimension
+    def lss_func(x, beta):
+        x_bool = (x - tau) > 0
+        y = 0
+        for j in range(m):
+            lss_term_components = x_bool[j * r:j * r + r]
+            lss_term = int(all(lss_term_components))
+            y += lss_term * beta[j]
+        return y
+
+    if feature_seed is not None:
+        np.random.seed(feature_seed)
+    signal_indices = np.random.choice(p, size=m * r, replace=False)
+    X_signal = X[:, signal_indices]
+    support = np.zeros(p)
+    support[signal_indices] = 1
+    beta = generate_coef(beta, m)
+
+    if tau == 'median':
+        tau = np.median(X_signal, axis = 0)
+
+    y_train = np.array([lss_func(X_signal[i, :], beta) for i in range(n)])
+
+    if heritability is not None:
+        sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
+    if error_seed is not None:
+        np.random.seed(error_seed)
+    error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun(n)
+
     if return_support:
         return y_train, support, beta
     else:
@@ -806,6 +904,74 @@ def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, sn
     else:
         return y_train
 
+
+
+def partial_linear_lss_model_random_feature(X, s, m, r, tau, beta, sigma=None, heritability=None, return_support=False, error_seed=None, feature_seed=None):
+
+    """
+    This method creates response from an linear + lss model
+
+    X: data matrix
+    m: number of interaction terms
+    r: max order of interaction
+    s: denotes number of linear terms in EACH interaction term
+    tau: threshold
+    sigma: standard deviation of noise
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+
+    :return
+    y_train: numpy array of shape (n)
+    """
+    n, p = X.shape
+    assert p >= m * r  # Cannot have more interactions * size than the dimension
+    assert s <= r
+    def partial_linear_func(x,s,beta):
+        y = 0.0
+        count = 0
+        for j in range(m):
+            for i in range(s):
+                y += beta[count]*x[j*r+i]
+                count += 1
+        return y
+
+    def lss_func(x, beta):
+        x_bool = (x - tau) > 0
+        y = 0
+        for j in range(m):
+            lss_term_components = x_bool[j * r:j * r + r]
+            lss_term = int(all(lss_term_components))
+            y += lss_term * beta[j]
+        return y
+    
+    if feature_seed is not None:
+        np.random.seed(feature_seed)
+    signal_indices = np.random.choice(p, size=m * r, replace=False)
+    X_signal = X[:, signal_indices]
+    support = np.zeros(p)
+    support[signal_indices] = 1
+    beta_lss = generate_coef(beta, m)
+    beta_linear = generate_coef(beta, s * m)
+
+    if tau == 'median':
+        tau = np.median(X_signal, axis=0)
+
+    y_train_linear = np.array([partial_linear_func(X_signal[i, :], s, beta_linear) for i in range(n)])
+    y_train_lss = np.array([lss_func(X_signal[i, :], beta_lss) for i in range(n)])
+    y_train = y_train_linear + y_train_lss
+
+    if heritability is not None:
+        sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
+    if error_seed is not None:
+        np.random.seed(error_seed)
+    error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun(n)
+    
+    if return_support:
+        return y_train, support, beta_lss
+    else:
+        return y_train
+
+
                     
 def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=None,
                       frac_corrupt=None, corrupt_how='permute', corrupt_size=None,
@@ -892,6 +1058,106 @@ def hierarchical_poly(X, sigma=None, m=1, r=1, beta=1, heritability=None, snr=No
         return y_train, support, beta
     else:
         return y_train
+
+
+def hierarchical_poly_random_feature(X, m, r, beta, sigma=None, heritability=None, return_support=False, error_seed=None, feature_seed=None):
+    """
+    This method creates response from an Linear + LSS model
+
+    X: data matrix
+    m: number of interaction terms
+    r: max order of interaction
+    sigma: standard deviation of noise
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+
+    :return
+    y_train: numpy array of shape (n)
+    """
+
+    n, p = X.shape
+    assert p >= m * r
+
+    def reg_func(x, beta):
+        y = 0
+        for i in range(m):
+            linear_term = x[i*r]
+            interaction_term = 1.0
+            for j in range(r):
+                interaction_term *= x[i * r + j]
+            y += (linear_term + interaction_term) * beta[i]
+        return y
+    
+    if feature_seed is not None:
+        np.random.seed(feature_seed)
+    signal_indices = np.random.choice(p, size=m * r, replace=False)
+    X_signal = X[:, signal_indices]
+    support = np.zeros(p)
+    support[signal_indices] = 1
+    beta = generate_coef(beta, m)
+
+    y_train = np.array([reg_func(X_signal[i, :], beta) for i in range(n)])
+
+    if heritability is not None:
+        sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
+    if error_seed is not None:
+        np.random.seed(error_seed) 
+    error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun(n)
+    
+    if return_support:
+        return y_train, support, beta
+    else:
+        return y_train
+
+
+def poly_random_feature(X, m, r, beta, sigma=None, heritability=None, return_support=False, error_seed=None, feature_seed=None):
+    """
+    This method creates response from an Linear + LSS model
+
+    X: data matrix
+    m: number of interaction terms
+    r: max order of interaction
+    sigma: standard deviation of noise
+    beta: coefficient vector. If beta not a vector, then assumed a constant
+
+    :return
+    y_train: numpy array of shape (n)
+    """
+
+    n, p = X.shape
+    assert p >= m * r
+
+    def reg_func(x, beta):
+        y = 0
+        for i in range(m):
+            interaction_term = 1.0
+            for j in range(r):
+                interaction_term *= x[i * r + j]
+            y += interaction_term * beta[i]
+        return y
+    
+    if feature_seed is not None:
+        np.random.seed(feature_seed)
+    signal_indices = np.random.choice(p, size=m * r, replace=False)
+    X_signal = X[:, signal_indices]
+    support = np.zeros(p)
+    support[signal_indices] = 1
+    beta = generate_coef(beta, m)
+
+    y_train = np.array([reg_func(X_signal[i, :], beta) for i in range(n)])
+
+    if heritability is not None:
+        sigma = (np.var(y_train) * ((1.0 - heritability) / heritability)) ** 0.5
+    if error_seed is not None:
+        np.random.seed(error_seed) 
+    error_fun = np.random.randn
+    y_train = y_train + sigma * error_fun(n)
+    
+    if return_support:
+        return y_train, support, beta
+    else:
+        return y_train
+
 
 
 def logistic_model(X, s, beta=None, beta_grid=np.logspace(-4, 4, 100), heritability=None,

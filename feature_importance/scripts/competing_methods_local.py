@@ -93,25 +93,35 @@ def lime_evaluation_RF_retrain(X_train, y_train, X_test, fit=None, mode="absolut
     else:
         return train_result, test_result    
 
-def LFI_evaluation_AloRFPlus_all_ranking_retrain(X_train, y_train, X_test, fit=None, mode="absolute"):
-    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_mdi = AloRFPlusMDI(fit, mode = 'only_k', evaluate_on="all")
-    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, ranking = True)
-    local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, ranking = True)
-    if mode == "absolute":
-        return np.abs(local_fi_score_train), np.abs(local_fi_score_test)
-    else:
-        return local_fi_score_train, local_fi_score_test
+# def LFI_evaluation_AloRFPlus_all_ranking_retrain(X_train, y_train, X_test, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = AloRFPlusMDI(fit, mode = 'only_k', evaluate_on="all")
+#     local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, ranking = True)
+#     local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, ranking = True)
+#     if mode == "absolute":
+#         return np.abs(local_fi_score_train), np.abs(local_fi_score_test)
+#     else:
+#         return local_fi_score_train, local_fi_score_test
     
-def LFI_evaluation_AloRFPlus_all_retrain(X_train, y_train, X_test, fit=None, mode="absolute"):
-    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
-    rf_plus_mdi = AloRFPlusMDI(fit, mode = 'only_k', evaluate_on="all")
-    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, ranking = False)
-    local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, ranking = False)
-    if mode == "absolute":
-        return np.abs(local_fi_score_train), np.abs(local_fi_score_test)
-    else:
-        return local_fi_score_train, local_fi_score_test
+# def LFI_evaluation_AloRFPlus_all_ranking_bootstrap_retrain(X_train, y_train, X_test, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = AloRFPlusMDI(fit, mode = 'only_k', evaluate_on="all")
+#     local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, ranking = True, bootstrap= True)
+#     local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, ranking = True, bootstrap= True)
+#     if mode == "absolute":
+#         return np.abs(local_fi_score_train), np.abs(local_fi_score_test)
+#     else:
+#         return local_fi_score_train, local_fi_score_test
+    
+# def LFI_evaluation_AloRFPlus_all_retrain(X_train, y_train, X_test, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = AloRFPlusMDI(fit, mode = 'only_k', evaluate_on="all")
+#     local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, ranking = False)
+#     local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, ranking = False)
+#     if mode == "absolute":
+#         return np.abs(local_fi_score_train), np.abs(local_fi_score_test)
+#     else:
+#         return local_fi_score_train, local_fi_score_test
     
 def LFI_evaluation_MDIRFPlus_all_ranking_retrain(X_train, y_train, X_test, fit=None, mode="absolute"):
     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
@@ -123,6 +133,48 @@ def LFI_evaluation_MDIRFPlus_all_ranking_retrain(X_train, y_train, X_test, fit=N
     else:
         return local_fi_score_train, local_fi_score_test
     
+# def LFI_evaluation_MDIRFPlus_oob_ranking_retrain(X_train, y_train, X_test, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = RFPlusMDI(fit, mode = 'only_k', evaluate_on="oob")
+#     local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, ranking = True)
+#     local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, ranking = True)
+#     if mode == "absolute":
+#         return np.abs(local_fi_score_train), np.abs(local_fi_score_test)
+#     else:
+#         return local_fi_score_train, local_fi_score_test
+
+# def LFI_evaluation_MDIRFPlus_l2_norm_all_ranking_retrain(X_train, y_train, X_test, fit=None, mode="absolute"):
+#     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+#     rf_plus_mdi = RFPlusMDI(fit, mode = 'only_k', evaluate_on="all")
+#     local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, ranking = True, l2norm=True)
+#     local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, ranking = True, l2norm=True)
+#     if mode == "absolute":
+#         return np.abs(local_fi_score_train), np.abs(local_fi_score_test)
+#     else:
+#         return local_fi_score_train, local_fi_score_test
+
+
+def LFI_evaluation_MDIRFPlus_all_ranking_bootstrap_retrain(X_train, y_train, X_test, fit=None, mode="absolute"):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    rf_plus_mdi = RFPlusMDI(fit, mode = 'only_k', evaluate_on="all")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, ranking = True, bootstrap= True)
+    local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, ranking = True, bootstrap= True)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train), np.abs(local_fi_score_test)
+    else:
+        return local_fi_score_train, local_fi_score_test
+
+
+def LFI_evaluation_RFPlus_inbag_retrain(X_train, y_train, X_test, fit=None, mode="absolute"):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    rf_plus_mdi = RFPlusMDI(fit, mode = 'only_k', evaluate_on="inbag")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train)
+    local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train), np.abs(local_fi_score_test)
+    else:
+        return local_fi_score_train, local_fi_score_test
+
 
 # def LFI_evaluation_RFPlus_all_l2_norm_ranking_retrain(X_train, y_train, X_test, fit=None, mode="absolute"):
 #     assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
