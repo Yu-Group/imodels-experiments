@@ -13,10 +13,11 @@ from imodels.tree.rf_plus.feature_importance.rfplus_explainer import \
 from subgroup_detection import *
 from subgroup_experiment import *
 import shap
+import lime
 
 # sklearn imports
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression, LinearRegression
+from sklearn.linear_model import LogisticRegression, LinearRegression, LassoCV
 from sklearn.metrics import roc_auc_score, average_precision_score, f1_score, \
     accuracy_score, r2_score, f1_score, log_loss, root_mean_squared_error
 
@@ -165,6 +166,9 @@ def create_lmdi_variant_map() -> Dict[str, Dict[str, bool]]:
                         continue
                     for la in leaf_average:
                         for r in ranking:
+                            # ranking is only relevant if leaf_average is False
+                            if la:
+                                continue
                             # create the name the variant will be stored under
                             variant_name = f"{loo[l]}_{l2norm[n]}_{sign[s]}" + \
                             f"_{normalize[nn]}_{leaf_average[la]}_{ranking[r]}"
@@ -210,8 +214,52 @@ def get_shap(X: np.ndarray, shap_explainer: shap.TreeExplainer, task: str):
     
     return shap_values, shap_rankings
 
+def get_lime(X: np.ndarray, rf, task: str):
+    """
+    Get the LIME values and rankings for the given data.
+    
+    Inputs:
+    - X (np.ndarray): The feature matrix.
+    - rf (RandomForestClassifier/Regressor): The fitted RF object.
+    - task (str): The task type, either 'classification' or 'regression'.
+    
+    Outputs:
+    - lime_values (np.ndarray): The LIME values.
+    - lime_rankings (np.ndarray): The LIME rankings.
+    """
+    
+    lime_values = np.zeros((X.shape[0], X.shape[1]))
+    explainer = lime.lime_tabular.LimeTabularExplainer(X, verbose = False,
+                                                       mode = task)
+    num_features = X.shape[1]
+    for i in range(X.shape[0]):
+        if task == 'classification':
+            exp = explainer.explain_instance(X[i, :], rf.predict_proba,
+                                             num_features = num_features)
+        else:
+            exp = explainer.explain_instance(X[i, :], rf.predict,
+                                             num_features = num_features)
+        original_feature_importance = exp.as_map()[1]
+        # print("----------------")
+        # print("Original feature importance")
+        # print(original_feature_importance)
+        sorted_feature_importance = sorted(original_feature_importance, key=lambda x: x[0])
+        # print("----------------")
+        # print("Sorted feature importance")
+        # print(sorted_feature_importance)
+        # print("----------------")
+        for j in range(num_features):
+            lime_values[i, j] = sorted_feature_importance[j][1]
+        
+        # get the rankings of the shap values. negative absolute value is taken
+        # because np.argsort sorts from smallest to largest.
+        lime_rankings = np.argsort(-np.abs(lime_values), axis = 1)    
+        
+    return lime_values, lime_rankings
+
 def get_lmdi_explainers(rf_plus, lmdi_variants: Dict[str, Dict[str, bool]],
-                        rf_plus_baseline = None):
+                        rf_plus_baseline = None, rf_plus_lasso = None,
+                        rf_plus_ridge = None):
     """
     Create the LMDI explainer objects for the subgroup experiments.
     
@@ -226,6 +274,9 @@ def get_lmdi_explainers(rf_plus, lmdi_variants: Dict[str, Dict[str, bool]],
     - rf_plus_baseline (RandomForestPlusClassifier/RandomForestPlusRegressor):
                     The baseline RF+ (no raw feature, only on in-bag samples,
                     regular linear/logistic prediction model).
+    - rf_plus_lasso (RandomForestPlusClassifier/RandomForestPlusRegressor):
+                    The version of RF+ that worked best for Zhongyuan's feature
+                    selection experiments.
     
     Outputs:
     - lmdi_explainers (Dict[str, RFPlusMDI/AloRFPlusMDI]): The LMDI+ explainer
@@ -244,6 +295,14 @@ def get_lmdi_explainers(rf_plus, lmdi_variants: Dict[str, Dict[str, bool]],
         lmdi_explainers["lmdi_baseline"] = RFPlusMDI(rf_plus_baseline,
                                                      mode = "only_k",
                                                      evaluate_on = "inbag")
+    if rf_plus_lasso is not None:
+        lmdi_explainers["lmdi_lasso"] = RFPlusMDI(rf_plus_lasso,
+                                                      mode="only_k",
+                                                      evaluate_on="all")
+    if rf_plus_ridge is not None:
+        lmdi_explainers["lmdi_ridge"] = RFPlusMDI(rf_plus_ridge,
+                                                      mode="only_k",
+                                                      evaluate_on="all")
     # create the explainer objects for each variant, using AloRFPlusMDI if loo
     # is True and RFPlusMDI if loo is False
     for variant_name in lmdi_variants.keys():
@@ -289,8 +348,7 @@ def get_lmdi(X: np.ndarray, y: np.ndarray,
     lmdi_rankings = {}
     
     # if the explainer mapping has a baseline, we need to treat it differently
-    if len(lmdi_explainers) == len(lmdi_variants) + 1 and \
-        "lmdi_baseline" in lmdi_explainers:
+    if "lmdi_baseline" in lmdi_explainers:
         
         # we need to get the values with all of the params set to False
         lmdi_values["lmdi_baseline"] = \
@@ -305,12 +363,33 @@ def get_lmdi(X: np.ndarray, y: np.ndarray,
                 np.abs(lmdi_values["lmdi_baseline"])
                 )
     
+    # if the explainer mapping has a lasso variant, we treat it differently
+    if "lmdi_lasso" in lmdi_explainers:
+        # print("Computing LMDI+ for Lasso variant...")
+        lmdi_values["lmdi_lasso"] = \
+            lmdi_explainers["lmdi_lasso"].explain_linear_partial(X, y,
+                                            l2norm=True, sign=True,
+                                            normalize=True, leaf_average=False,
+                                            ranking=True)
+        # print("Done, values are:")
+        # print(lmdi_values["lmdi_lasso"])
+    
+    if "lmdi_ridge" in lmdi_explainers:
+        # print("Computing LMDI+ for Ridge variant...")
+        lmdi_values["lmdi_ridge"] = \
+            lmdi_explainers["lmdi_ridge"].explain_linear_partial(X, y,
+                                            l2norm=True, sign=True,
+                                            normalize=True, leaf_average=False,
+                                            ranking=True)
+        # print("Done, values are:")
+        # print
+    
     # for all the other variants, we loop through the explainer objects,
     # using their parameter mappings to set the arguments.
     for name, explainer in lmdi_explainers.items():
         
         # skip through the baseline model, since we have already done it
-        if name == "lmdi_baseline":
+        if name == "lmdi_baseline" or name == "lmdi_lasso" or name == "lmdi_ridge":
             continue
         
         # get the argument mapping
@@ -709,31 +788,28 @@ def write_results(result_dir: str, dataid: int, seed: int, clustertype: str,
                          f"{metric_name}/{clustertype}", f"{variant}.csv"))
 
     return
-        
-if __name__ == '__main__':
-    
-    # store command-line arguments
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--seed', type=int, default=None)
-    parser.add_argument('--dataid', type=int, default=None)
-    parser.add_argument('--clustertype', type=str, default=None)
-    parser.add_argument('--njobs', type=int, default=1)
-    args = parser.parse_args()
-    
-    # convert namespace to a dictionary
-    args_dict = vars(args)
 
-    # assign the arguments to variables
-    seed = args_dict['seed']
-    dataid = args_dict['dataid']
-    clustertype = args_dict['clustertype']
-    njobs = args_dict['njobs']
+def run_pipeline1(seed: int, dataid: int, clustertype: str):
+    """
+    Run pipeline 1 for the subgroup experiments.
+    
+    Inputs:
+    - seed (int): The random seed to use.
+    - dataid (int): The OpenML dataset ID.
+    - clustertype (str): The clustering method to use.
+    
+    Outputs:
+    - None
+    """
     
     # get data
     X, y = get_openml_data(dataid)
     
     # split data
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.3,
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.2,
+                                                        random_state=seed)
+    X_train, X_val, y_train, y_val = train_test_split(X_train, y_train,
+                                                        test_size = 0.5,
                                                         random_state=seed)
     
     # check if task is regression or classification
@@ -745,20 +821,38 @@ if __name__ == '__main__':
     # fit the prediction models
     rf, rf_plus_baseline, rf_plus = fit_models(X_train, y_train, task)
     
+    rf_plus_ridge = RandomForestPlusRegressor(rf_model=rf,
+                                              prediction_model=RidgeCV(cv=5))
+    rf_plus_ridge.fit(X_train, y_train)
+    
+    rf_plus_lasso = RandomForestPlusRegressor(rf_model=rf,
+                                              prediction_model=LassoCV(cv=5,
+                                                max_iter=10000, random_state=0))
+    rf_plus_lasso.fit(X_train, y_train)
+    
     # obtain shap feature importances
     shap_explainer = shap.TreeExplainer(rf)
-    shap_train_values, shap_train_rankings = get_shap(X_train, shap_explainer,
+    shap_train_values, shap_train_rankings = get_shap(X_val, shap_explainer,
                                                       task)
     shap_test_values, shap_test_rankings = get_shap(X_test, shap_explainer,
                                                     task)
+    
+    # get lime feature importances
+    lime_train_values, lime_train_rankings = get_lime(X_val, rf, task)
+    lime_test_values, lime_test_rankings = get_lime(X_test, rf, task)
     
     # create list of lmdi variants
     lmdi_variants = create_lmdi_variant_map()
     
     # obtain lmdi feature importances
     lmdi_explainers = get_lmdi_explainers(rf_plus, lmdi_variants,
-                                          rf_plus_baseline = rf_plus_baseline)
+                                          rf_plus_baseline = rf_plus_baseline,
+                                          rf_plus_lasso = rf_plus_lasso,
+                                          rf_plus_ridge = rf_plus_ridge)
     lfi_train_values, lfi_train_rankings = get_lmdi(X_train, y_train,
+                                                    lmdi_variants,
+                                                    lmdi_explainers)
+    lfi_train_values, lfi_train_rankings = get_lmdi(X_val, None,
                                                     lmdi_variants,
                                                     lmdi_explainers)
     lfi_test_values, lfi_test_rankings = get_lmdi(X_test, None,
@@ -771,8 +865,12 @@ if __name__ == '__main__':
     lfi_test_rankings["shap"] = shap_test_rankings
     
     # add the raw data to the dictionaries as a baseline of comparison
-    lfi_train_values["rawdata"] = X_train
+    lfi_train_values["rawdata"] = X_val
     lfi_test_values["rawdata"] = X_test
+    
+    # add lime to the dictionaries
+    lfi_train_values["lime"] = lime_train_values
+    lfi_test_values["lime"] = lime_test_values
         
     # get the clusterings
     # method_to_labels, method_to_indices = get_train_clusters(lfi_train_values, clustertype)
@@ -781,11 +879,160 @@ if __name__ == '__main__':
     test_clusters = get_test_clusters(lfi_test_values, cluster_centroids)
     
     # compute the performance
-    metrics_to_scores = compute_performance(X_train, X_test, y_train, y_test,
+    metrics_to_scores = compute_performance(X_val, X_test, y_val, y_test,
                                             train_clusters, test_clusters, task)
     
     # save the results
-    result_dir = oj(os.path.dirname(os.path.realpath(__file__)), 'results/')
+    result_dir = oj(os.path.dirname(os.path.realpath(__file__)),
+                    'results/pipeline1/')
     write_results(result_dir, dataid, seed, clustertype, metrics_to_scores)
     
     print("Results saved!")
+    
+    return
+
+def run_pipeline2(seed: int, dataid: int, clustertype: str):
+    """
+    Run pipeline 2 for the subgroup experiments.
+    
+    Inputs:
+    - seed (int): The random seed to use.
+    - dataid (int): The OpenML dataset ID.
+    - clustertype (str): The clustering method to use.
+    
+    Outputs:
+    - None
+    """
+    
+    # get data
+    X, y = get_openml_data(dataid)
+    
+    # split data
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.5,
+                                                        random_state=seed)
+    
+    # check if task is regression or classification
+    if len(np.unique(y)) == 2:
+        task = 'classification'
+    else:
+        task = 'regression'
+        
+    # fit the prediction models
+    rf, rf_plus_baseline, rf_plus = fit_models(X_train, y_train, task)
+    
+    rf_plus_ridge = RandomForestPlusRegressor(rf_model=rf,
+                                              prediction_model=RidgeCV(cv=5))
+    rf_plus_ridge.fit(X_train, y_train)
+    
+    rf_plus_lasso = RandomForestPlusRegressor(rf_model=rf,
+                                              prediction_model=LassoCV(cv=5,
+                                                max_iter=10000, random_state=0))
+    rf_plus_lasso.fit(X_train, y_train)
+    
+    # obtain shap feature importances
+    shap_explainer = shap.TreeExplainer(rf)
+    shap_test_values, shap_test_rankings = get_shap(X_test, shap_explainer,
+                                                    task)
+    
+    # get lime feature importances
+    lime_test_values, lime_test_rankings = get_lime(X_test, rf, task)
+    
+    # create list of lmdi variants
+    lmdi_variants = create_lmdi_variant_map()
+    
+    # obtain lmdi feature importances
+    lmdi_explainers = get_lmdi_explainers(rf_plus, lmdi_variants,
+                                          rf_plus_baseline = rf_plus_baseline,
+                                          rf_plus_lasso = rf_plus_lasso,
+                                          rf_plus_ridge = rf_plus_ridge)
+    # we don't actually want to use the training values, but for leaf averaging
+    # variants, we need to have the training data to compute the leaf averages
+    lfi_train_values, lfi_train_rankings = get_lmdi(X_train, y_train,
+                                                    lmdi_variants,
+                                                    lmdi_explainers)
+    lfi_test_values, lfi_test_rankings = get_lmdi(X_test, None,
+                                                  lmdi_variants,
+                                                  lmdi_explainers)
+    # add shap to the dictionaries
+    lfi_test_values["shap"] = shap_test_values
+    lfi_test_rankings["shap"] = shap_test_rankings
+    
+    # add the raw data to the dictionaries as a baseline of comparison
+    lfi_test_values["rawdata"] = X_test
+    
+    # add lime to the dictionaries
+    lfi_test_values["lime"] = lime_test_values
+        
+    # get the clusterings - while we are not doing this on the training values,
+    # the get_train_clusters function still does what we want it to.
+    clusters = get_train_clusters(lfi_test_values, clustertype)
+    
+    # for each cluster, assign half of the indices to the "fitting" set and
+    # the other half to the "evaluation" set
+    fitting_clusters = {}
+    evaluation_clusters = {}
+    for variant, nclust_map in clusters.items():
+        fitting_nclust_to_c = {}
+        evaluation_nclust_to_c = {}
+        for nclust, cluster_map in nclust_map.items():
+            fitting_c_to_idxs = {}
+            evaluation_c_to_idxs = {}
+            for c, idxs in cluster_map.items():
+                # shuffle the indices and split them in half
+                np.random.shuffle(idxs)
+                half = len(idxs) // 2
+                fitting_c_to_idxs[c] = idxs[:half]
+                evaluation_c_to_idxs[c] = idxs[half:]
+            fitting_nclust_to_c[nclust] = fitting_c_to_idxs
+            evaluation_nclust_to_c[nclust] = evaluation_c_to_idxs
+        fitting_clusters[variant] = fitting_nclust_to_c
+        evaluation_clusters[variant] = evaluation_nclust_to_c
+        
+    # compute the performance - we are using test data for both, not an error
+    metrics_to_scores = compute_performance(X_test, X_test, y_test, y_test,
+                                            fitting_clusters,
+                                            evaluation_clusters, task)
+    
+    # save the results
+    result_dir = oj(os.path.dirname(os.path.realpath(__file__)),
+                    'results/pipeline2/')
+    write_results(result_dir, dataid, seed, clustertype, metrics_to_scores)
+    
+    print("Results saved!")
+    
+    return
+    
+        
+if __name__ == '__main__':
+    
+    # store command-line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--seed', type=int, default=None)
+    parser.add_argument('--dataid', type=int, default=None)
+    parser.add_argument('--pipeline', type=int, default=None)
+    parser.add_argument('--clustertype', type=str, default=None)
+    parser.add_argument('--njobs', type=int, default=1)
+    args = parser.parse_args()
+    
+    # convert namespace to a dictionary
+    args_dict = vars(args)
+
+    # assign the arguments to variables
+    seed = args_dict['seed']
+    dataid = args_dict['dataid']
+    pipeline = args_dict['pipeline']
+    clustertype = args_dict['clustertype']
+    njobs = args_dict['njobs']
+    
+    # enforce that pipeline either needs to in [1, 2]
+    if pipeline not in [1, 2]:
+        raise ValueError("Pipeline must be 1 or 2.")
+    
+    ### PIPELINE 1 ###
+    
+    if pipeline == 1:
+        print("Running pipeline 1...")
+        run_pipeline1(seed, dataid, clustertype)
+    else:
+        print("Running pipeline 2...")
+        run_pipeline2(seed, dataid, clustertype)
