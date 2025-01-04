@@ -19,8 +19,7 @@ import itertools
 from sklearn.metrics import roc_auc_score, f1_score, recall_score, precision_score, mean_squared_error, average_precision_score, log_loss
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.linear_model import LogisticRegressionCV
-from sklearn.linear_model import LinearRegression
+from sklearn.linear_model import LogisticRegressionCV, LogisticRegression
 from sklearn.svm import SVC
 import xgboost as xgb
 from imodels.tree.rf_plus.rf_plus.rf_plus_models import RandomForestPlusRegressor, RandomForestPlusClassifier
@@ -29,7 +28,6 @@ sys.path.append("..")
 sys.path.append("../..")
 import fi_config
 from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, auroc_score, auprc_score, compute_nsg_feat_corr_w_sig_subspace, apply_splitting_strategy
-from sklearn.linear_model import RidgeClassifierCV, RidgeClassifierCV
 warnings.filterwarnings("ignore", message="Bins whose width")
 import dill
 import torch
@@ -51,19 +49,19 @@ def select_top_features(array, sorted_indices, percentage):
     return num_selected, selected_array
 
 class SimpleNN(nn.Module):
-    def __init__(self, input_dim, output_dim=1):
+    def __init__(self, input_dim):
         super(SimpleNN, self).__init__()
         self.fc = nn.Sequential(
             nn.Linear(input_dim, 64),
             nn.ReLU(),
             nn.Linear(64, 32),
             nn.ReLU(),
-            nn.Linear(32, output_dim)
+            nn.Linear(32, 1)
         )
 
     def forward(self, x):
         x = self.fc(x)
-        x = torch.sigmoid(x)  # For binary classification
+        x = torch.sigmoid(x)
         return x
 
 def compare_estimators(estimators: List[ModelConfig],
@@ -113,199 +111,134 @@ def compare_estimators(estimators: List[ModelConfig],
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
 
-            if args.fit_model:
-                print("Fitting Models")
-                # fit RF model
-                est = RandomForestClassifier(n_estimators=100, min_samples_leaf=3, max_features='sqrt', random_state=args.rf_seed)
-                est.fit(X_train, y_train)
+            print("Fitting Models")
+            # fit RF model
+            est = RandomForestClassifier(n_estimators=100, min_samples_leaf=1, max_features="sqrt", random_state=args.rf_seed)
+            est.fit(X_train, y_train)
 
-                # fit default RF_plus model
-                # rf_plus_base = RandomForestPlusClassifier(rf_model=est, prediction_model = AloLogisticElasticNetClassifierCV(l1_ratio=[0,0.1,0.3,0.5,0.7,0.9,1.0]))
-                # rf_plus_base.fit(X_train, y_train)
+            # rf_plus_base = RandomForestPlusClassifier(rf_model=est, prediction_model = AloLogisticElasticNetClassifierCV(l1_ratio=[0,0.1,0.3,0.5,0.7,0.9,1.0]))
+            # rf_plus_base.fit(X_train, y_train)
 
-                rf_plus_base_ridge = RandomForestPlusClassifier(rf_model=est, prediction_model=LogisticRegressionCV(penalty='l2', cv=5, max_iter=10000, random_state=0))
-                rf_plus_base_ridge.fit(X_train, y_train)
+            rf_plus_base_ridge = RandomForestPlusClassifier(rf_model=est, prediction_model=LogisticRegressionCV(penalty='l2', cv=5, max_iter=10000, random_state=0))
+            rf_plus_base_ridge.fit(X_train, y_train)
 
-                rf_plus_base_lasso = RandomForestPlusClassifier(rf_model=est, prediction_model=LogisticRegressionCV(penalty='l1', solver = 'saga', cv=5, max_iter=10000, random_state=0))
-                rf_plus_base_lasso.fit(X_train, y_train)
+            # rf_plus_base_lasso = RandomForestPlusClassifier(rf_model=est, prediction_model=LogisticRegressionCV(penalty='l1', solver = 'saga', cv=3, n_jobs=-1, tol=5e-4, max_iter=5000, random_state=0))
+            # rf_plus_base_lasso.fit(X_train, y_train)
 
-                rf_plus_base_elastic = RandomForestPlusClassifier(rf_model=est, prediction_model=LogisticRegressionCV(penalty='elasticnet', l1_ratio=[0.1,0.5,0.7,0.9,0.95,0.99], solver = 'saga', cv=5, max_iter=10000, random_state=0))
-                rf_plus_base_elastic.fit(X_train, y_train)
+            # rf_plus_base_elastic = RandomForestPlusClassifier(rf_model=est, prediction_model=LogisticRegressionCV(penalty='elasticnet', l1_ratios=[0.1,0.5,0.9,0.99], solver = 'saga', cv=3, n_jobs=-1, tol=5e-4, max_iter=5000, random_state=0))
+            # rf_plus_base_elastic.fit(X_train, y_train)
 
-                # fit oob RF_plus model
-                # start_rf_plus_oob = time.time()
-                # rf_plus_base_oob = RandomForestPlusClassifier(rf_model=est, fit_on="oob")
-                # rf_plus_base_oob.fit(X_train, y_train)
-                # end_rf_plus_oob = time.time()
+            rf_plus_base_inbag = RandomForestPlusClassifier(rf_model=est, include_raw=False, fit_on="inbag", prediction_model=LogisticRegression(penalty=None))
+            rf_plus_base_inbag.fit(X_train, y_train)
 
-                # #fit inbag RF_plus model
-                # start_rf_plus_inbag = time.time()
-                # est_regressor = RandomForestRegressor(n_estimators=100, min_samples_leaf=3, max_features='sqrt', random_state=args.rf_seed)
-                # est_regressor.fit(X_train, y_train)
-                rf_plus_base_inbag = RandomForestPlusClassifier(rf_model=est, include_raw=False, fit_on="inbag", prediction_model=LogisticRegressionCV(penalty="None"))
-                rf_plus_base_inbag.fit(X_train, y_train)
-                # end_rf_plus_inbag = time.time()
+            for fi_est in tqdm(fi_ests):
+                metric_results = {
+                    'model': model.name,
+                    'fi': fi_est.name,
+                    'train_size': X_train.shape[0],
+                    'test_size': X_test.shape[0],
+                    'num_features': X_train.shape[1],
+                    'data_split_seed': args.split_seed,
+                    'rf_seed': args.rf_seed
+                }
+                if fi_est.base_model == "None":
+                    loaded_model = None
+                elif fi_est.base_model == "RF":
+                    loaded_model = est
+                # elif fi_est.base_model == "RFPlus_default":
+                #     loaded_model = rf_plus_base
+                elif fi_est.base_model == "RFPlus_ridge":
+                    loaded_model = rf_plus_base_ridge
+                # elif fi_est.base_model == "RFPlus_lasso":
+                #     loaded_model = rf_plus_base_lasso
+                # elif fi_est.base_model == "RFPlus_elastic":
+                #     loaded_model = rf_plus_base_elastic
+                elif fi_est.base_model == "RFPlus_inbag":
+                    loaded_model = rf_plus_base_inbag
 
-                # # get test results
-                # test_all_auc_rf = roc_auc_score(y_test, est.predict_proba(X_test)[:, 1])
-                # test_all_auprc_rf = average_precision_score(y_test, est.predict_proba(X_test)[:, 1])
-                # test_all_f1_rf = f1_score(y_test, est.predict_proba(X_test)[:, 1] > 0.5)
-                # test_all_auc_rf_plus = roc_auc_score(y_test, rf_plus_base.predict_proba(X_test)[:, 1])
-                # test_all_auprc_rf_plus = average_precision_score(y_test, rf_plus_base.predict_proba(X_test)[:, 1])
-                # test_all_f1_rf_plus = f1_score(y_test, rf_plus_base.predict_proba(X_test)[:, 1] > 0.5)
-                # test_all_auc_rf_plus_ridge = roc_auc_score(y_test, rf_plus_base_ridge.predict_proba(X_test)[:, 1])
-                # test_all_auprc_rf_plus_ridge = average_precision_score(y_test, rf_plus_base_ridge.predict_proba(X_test)[:, 1])
-                # test_all_f1_rf_plus_ridge = f1_score(y_test, rf_plus_base_ridge.predict_proba(X_test)[:, 1] > 0.5)
-                # test_all_auc_rf_plus_lasso = roc_auc_score(y_test, rf_plus_base_lasso.predict_proba(X_test)[:, 1])
-                # test_all_auprc_rf_plus_lasso = average_precision_score(y_test, rf_plus_base_lasso.predict_proba(X_test)[:, 1])
-                # test_all_f1_rf_plus_lasso = f1_score(y_test, rf_plus_base_lasso.predict_proba(X_test)[:, 1] > 0.5)
-                # # test_all_auc_rf_plus_oob = roc_auc_score(y_test, rf_plus_base_oob.predict_proba(X_test)[:, 1])
-                # # test_all_auprc_rf_plus_oob = average_precision_score(y_test, rf_plus_base_oob.predict_proba(X_test)[:, 1])
-                # # test_all_f1_rf_plus_oob = f1_score(y_test, rf_plus_base_oob.predict_proba(X_test)[:, 1] > 0.5)
-                # # test_all_auc_rf_plus_inbag = roc_auc_score(y_test, rf_plus_base_inbag.predict_proba(X_test)[:, 1])
-                # # test_all_auprc_rf_plus_inbag = average_precision_score(y_test, rf_plus_base_inbag.predict_proba(X_test)[:, 1])
-                # # test_all_f1_rf_plus_inbag = f1_score(y_test, rf_plus_base_inbag.predict_proba(X_test)[:, 1] > 0.5)
+                print(f"Compute feature importance")
+                local_fi_score_train, _ = fi_est.cls(X_train=X_train, y_train=y_train, X_test=X_test, fit=loaded_model, mode="absolute")
+                train_fi_mean = np.mean(local_fi_score_train, axis=0)
+                if fi_est.ascending:
+                    sorted_feature = np.argsort(-train_fi_mean)
+                else:
+                    sorted_feature = np.argsort(train_fi_mean)
+                # save sorted feature importance in metric results
+                for i in range(len(sorted_feature)):
+                    metric_results[f"sorted_feature_{i}"] = int(sorted_feature[i])
 
-                # fitted_results = {
-                #     "Model": ["RF", "RF_plus", "RF_plus_ridge", "RF_plus_lasso"],
-                #     "AUC": [test_all_auc_rf, test_all_auc_rf_plus, test_all_auc_rf_plus_ridge, test_all_auc_rf_plus_lasso],#, test_all_auc_rf_plus_oob],#, test_all_auc_rf_plus_inbag],
-                #     "AUPRC": [test_all_auprc_rf, test_all_auprc_rf_plus, test_all_auprc_rf_plus_ridge, test_all_auprc_rf_plus_lasso],#, test_all_auprc_rf_plus_oob],#, test_all_auprc_rf_plus_inbag],
-                #     "F1": [test_all_f1_rf, test_all_f1_rf_plus, test_all_f1_rf_plus_ridge, test_all_f1_rf_plus_lasso]#, test_all_f1_rf_plus_oob]#, test_all_f1_rf_plus_inbag]
-                # }
+                ablation_models = {"RF_Classifier": RandomForestClassifier(random_state=args.rf_seed),
+                                    "xgboost_classifier": xgb.XGBClassifier(random_state=args.rf_seed),
+                                    "Logistic_Regression": LogisticRegressionCV(cv=5, max_iter=5000, random_state=args.rf_seed),
+                                    "NN_Classifier": None}
 
-                # os.makedirs(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}", exist_ok=True)
-                # results_df = pd.DataFrame(fitted_results)
-                # results_df.to_csv(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RFPlus_fitted_summary_rf_seed_{args.rf_seed}_split_seed_{args.split_seed}.csv", index=False)
+                mask_ratio = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9]
 
-                for fi_est in tqdm(fi_ests):
-                    metric_results = {
-                        'model': model.name,
-                        'fi': fi_est.name,
-                        'train_size': X_train.shape[0],
-                        'test_size': X_test.shape[0],
-                        'num_features': X_train.shape[1],
-                        'data_split_seed': args.split_seed,
-                        'rf_seed': args.rf_seed
-                    }
-                    if fi_est.base_model == "None":
-                        loaded_model = None
-                    elif fi_est.base_model == "RF":
-                        loaded_model = est
-                    # elif fi_est.base_model == "RFPlus_default":
-                    #     loaded_model = rf_plus_base
-                    elif fi_est.base_model == "RFPlus_ridge":
-                        loaded_model = rf_plus_base_ridge
-                    elif fi_est.base_model == "RFPlus_lasso":
-                        loaded_model = rf_plus_base_lasso
-                    elif fi_est.base_model == "RFPlus_elastic":
-                        loaded_model = rf_plus_base_elastic
-                    elif fi_est.base_model == "RFPlus_inbag":
-                        loaded_model = rf_plus_base_inbag
+                for mask in mask_ratio:
+                    num_features_selected, X_train_masked = select_top_features(X_train, sorted_feature, mask)
+                    num_features_selected, X_test_masked = select_top_features(X_test, sorted_feature, mask)
+                    metric_results[f'num_features_selected_{mask}'] = num_features_selected
 
-                    print(f"Compute feature importance")
-                    local_fi_score_train, _ = fi_est.cls(X_train=X_train, y_train=y_train, X_test=X_test, fit=loaded_model, mode="absolute")
-                    train_fi_mean = np.mean(local_fi_score_train, axis=0)
-                    print(f"Train FI Mean: {train_fi_mean}")
-                    if fi_est.ascending:
-                        sorted_feature = np.argsort(-train_fi_mean)
-                    else:
-                        sorted_feature = np.argsort(train_fi_mean)
-                    print(f"Sorted Feature: {sorted_feature}")
-                    # save sorted feature importance in metric results
-                    for i in range(len(sorted_feature)):
-                        metric_results[f"sorted_feature_{i}"] = int(sorted_feature[i])
+                    for a_model in ablation_models:
+                        if a_model == "NN_Classifier":
+                            X_train_split, X_val_split, y_train_split, y_val_split = train_test_split(
+                                X_train_masked, y_train, test_size=0.2, random_state=args.rf_seed
+                            )
+                            X_train_tensor = torch.tensor(X_train_split, dtype=torch.float32)
+                            y_train_tensor = torch.tensor(y_train_split, dtype=torch.float32).view(-1, 1)
+                            X_val_tensor = torch.tensor(X_val_split, dtype=torch.float32)
+                            y_val_tensor = torch.tensor(y_val_split, dtype=torch.float32).view(-1, 1)
+                            X_test_tensor = torch.tensor(X_test_masked, dtype=torch.float32)
+                            learning_rates = [1, 0.1, 0.01, 0.001, 0.0001] 
+                            best_lr = None
+                            best_val_auroc = float('-inf')
+                            best_model_state = None
 
-
-                    ablation_models = {"RF_Classifier": RandomForestClassifier(n_estimators=100, min_samples_leaf=3, max_features='sqrt', random_state=args.rf_seed),
-                                       "xgboost_classifier": xgb.XGBClassifier(random_state=args.rf_seed),
-                                       "Logistic_Regression": LogisticRegressionCV(cv=5, max_iter=5000),
-                                        "NN_Classifier": None}
-
-                    mask_ratio = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9]
-
-                    for mask in mask_ratio:
-                        num_features_selected, X_train_masked = select_top_features(X_train, sorted_feature, mask)
-                        print(f"Train shape: {X_train_masked.shape}")
-                        num_features_selected, X_test_masked = select_top_features(X_test, sorted_feature, mask)
-                        print(f"Test shape: {X_test_masked.shape}")
-                        metric_results[f'num_features_selected_{mask}'] = num_features_selected
-
-                        for a_model in ablation_models:
-                            if a_model == "NN_Classifier":
-                                X_train_split, X_val_split, y_train_split, y_val_split = train_test_split(
-                                    X_train_masked, y_train, test_size=0.2, random_state=args.rf_seed
-                                )
-                                X_train_tensor = torch.tensor(X_train_split, dtype=torch.float32)
-                                y_train_tensor = torch.tensor(y_train_split, dtype=torch.float32).view(-1, 1)
-                                X_val_tensor = torch.tensor(X_val_split, dtype=torch.float32)
-                                y_val_tensor = torch.tensor(y_val_split, dtype=torch.float32).view(-1, 1)
-                                X_test_tensor = torch.tensor(X_test_masked, dtype=torch.float32)
-                                learning_rates = [0.01, 0.001, 0.0001]  # List of learning rates to try
-                                best_lr = None
-                                best_val_loss = float('inf')
-                                best_model_state = None
-
-                                for lr in learning_rates:
-                                    print(f"Testing learning rate: {lr}")
-                                    nn_model = SimpleNN(input_dim=X_train_split.shape[1], output_dim=1)
-                                    criterion = nn.BCELoss()
-                                    optimizer = optim.Adam(nn_model.parameters(), lr=lr)
-                                    for epoch in range(100):
-                                        nn_model.train()
-                                        optimizer.zero_grad()
-                                        predictions = nn_model(X_train_tensor)
-                                        print(predictions.shape)
-                                        print(y_train_tensor.shape)
-                                        loss = criterion(predictions, y_train_tensor)
-                                        loss.backward()
-                                        optimizer.step()
-                                        nn_model.eval()
-                                        with torch.no_grad():
-                                            val_predictions = nn_model(X_val_tensor)
-                                            val_loss = criterion(val_predictions, y_val_tensor)
-                                            print(f"Epoch {epoch+1}, Validation Loss: {val_loss.item()}")
-                                            if val_loss.item() < best_val_loss:
-                                                best_val_loss = val_loss.item()
-                                                best_model_state = nn_model.state_dict()
-                                                best_lr = lr
-                                print(f"Best learning rate: {best_lr}")
-                                nn_model.load_state_dict(best_model_state)
-                                nn_model.eval()
-                                with torch.no_grad():
-                                    y_pred = nn_model(X_test_tensor).numpy().flatten()
-                                    print(y_pred.shape)
-                            else:
-                                ablation_models[a_model].fit(X_train_masked, y_train)
-                                y_pred = ablation_models[a_model].predict_proba(X_test_masked)[:, 1]
-
-                            # Record metrics for classification
-                            metric_results[f'{a_model}_LogLoss_top_{mask}'] = log_loss(y_test, y_pred)
-                            metric_results[f'{a_model}_AUROC_top_{mask}'] = roc_auc_score(y_test, y_pred)
-
-                    # mask_ratio = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9]
-
-                    # for mask in mask_ratio:
-                    #     num_features_selected, X_train_masked = select_top_features(X_train, sorted_feature, mask)
-                    #     print(f"Train shape: {X_train_masked.shape}")
-                    #     num_features_selected, X_test_masked = select_top_features(X_test, sorted_feature, mask)
-                    #     print(f"Test shape: {X_test_masked.shape}")
-                    #     metric_results[f'num_features_selected_{mask}'] = num_features_selected
-                    #     for a_model in ablation_models:
-                    #         ablation_models[a_model].fit(X_train_masked, y_train)
-                    #         y_pred = ablation_models[a_model].predict_proba(X_test_masked)[:, 1]
-                    #         metric_results[f'{a_model}_LogLoss_top_{mask}'] = log_loss(y_test, y_pred)
-                    #         metric_results[f'{a_model}_AUROC_top_{mask}'] = roc_auc_score(y_test, y_pred)
-
-                    # kwargs: dict = model.kwargs  # dict
-                    # for k in kwargs:
-                    #     results[k].append(kwargs[k])
-                    for k in fi_kwargs:
-                        if k in fi_est.kwargs:
-                            results[k].append(str(fi_est.kwargs[k]))
+                            for lr in learning_rates:
+                                print(f"Testing learning rate: {lr}")
+                                nn_model = SimpleNN(input_dim=X_train_split.shape[1])
+                                criterion = nn.BCELoss()
+                                optimizer = optim.Adam(nn_model.parameters(), lr=lr)
+                                for epoch in range(200):
+                                    nn_model.train()
+                                    optimizer.zero_grad()
+                                    predictions = nn_model(X_train_tensor)
+                                    loss = criterion(predictions, y_train_tensor)
+                                    loss.backward()
+                                    optimizer.step()
+                                    nn_model.eval()
+                                    with torch.no_grad():
+                                        val_predictions = nn_model(X_val_tensor).numpy().flatten()
+                                        val_auroc = roc_auc_score(y_val_split, val_predictions)
+                                        print(f"Epoch {epoch+1}, Validation AUROC: {val_auroc}")
+                                        if val_auroc > best_val_auroc:
+                                            best_val_auroc = val_auroc
+                                            best_model_state = nn_model.state_dict()
+                                            best_lr = lr
+                            print(f"Best learning rate: {best_lr}")
+                            nn_model.load_state_dict(best_model_state)
+                            nn_model.eval()
+                            with torch.no_grad():
+                                y_pred = nn_model(X_test_tensor).numpy().flatten()
+                                print(y_pred.shape)
                         else:
-                            results[k].append(None)
-                    for met_name, met_val in metric_results.items():
-                        results[met_name].append(met_val)
+                            ablation_models[a_model].fit(X_train_masked, y_train)
+                            y_pred = ablation_models[a_model].predict_proba(X_test_masked)[:, 1]
+
+                        # Record metrics for classification
+                        metric_results[f'{a_model}_LogLoss_top_{mask}'] = log_loss(y_test, y_pred)
+                        metric_results[f'{a_model}_AUROC_top_{mask}'] = roc_auc_score(y_test, y_pred)
+
+                # kwargs: dict = model.kwargs  # dict
+                # for k in kwargs:
+                #     results[k].append(kwargs[k])
+                for k in fi_kwargs:
+                    if k in fi_est.kwargs:
+                        results[k].append(str(fi_est.kwargs[k]))
+                    else:
+                        results[k].append(None)
+                for met_name, met_val in metric_results.items():
+                    results[met_name].append(met_val)
     return results
 
 def run_comparison(path: str,

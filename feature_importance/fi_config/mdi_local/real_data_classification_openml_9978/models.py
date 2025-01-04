@@ -20,10 +20,4 @@ FI_ESTIMATORS = [
     [FIModelConfig('MDI', LFI_evaluation_RFPlus_inbag_retrain, model_type='tree', base_model="RFPlus_inbag", splitting_strategy = "train-test")],
 
     [FIModelConfig('Local_MDI+_MDI_ridge_fit_on_all_ranking_RFPlus', LFI_evaluation_MDIRFPlus_all_ranking_retrain, model_type='tree', base_model="RFPlus_ridge", splitting_strategy = "train-test")],
-    [FIModelConfig('Local_MDI+_MDI_elasticnet_fit_on_all_ranking_RFPlus', LFI_evaluation_MDIRFPlus_all_ranking_retrain, model_type='tree', base_model="RFPlus_elastic", splitting_strategy = "train-test")],
-    [FIModelConfig('Local_MDI+_MDI_lasso_fit_on_all_ranking_RFPlus', LFI_evaluation_MDIRFPlus_all_ranking_retrain, model_type='tree', base_model="RFPlus_lasso", splitting_strategy = "train-test")],
-
-    [FIModelConfig('Local_MDI+_MDI_ridge_fit_on_all_ranking_bootstrap_RFPlus', LFI_evaluation_MDIRFPlus_all_ranking_bootstrap_retrain, model_type='tree', base_model="RFPlus_ridge", splitting_strategy = "train-test")],
-    [FIModelConfig('Local_MDI+_MDI_lasso_fit_on_all_ranking_bootstrap_RFPlus', LFI_evaluation_MDIRFPlus_all_ranking_bootstrap_retrain, model_type='tree', base_model="RFPlus_lasso", splitting_strategy = "train-test")],
-    [FIModelConfig('Local_MDI+_MDI_elasticnet_fit_on_all_ranking_bootstrap_RFPlus', LFI_evaluation_MDIRFPlus_all_ranking_bootstrap_retrain, model_type='tree', base_model="RFPlus_elastic", splitting_strategy = "train-test")],
 ]

@@ -108,174 +108,132 @@ def compare_estimators(estimators: List[ModelConfig],
             X_train = scaler.fit_transform(X_train)
             X_test = scaler.transform(X_test)
 
-            if args.fit_model:
-                print("Fitting Models")
-                # fit RF model
-                est = RandomForestRegressor(n_estimators=100, min_samples_leaf=5, max_features=0.33, random_state=args.rf_seed)
-                est.fit(X_train, y_train)
+            print("Fitting Models")
+            # fit RF model
+            est = RandomForestRegressor(n_estimators=100, min_samples_leaf=5, max_features=0.33, random_state=args.rf_seed)
+            est.fit(X_train, y_train)
 
-                # rf_plus_base = RandomForestPlusRegressor(rf_model=est, prediction_model = AloElasticNetRegressorCV(l1_ratio=[0,0.1,0.3,0.5,0.7,0.9,1.0]))
-                # rf_plus_base.fit(X_train, y_train)
+            # rf_plus_base = RandomForestPlusRegressor(rf_model=est, prediction_model = AloElasticNetRegressorCV(l1_ratio=[0,0.1,0.3,0.5,0.7,0.9,1.0]))
+            # rf_plus_base.fit(X_train, y_train)
 
-                rf_plus_base_ridge = RandomForestPlusRegressor(rf_model=est, prediction_model=RidgeCV(cv=5))
-                rf_plus_base_ridge.fit(X_train, y_train)
+            rf_plus_base_ridge = RandomForestPlusRegressor(rf_model=est, prediction_model=RidgeCV(cv=5))
+            rf_plus_base_ridge.fit(X_train, y_train)
 
-                rf_plus_base_lasso = RandomForestPlusRegressor(rf_model=est, prediction_model=LassoCV(cv=5, max_iter=10000, random_state=0))
-                rf_plus_base_lasso.fit(X_train, y_train)
+            # rf_plus_base_lasso = RandomForestPlusRegressor(rf_model=est, prediction_model=LassoCV(cv=5, max_iter=10000, random_state=0))
+            # rf_plus_base_lasso.fit(X_train, y_train)
 
-                rf_plus_base_elastic = RandomForestPlusRegressor(rf_model=est, prediction_model=ElasticNetCV(cv=5, l1_ratio=[0.1,0.5,0.7,0.9,0.95,0.99], max_iter=10000,random_state=0))
-                rf_plus_base_elastic.fit(X_train, y_train)
+            # rf_plus_base_elastic = RandomForestPlusRegressor(rf_model=est, prediction_model=ElasticNetCV(cv=5, l1_ratio=[0.1,0.5,0.7,0.9,0.95,0.99], max_iter=10000,random_state=0))
+            # rf_plus_base_elastic.fit(X_train, y_train)
 
-                rf_plus_base_inbag = RandomForestPlusRegressor(rf_model=est, include_raw=False, fit_on="inbag", prediction_model=LinearRegression())
-                rf_plus_base_inbag.fit(X_train, y_train)
+            rf_plus_base_inbag = RandomForestPlusRegressor(rf_model=est, include_raw=False, fit_on="inbag", prediction_model=LinearRegression())
+            rf_plus_base_inbag.fit(X_train, y_train)
 
-                # test_all_mse_rf = mean_squared_error(y_test, est.predict(X_test))
-                # test_all_r2_rf = r2_score(y_test, est.predict(X_test))
-                # test_all_mse_rf_plus = mean_squared_error(y_test, rf_plus_base.predict(X_test))
-                # test_all_r2_rf_plus = r2_score(y_test, rf_plus_base.predict(X_test))
-                # test_all_mse_rf_plus_ridge = mean_squared_error(y_test, rf_plus_base_ridge.predict(X_test))
-                # test_all_r2_rf_plus_ridge = r2_score(y_test, rf_plus_base_ridge.predict(X_test))
-                # test_all_mse_rf_plus_lasso = mean_squared_error(y_test, rf_plus_base_lasso.predict(X_test))
-                # test_all_r2_rf_plus_lasso = r2_score(y_test, rf_plus_base_lasso.predict(X_test))
-                # test_all_mse_rf_plus_inbag = mean_squared_error(y_test, rf_plus_base_inbag.predict(X_test))
-                # test_all_r2_rf_plus_inbag = r2_score(y_test, rf_plus_base_inbag.predict(X_test))
+            for fi_est in tqdm(fi_ests):
+                metric_results = {
+                    'model': model.name,
+                    'fi': fi_est.name,
+                    'train_size': X_train.shape[0],
+                    'test_size': X_test.shape[0],
+                    'num_features': X_train.shape[1],
+                    'data_split_seed': args.split_seed,
+                    'rf_seed': args.rf_seed
+                }
+                if fi_est.base_model == "None":
+                    loaded_model = None
+                elif fi_est.base_model == "RF":
+                    loaded_model = est
+                # elif fi_est.base_model == "RFPlus_default":
+                #     loaded_model = rf_plus_base
+                elif fi_est.base_model == "RFPlus_ridge":
+                    loaded_model = rf_plus_base_ridge
+                # elif fi_est.base_model == "RFPlus_lasso":
+                #     loaded_model = rf_plus_base_lasso
+                # elif fi_est.base_model == "RFPlus_elastic":
+                #     loaded_model = rf_plus_base_elastic
+                elif fi_est.base_model == "RFPlus_inbag":
+                    loaded_model = rf_plus_base_inbag
 
-                # fitted_results = {
-                #         "Model": ["RF", "RF_plus", "RF_plus_ridge", "RF_plus_lasso", "RF_plus_inbag"],
-                #         "MSE": [test_all_mse_rf, test_all_mse_rf_plus, test_all_mse_rf_plus_ridge, test_all_mse_rf_plus_lasso, test_all_mse_rf_plus_inbag],
-                #         "R2": [test_all_r2_rf, test_all_r2_rf_plus, test_all_r2_rf_plus_ridge, test_all_r2_rf_plus_lasso, test_all_r2_rf_plus_inbag]
-                # }
-                
-                # os.makedirs(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}", exist_ok=True)
-                # results_df = pd.DataFrame(fitted_results)
-                # results_df.to_csv(f"/scratch/users/zhongyuan_liang/saved_models/{args.folder_name}/RFPlus_fitted_summary_rf_seed_{args.rf_seed}_split_seed_{args.split_seed}.csv", index=False)
+                print(f"Compute feature importance")
+                local_fi_score_train, _ = fi_est.cls(X_train=X_train, y_train=y_train, X_test=X_test, fit=loaded_model, mode="absolute")
+                train_fi_mean = np.mean(local_fi_score_train, axis=0)
+                if fi_est.ascending:
+                    sorted_feature = np.argsort(-train_fi_mean)
+                else:
+                    sorted_feature = np.argsort(train_fi_mean)
+                # save sorted feature importance in metric results
+                for i in range(len(sorted_feature)):
+                    metric_results[f"sorted_feature_{i}"] = int(sorted_feature[i])
 
-                # loop over fi estimators
-                for fi_est in tqdm(fi_ests):
-                    metric_results = {
-                        'model': model.name,
-                        'fi': fi_est.name,
-                        'train_size': X_train.shape[0],
-                        'test_size': X_test.shape[0],
-                        'num_features': X_train.shape[1],
-                        'data_split_seed': args.split_seed,
-                        'rf_seed': args.rf_seed
-                    }
-                    if fi_est.base_model == "None":
-                        loaded_model = None
-                    elif fi_est.base_model == "RF":
-                        loaded_model = est
-                    # elif fi_est.base_model == "RFPlus_default":
-                    #     loaded_model = rf_plus_base
-                    elif fi_est.base_model == "RFPlus_ridge":
-                        loaded_model = rf_plus_base_ridge
-                    elif fi_est.base_model == "RFPlus_lasso":
-                        loaded_model = rf_plus_base_lasso
-                    elif fi_est.base_model == "RFPlus_elastic":
-                        loaded_model = rf_plus_base_elastic
-                    elif fi_est.base_model == "RFPlus_inbag":
-                        loaded_model = rf_plus_base_inbag
+                ablation_models = {"RF_Regressor": RandomForestRegressor(random_state=args.rf_seed),
+                                    "xgboost_Regressor": xgb.XGBRegressor(random_state=args.rf_seed),
+                                    "Linear_Regressor": RidgeCV(cv=5),
+                                    "NN_Regressor": None}
 
-                    print(f"Compute feature importance")
-                    local_fi_score_train, _ = fi_est.cls(X_train=X_train, y_train=y_train, X_test=X_test, fit=loaded_model, mode="absolute")
-                    train_fi_mean = np.mean(local_fi_score_train, axis=0)
-                    print(f"Train FI Mean: {train_fi_mean}")
-                    if fi_est.ascending:
-                        sorted_feature = np.argsort(-train_fi_mean)
-                    else:
-                        sorted_feature = np.argsort(train_fi_mean)
-                    print(f"Sorted Feature: {sorted_feature}")
-                    # save sorted feature importance in metric results
-                    for i in range(len(sorted_feature)):
-                        metric_results[f"sorted_feature_{i}"] = int(sorted_feature[i])
+                mask_ratio = [0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9]
 
-                    ablation_models = {"RF_Regressor": RandomForestRegressor(n_estimators=100,min_samples_leaf=5,max_features=0.33,random_state=args.rf_seed),
-                                       "xgboost_Regressor": xgb.XGBRegressor(random_state=args.rf_seed),
-                                       "Linear_Regressor": LinearRegression(),
-                                       "NN_Regressor": None}
+                for mask in mask_ratio:
+                    num_features_selected, X_train_masked = select_top_features(X_train, sorted_feature, mask)
+                    num_features_selected, X_test_masked = select_top_features(X_test, sorted_feature, mask)
+                    metric_results[f'num_features_selected_{mask}'] = num_features_selected
 
-                    mask_ratio = [0.05, 0.1, 0.15, 0.2, 0.3, 0.4, 0.5, 0.7, 0.9]
-                    for mask in mask_ratio:
-                        num_features_selected, X_train_masked = select_top_features(X_train, sorted_feature, mask)
-                        print(f"Train shape: {X_train_masked.shape}")
-                        num_features_selected, X_test_masked = select_top_features(X_test, sorted_feature, mask)
-                        print(f"Test shape: {X_test_masked.shape}")
-                        metric_results[f'num_features_selected_{mask}'] = num_features_selected
+                    for a_model in ablation_models:
+                        if a_model == "NN_Regressor":
+                            X_train_split, X_val_split, y_train_split, y_val_split = train_test_split(
+                                X_train_masked, y_train, test_size=0.2, random_state=0
+                            )
+                            X_train_tensor = torch.tensor(X_train_split, dtype=torch.float32)
+                            y_train_tensor = torch.tensor(y_train_split, dtype=torch.float32).view(-1, 1)
+                            X_val_tensor = torch.tensor(X_val_split, dtype=torch.float32)
+                            y_val_tensor = torch.tensor(y_val_split, dtype=torch.float32).view(-1, 1)
+                            X_test_tensor = torch.tensor(X_test_masked, dtype=torch.float32)
+                            learning_rates = [1, 0.1, 0.01, 0.001, 0.0001] 
+                            best_lr = None
+                            best_val_loss = float('inf')
+                            best_model_state = None
 
-                        for a_model in ablation_models:
-                            if a_model == "NN_Regressor":
-                                X_train_split, X_val_split, y_train_split, y_val_split = train_test_split(
-                                    X_train_masked, y_train, test_size=0.2, random_state=0
-                                )
-                                X_train_tensor = torch.tensor(X_train_split, dtype=torch.float32)
-                                y_train_tensor = torch.tensor(y_train_split, dtype=torch.float32).view(-1, 1)
-                                X_val_tensor = torch.tensor(X_val_split, dtype=torch.float32)
-                                y_val_tensor = torch.tensor(y_val_split, dtype=torch.float32).view(-1, 1)
-                                X_test_tensor = torch.tensor(X_test_masked, dtype=torch.float32)
-                                learning_rates = [1, 0.1, 0.01, 0.001, 0.0001] 
-                                best_lr = None
-                                best_val_loss = float('inf')
-                                best_model_state = None
-
-                                for lr in learning_rates:
-                                    print(f"Testing learning rate: {lr}")
-                                    nn_model = SimpleNN(input_dim=X_train_split.shape[1])
-                                    criterion = nn.MSELoss()
-                                    optimizer = optim.Adam(nn_model.parameters(), lr=lr)
-                                    for epoch in range(100):
-                                        nn_model.train()
-                                        optimizer.zero_grad()
-                                        predictions = nn_model(X_train_tensor)
-                                        print(predictions.shape)
-                                        print(y_train_tensor.shape)
-                                        loss = criterion(predictions, y_train_tensor)
-                                        loss.backward()
-                                        optimizer.step()
-                                        nn_model.eval()
-                                        with torch.no_grad():
-                                            val_predictions = nn_model(X_val_tensor)
-                                            val_loss = criterion(val_predictions, y_val_tensor)
-                                            print(f"Epoch {epoch+1}, Validation Loss: {val_loss.item()}")
-                                            if val_loss.item() < best_val_loss:
-                                                best_val_loss = val_loss.item()
-                                                best_model_state = nn_model.state_dict()
-                                                best_lr = lr
-                                print(f"Best learning rate: {best_lr}")
-                                nn_model.load_state_dict(best_model_state)
-                                nn_model.eval()
-                                with torch.no_grad():
-                                    y_pred = nn_model(X_test_tensor).numpy()
-                                    print(y_pred.shape)
-                            else:
-                                ablation_models[a_model].fit(X_train_masked, y_train)
-                                y_pred = ablation_models[a_model].predict(X_test_masked)
+                            for lr in learning_rates:
+                                print(f"Testing learning rate: {lr}")
+                                nn_model = SimpleNN(input_dim=X_train_split.shape[1])
+                                criterion = nn.MSELoss()
+                                optimizer = optim.Adam(nn_model.parameters(), lr=lr)
+                                for epoch in range(200):
+                                    nn_model.train()
+                                    optimizer.zero_grad()
+                                    predictions = nn_model(X_train_tensor)
+                                    loss = criterion(predictions, y_train_tensor)
+                                    loss.backward()
+                                    optimizer.step()
+                                    nn_model.eval()
+                                    with torch.no_grad():
+                                        val_predictions = nn_model(X_val_tensor)
+                                        val_loss = criterion(val_predictions, y_val_tensor)
+                                        print(f"Epoch {epoch+1}, Validation Loss: {val_loss.item()}")
+                                        if val_loss.item() < best_val_loss:
+                                            best_val_loss = val_loss.item()
+                                            best_model_state = nn_model.state_dict()
+                                            best_lr = lr
+                            print(f"Best learning rate: {best_lr}")
+                            nn_model.load_state_dict(best_model_state)
+                            nn_model.eval()
+                            with torch.no_grad():
+                                y_pred = nn_model(X_test_tensor).numpy().flatten()
                                 print(y_pred.shape)
-                            metric_results[f'{a_model}_MSE_top_{mask}'] = mean_squared_error(y_test, y_pred)
-                            metric_results[f'{a_model}_R2_top_{mask}'] = r2_score(y_test, y_pred)
-                    # for mask in mask_ratio:
-                    #     num_features_selected, X_train_masked = select_top_features(X_train, sorted_feature, mask)
-                    #     print(f"Train shape: {X_train_masked.shape}")
-                    #     num_features_selected, X_test_masked = select_top_features(X_test, sorted_feature, mask)
-                    #     print(f"Test shape: {X_test_masked.shape}")
-                    #     metric_results[f'num_features_selected_{mask}'] = num_features_selected
-                    #     for a_model in ablation_models:
-                    #         ablation_models[a_model].fit(X_train_masked, y_train)
-                    #         y_pred = ablation_models[a_model].predict(X_test_masked)
-                    #         metric_results[f'{a_model}_MSE_top_{mask}'] = mean_squared_error(y_test, y_pred)
-                    #         metric_results[f'{a_model}_R2_top_{mask}'] = r2_score(y_test, y_pred)
-
-                    # kwargs: dict = model.kwargs
-                    # for k in kwargs:
-                    #     results[k].append(kwargs[k])
-                    for k in fi_kwargs:
-                        if k in fi_est.kwargs:
-                            results[k].append(str(fi_est.kwargs[k]))
                         else:
-                            results[k].append(None)
-                    for met_name, met_val in metric_results.items():
-                        results[met_name].append(met_val)
-    # for key, value in results.items():
-    #     print(f"{key}: {len(value)}")
+                            ablation_models[a_model].fit(X_train_masked, y_train)
+                            y_pred = ablation_models[a_model].predict(X_test_masked)
+                        metric_results[f'{a_model}_MSE_top_{mask}'] = mean_squared_error(y_test, y_pred)
+                        metric_results[f'{a_model}_R2_top_{mask}'] = r2_score(y_test, y_pred)
+
+                # kwargs: dict = model.kwargs
+                # for k in kwargs:
+                #     results[k].append(kwargs[k])
+                for k in fi_kwargs:
+                    if k in fi_est.kwargs:
+                        results[k].append(str(fi_est.kwargs[k]))
+                    else:
+                        results[k].append(None)
+                for met_name, met_val in metric_results.items():
+                    results[met_name].append(met_val)
     return results
 
 

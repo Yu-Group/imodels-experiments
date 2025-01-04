@@ -30,12 +30,8 @@ import fi_config
 from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, auroc_score, auprc_score, compute_nsg_feat_corr_w_sig_subspace, apply_splitting_strategy
 import dill
 from sklearn.kernel_ridge import KernelRidge
-
+from sklearn.preprocessing import StandardScaler
 warnings.filterwarnings("ignore", message="Bins whose width")
-
-#RUN THE FILE
-# python 01_run_ablation_regression.py --nreps 5 --config mdi_local.real_data_regression --split_seed 331 --ignore_cache --create_rmd --result_name diabetes_regression
-
 
 def compare_estimators(estimators: List[ModelConfig],
                        fi_estimators: List[FIModelConfig],
@@ -78,7 +74,11 @@ def compare_estimators(estimators: List[ModelConfig],
                 y_train = y
                 y_test = y
 
-            top_features_ratio = [0.05, 0.1, 0.2, 0.4]
+            scaler = StandardScaler()
+            X_train = scaler.fit_transform(X_train)
+            X_test = scaler.transform(X_test)
+
+            top_features_ratio = [0.1, 0.2, 0.3, 0.4]
             top_features = [int(X_train.shape[1] * ratio) for ratio in top_features_ratio]
             top_features_dict = {}
             for fi_est in fi_ests:
@@ -96,26 +96,21 @@ def compare_estimators(estimators: List[ModelConfig],
                 est = RandomForestRegressor(n_estimators=100, min_samples_leaf=5, max_features=0.33, random_state=rf_seed)
                 est.fit(X_train, y_train)
 
-                rf_plus_base = RandomForestPlusRegressor(rf_model=est)
-                rf_plus_base.fit(X_train, y_train)
-
                 rf_plus_base_ridge = RandomForestPlusRegressor(rf_model=est, prediction_model=RidgeCV(cv=5))
                 rf_plus_base_ridge.fit(X_train, y_train)
 
-                rf_plus_base_lasso = RandomForestPlusRegressor(rf_model=est, prediction_model=LassoCV(cv=5, max_iter=5000))
-                rf_plus_base_lasso.fit(X_train, y_train)
+                rf_plus_base_inbag = RandomForestPlusRegressor(rf_model=est, include_raw=False, fit_on="inbag", prediction_model=LinearRegression())
+                rf_plus_base_inbag.fit(X_train, y_train)
 
                 for fi_est in tqdm(fi_ests):
                     if fi_est.base_model == "None":
                         loaded_model = None
                     elif fi_est.base_model == "RF":
                         loaded_model = est
-                    elif fi_est.base_model == "RFPlus_default":
-                        loaded_model = rf_plus_base
                     elif fi_est.base_model == "RFPlus_ridge":
                         loaded_model = rf_plus_base_ridge
-                    elif fi_est.base_model == "RFPlus_lasso":
-                        loaded_model = rf_plus_base_lasso
+                    elif fi_est.base_model == "RFPlus_inbag":
+                        loaded_model = rf_plus_base_inbag
 
                     local_fi_score_train, local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train, X_test=X_test, fit=loaded_model, mode="absolute")
 
@@ -176,8 +171,7 @@ def compare_estimators(estimators: List[ModelConfig],
                         results[k].append(None)
                 for met_name, met_val in metric_results.items():
                     results[met_name].append(met_val)
-    # for key, value in results.items():
-    #     print(f"{key}: {len(value)}")
+
     return results
 
 

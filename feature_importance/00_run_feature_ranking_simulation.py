@@ -91,40 +91,17 @@ def compare_estimators(estimators: List[ModelConfig],
             # rf_plus_base = RandomForestPlusRegressor(rf_model=est, prediction_model = AloElasticNetRegressorCV(l1_ratio=[0.1,0.5,0.7,0.9,0.95,0.99]))
             # rf_plus_base.fit(X_train, y_train)
 
-            rf_plus_base_ridge = RandomForestPlusRegressor(rf_model=est, prediction_model=RidgeCV(cv=5))
-            rf_plus_base_ridge.fit(X_train, y_train)
+            # rf_plus_base_ridge = RandomForestPlusRegressor(rf_model=est, prediction_model=RidgeCV(cv=5))
+            # rf_plus_base_ridge.fit(X_train, y_train)
 
             rf_plus_base_lasso = RandomForestPlusRegressor(rf_model=est, prediction_model=LassoCV(cv=5, max_iter=10000, random_state=0))
             rf_plus_base_lasso.fit(X_train, y_train)
 
-            rf_plus_base_elastic = RandomForestPlusRegressor(rf_model=est, prediction_model=ElasticNetCV(cv=5, l1_ratio=[0.1,0.5,0.7,0.9,0.95,0.99], max_iter=10000,random_state=0))
-            rf_plus_base_elastic.fit(X_train, y_train)
+            # rf_plus_base_elastic = RandomForestPlusRegressor(rf_model=est, prediction_model=ElasticNetCV(cv=5, l1_ratio=[0.1,0.5,0.7,0.9,0.95,0.99], max_iter=10000,random_state=0))
+            # rf_plus_base_elastic.fit(X_train, y_train)
 
             rf_plus_base_inbag = RandomForestPlusRegressor(rf_model=est, include_raw=False, fit_on="inbag", prediction_model=LinearRegression())
             rf_plus_base_inbag.fit(X_train, y_train)
-
-            # # get test results
-            # test_all_mse_rf = mean_squared_error(y_test, est.predict(X_test))
-            # test_all_r2_rf = r2_score(y_test, est.predict(X_test))
-            # test_all_mse_rf_plus = mean_squared_error(y_test, rf_plus_base.predict(X_test))
-            # test_all_r2_rf_plus = r2_score(y_test, rf_plus_base.predict(X_test))
-            # test_all_mse_rf_plus_ridge = mean_squared_error(y_test, rf_plus_base_ridge.predict(X_test))
-            # test_all_r2_rf_plus_ridge = r2_score(y_test, rf_plus_base_ridge.predict(X_test))
-            # test_all_mse_rf_plus_lasso = mean_squared_error(y_test, rf_plus_base_lasso.predict(X_test))
-            # test_all_r2_rf_plus_lasso = r2_score(y_test, rf_plus_base_lasso.predict(X_test))
-
-            # fitted_results = {
-            #         "Model": ["RF", "RF_plus", "RF_plus_ridge", "RF_plus_lasso"],
-            #         "MSE": [test_all_mse_rf, test_all_mse_rf_plus, test_all_mse_rf_plus_ridge, test_all_mse_rf_plus_lasso],
-            #         "R2": [test_all_r2_rf, test_all_r2_rf_plus, test_all_r2_rf_plus_ridge, test_all_r2_rf_plus_lasso],
-            #         "Error_seed": [args.error_seed, args.error_seed, args.error_seed, args.error_seed],
-            #         "Feature_seed": [args.feature_seed, args.feature_seed, args.feature_seed, args.feature_seed],
-            #         "Split_seed": [args.split_seed, args.split_seed, args.split_seed, args.split_seed],
-            # }
-            # temp = ""
-            # for vary_name in vary_setting:
-            #     fitted_results[vary_name] = [vary_setting[vary_name]] * 4
-            #     temp += f"{vary_name}_{vary_setting[vary_name]}_"
 
             support_indices = np.where(support == 1)[0]
             print(f"Support indices: {support_indices}")
@@ -142,6 +119,8 @@ def compare_estimators(estimators: List[ModelConfig],
                     'test_size': X_test.shape[0],
                     'num_features': X_train.shape[1],
                     'data_split_seed': args.split_seed,
+                    'error_seed': args.error_seed,
+                    'feature_seed': args.feature_seed,
                 }
 
                 for i in range(support_indices.shape[0]):
@@ -153,12 +132,12 @@ def compare_estimators(estimators: List[ModelConfig],
                     loaded_model = est
                 # elif fi_est.base_model == "RFPlus_default":
                 #     loaded_model = rf_plus_base
-                elif fi_est.base_model == "RFPlus_ridge":
-                    loaded_model = rf_plus_base_ridge
+                # elif fi_est.base_model == "RFPlus_ridge":
+                #     loaded_model = rf_plus_base_ridge
                 elif fi_est.base_model == "RFPlus_lasso":
                     loaded_model = rf_plus_base_lasso
-                elif fi_est.base_model == "RFPlus_elastic":
-                    loaded_model = rf_plus_base_elastic
+                # elif fi_est.base_model == "RFPlus_elastic":
+                #     loaded_model = rf_plus_base_elastic
                 elif fi_est.base_model == "RFPlus_inbag":
                     loaded_model = rf_plus_base_inbag
 
