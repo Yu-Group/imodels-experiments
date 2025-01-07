@@ -17,9 +17,12 @@ import lime
 
 # sklearn imports
 from sklearn.model_selection import train_test_split
-from sklearn.linear_model import LogisticRegression, LinearRegression, LassoCV
+from sklearn.linear_model import LogisticRegression, LinearRegression, LassoCV,\
+    RidgeCV, ElasticNetCV, LogisticRegressionCV
 from sklearn.metrics import roc_auc_score, average_precision_score, f1_score, \
     accuracy_score, r2_score, f1_score, log_loss, root_mean_squared_error
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 # for reading data
 import openml
@@ -32,9 +35,14 @@ from os.path import join as oj
 # for function headers
 from typing import Tuple, Dict
 
+# because openml package has pesky FutureWarnings
+import warnings
+warnings.filterwarnings(action='ignore', category=FutureWarning,
+                        module='openml')
 
-def get_openml_data(id: int,
-                    num_samples: int = 2000) -> Tuple[np.ndarray, np.ndarray]:
+
+def get_openml_data(id: int, standardize: bool,
+                    num_samples: int = 5000) -> Tuple[np.ndarray, np.ndarray]:
     """
     Get benchmark datasets from OpenML.
     
@@ -48,20 +56,43 @@ def get_openml_data(id: int,
     """
     
     # check that the dataset_id is in the set of tested datasets
-    known_ids = {361247, 361243, 361242, 361251, 361253, 361260, 361259, 361256,
-                 361254, 361622}
-    # error if not recognized, since we do not know if we need to transform
-    if id not in known_ids:
-        raise ValueError(f"Data ID {id} is not in the set of known datasets.")
+    regr_ids = {361234, 361235, 361236, 361237, 361241, 361242, 361243, 361244,
+                361247, 361249, 361250, 361251, 361252, 361253, 361254, 361255,
+                361256, 361257, 361258, 361259, 361260, 361261, 361264, 361266,
+                361267, 361268, 361269, 361272, 361616, 361617, 361618, 361619,
+                361621, 361622, 361623}
+    binary_class_ids = {31, 10101, 3913, 3, 3917, 9957, 9946, 3918, 3903, 37,
+                        9971, 9952, 3902, 49, 43, 9978, 10093, 219, 9976, 14965,
+                        9977, 15, 29, 14952, 125920, 3904, 9910, 3021, 7592,
+                        146820, 146819, 14954, 167141, 167120, 167125}
     
+    # error if not recognized, since we do not know if we need to transform
+    if id not in regr_ids and id not in binary_class_ids:
+        raise ValueError(f"Data ID {id} is not a benchmark dataset.")
+        
     # get the dataset from openml
     task = openml.tasks.get_task(id)
     dataset = task.get_dataset()
     X, y, _, _ = dataset.get_data(target=dataset.default_target_attribute)
     
+    # if the dataset is categorical, we may have to convert its type
+    if id in binary_class_ids:
+        # check if it is categorical, convert to 1/0
+        if pd.api.types.is_categorical_dtype(y):
+            y = pd.get_dummies(y, drop_first=True, dtype=float)
+            
+    
+    # one-hot encode the categorical variables
+    X = pd.get_dummies(X, dtype=float)
+    
+    # remove rows with missing values
+    missing_rows = X.isnull().any(axis=1)
+    X = X[~missing_rows]
+    y = y[~missing_rows]
+    
     # subsample the data if necessary
     if num_samples is not None and num_samples < X.shape[0]:
-        X = X.sample(num_samples)
+        X = X.sample(num_samples, random_state=1)
         y = y.loc[X.index]
     
     # reset the index of X and y
@@ -72,10 +103,28 @@ def get_openml_data(id: int,
     X = X.to_numpy()
     y = y.to_numpy()
     
+    # if y is not a 1D array, convert it to one
+    if len(y.shape) > 1:
+        y = y.reshape(-1)
+    
+    # convert y to float (sometimes, it is int, e.g. abalone dataset)
+    y = y.astype(float)
+    
     # perform transformations if needed
-    log_transform = {361260, 361622}
+    log_transform = {361236, 361242, 361244, 361252, 361257, 361260, 361261,
+                     361264, 361266, 361267, 361272, 361618, 361622}
     if id in log_transform:
-        y = np.log(y)
+        if np.min(y) > 0:
+            y = np.log(y)
+        if np.min(y) <= 0:
+            y = np.log(y - np.min(y) + 1)
+    
+    if standardize:
+        scaler = StandardScaler()
+        X = scaler.fit_transform(X)
+        # if the dataset is a regression dataset, standardize y
+        if id in regr_ids:
+            y = scaler.fit_transform(y.reshape(-1, 1)).flatten()
     
     return X, y
 
@@ -93,7 +142,12 @@ def fit_models(X_train: np.ndarray, y_train: np.ndarray, task: str):
     - rf_plus_baseline (RandomForestPlusClassifier/RandomForestPlusRegressor):
                         The baseline RF+ (no raw feature, only on in-bag
                         samples, regular linear/logistic prediction model).
-    - rf_plus (RandomForestPlusClassifier/RandomForestPlusRegressor): The RF+.
+    - rf_plus_ridge (RandomForestPlusClassifier/RandomForestPlusRegressor):
+                     The RF+ with a ridge prediction model.
+    - rf_plus_lasso (RandomForestPlusClassifier/RandomForestPlusRegressor):
+                     The RF+ with a lasso prediction model.
+    - rf_plus_elastic (RandomForestPlusClassifier/RandomForestPlusRegressor):
+                       The RF+ with an elastic net prediction model.
     """
     
     # if classification, fit classifiers
@@ -109,10 +163,30 @@ def fit_models(X_train: np.ndarray, y_train: np.ndarray, task: str):
                                         include_raw=False, fit_on="inbag",
                                         prediction_model=LogisticRegression())
         rf_plus_baseline.fit(X_train, y_train)
+        
+        # ridge rf+
+        rf_plus_ridge = RandomForestPlusClassifier(rf_model=rf,
+                            prediction_model=LogisticRegressionCV(penalty='l2',
+                                        cv=5, max_iter=10000, random_state=42))
+        rf_plus_ridge.fit(X_train, y_train)
+
+        # lasso rf+
+        rf_plus_lasso = RandomForestPlusClassifier(rf_model=rf,
+                            prediction_model=LogisticRegressionCV(penalty='l1',
+                                    solver = 'saga', cv=3, n_jobs=-1, tol=5e-4,
+                                    max_iter=5000, random_state=42))
+        rf_plus_lasso.fit(X_train, y_train)
+
+        # elastic net rf+
+        rf_plus_elastic = RandomForestPlusClassifier(rf_model=rf,
+                    prediction_model=LogisticRegressionCV(penalty='elasticnet',
+                            l1_ratios=[0.1,0.5,0.9,0.99], solver='saga', cv=3,
+                        n_jobs=-1, tol=5e-4, max_iter=5000, random_state=42))
+        rf_plus_elastic.fit(X_train, y_train)
 
         # standard rf+ uses default values
-        rf_plus = RandomForestPlusClassifier(rf_model=rf)
-        rf_plus.fit(X_train, y_train)
+        # rf_plus = RandomForestPlusClassifier(rf_model=rf)
+        # rf_plus.fit(X_train, y_train)
 
     # if regression, fit regressors
     elif task == "regression":
@@ -128,16 +202,34 @@ def fit_models(X_train: np.ndarray, y_train: np.ndarray, task: str):
                                         prediction_model=LinearRegression())
         rf_plus_baseline.fit(X_train, y_train)
         
+        # ridge rf+
+        rf_plus_ridge = RandomForestPlusRegressor(rf_model=rf,
+                                                prediction_model=RidgeCV(cv=5))
+        rf_plus_ridge.fit(X_train, y_train)
+        
+        # lasso rf+
+        rf_plus_lasso = RandomForestPlusRegressor(rf_model=rf,
+                                                  prediction_model=LassoCV(cv=5,
+                                            max_iter=10000, random_state=42))
+        rf_plus_lasso.fit(X_train, y_train)
+        
+        # elastic net rf+
+        rf_plus_elastic = RandomForestPlusRegressor(rf_model=rf,
+                                            prediction_model=ElasticNetCV(cv=5,
+                                        l1_ratio=[0.1,0.5,0.7,0.9,0.95,0.99],
+                                        max_iter=10000,random_state=42))
+        rf_plus_elastic.fit(X_train, y_train)
+        
         # standard rf+ uses default values
-        rf_plus = RandomForestPlusRegressor(rf_model=rf)
-        rf_plus.fit(X_train, y_train)
+        # rf_plus = RandomForestPlusRegressor(rf_model=rf)
+        # rf_plus.fit(X_train, y_train)
     
     # otherwise, throw error
     else:
         raise ValueError("Task must be 'classification' or 'regression'.")
     
     # return tuple of models
-    return rf, rf_plus_baseline, rf_plus
+    return rf, rf_plus_baseline, rf_plus_ridge, rf_plus_lasso, rf_plus_elastic
 
 def create_lmdi_variant_map() -> Dict[str, Dict[str, bool]]:
     """
@@ -148,7 +240,7 @@ def create_lmdi_variant_map() -> Dict[str, Dict[str, bool]]:
     """
     
     # enumerate the different options when initializing a LMDI+ explainer.
-    loo = {True: "aloo", False: "nonloo"}
+    glm = ["ridge", "lasso", "elastic"]
     l2norm = {True: "l2", False: "nonl2"}
     sign = {True: "signed", False: "unsigned"}
     normalize = {True: "normed", False: "nonnormed"}
@@ -157,12 +249,12 @@ def create_lmdi_variant_map() -> Dict[str, Dict[str, bool]]:
     
     # create the mapping of variants to argument mappings
     lmdi_variants = {}
-    for l in loo:
-        for n in l2norm:
+    for g in glm:
+        for l2 in l2norm:
             for s in sign:
-                for nn in normalize:
+                for n in normalize:
                     # sign and normalize are only relevant if l2norm is True
-                    if (not n) and (s or nn):
+                    if (not l2) and (s or n):
                         continue
                     for la in leaf_average:
                         for r in ranking:
@@ -170,15 +262,56 @@ def create_lmdi_variant_map() -> Dict[str, Dict[str, bool]]:
                             if la:
                                 continue
                             # create the name the variant will be stored under
-                            variant_name = f"{loo[l]}_{l2norm[n]}_{sign[s]}" + \
-                            f"_{normalize[nn]}_{leaf_average[la]}_{ranking[r]}"
+                            variant_name = f"{g}_{l2norm[l2]}_{sign[s]}" + \
+                            f"_{normalize[n]}_{leaf_average[la]}_{ranking[r]}"
                             # store the arguments for the lmdi+ explainer
-                            arg_map = {"loo": l, "l2norm": n, "sign": s,
-                                       "normalize": nn, "leaf_average": la,
+                            arg_map = {"glm": g, "l2norm": l2, "sign": s,
+                                       "normalize": n, "leaf_average": la,
                                        "ranking": r}
                             lmdi_variants[variant_name] = arg_map
     
     return lmdi_variants
+
+# def create_lmdi_variant_map() -> Dict[str, Dict[str, bool]]:
+#     """
+#     Create a mapping of LMDI+ variants to argument mappings.
+    
+#     Outputs:
+#     - lmdi_variants (Dict[str, Dict[str, bool]]): The LMDI variants to use.
+#     """
+    
+#     # enumerate the different options when initializing a LMDI+ explainer.
+#     loo = {True: "aloo", False: "nonloo"}
+#     l2norm = {True: "l2", False: "nonl2"}
+#     sign = {True: "signed", False: "unsigned"}
+#     normalize = {True: "normed", False: "nonnormed"}
+#     leaf_average = {True: "leafavg", False: "noleafavg"}
+#     ranking = {True: "rank", False: "norank"}
+    
+#     # create the mapping of variants to argument mappings
+#     lmdi_variants = {}
+#     for l in loo:
+#         for n in l2norm:
+#             for s in sign:
+#                 for nn in normalize:
+#                     # sign and normalize are only relevant if l2norm is True
+#                     if (not n) and (s or nn):
+#                         continue
+#                     for la in leaf_average:
+#                         for r in ranking:
+#                             # ranking is only relevant if leaf_average is False
+#                             if la:
+#                                 continue
+#                             # create the name the variant will be stored under
+#                             variant_name = f"{loo[l]}_{l2norm[n]}_{sign[s]}" + \
+#                             f"_{normalize[nn]}_{leaf_average[la]}_{ranking[r]}"
+#                             # store the arguments for the lmdi+ explainer
+#                             arg_map = {"loo": l, "l2norm": n, "sign": s,
+#                                        "normalize": nn, "leaf_average": la,
+#                                        "ranking": r}
+#                             lmdi_variants[variant_name] = arg_map
+    
+#     return lmdi_variants
 
 def get_shap(X: np.ndarray, shap_explainer: shap.TreeExplainer, task: str):
     """
@@ -257,26 +390,28 @@ def get_lime(X: np.ndarray, rf, task: str):
         
     return lime_values, lime_rankings
 
-def get_lmdi_explainers(rf_plus, lmdi_variants: Dict[str, Dict[str, bool]],
-                        rf_plus_baseline = None, rf_plus_lasso = None,
-                        rf_plus_ridge = None):
+def get_lmdi_explainers(rf_plus_baseline, rf_plus_ridge,
+                        rf_plus_lasso, rf_plus_elastic,
+                        lmdi_variants: Dict[str, Dict[str, bool]]):
     """
     Create the LMDI explainer objects for the subgroup experiments.
     
     Inputs:
-    - rf_plus (RandomForestPlusClassifier/RandomForestPlusRegressor): The RF+.
+    - rf_plus_baseline (RandomForestPlusClassifier/RandomForestPlusRegressor):
+                    The baseline RF+ (no raw feature, only on in-bag samples,
+                    regular linear/logistic prediction model).
+    - rf_plus_ridge (RandomForestPlusClassifier/RandomForestPlusRegressor):
+                    The RF+ with a ridge prediction model.
+    - rf_plus_lasso (RandomForestPlusClassifier/RandomForestPlusRegressor):
+                    The RF+ with a lasso prediction model.
+    - rf_plus_elastic (RandomForestPlusClassifier/RandomForestPlusRegressor):
+                    The RF+ with an elastic net prediction model.
     - lmdi_variants (Dict[str, Dict[str, bool]]): The LMDI variants to use.
                     Stored as a dictionary with keys corresponding to the name
                     of the lmdi+ variant and the value correponding to the
                     argument mapping. In the argument mapping, keys are strings
                     corresponding to elements of the variant (e.g. "loo") and
                     the values are bools to indicate if they have that property.
-    - rf_plus_baseline (RandomForestPlusClassifier/RandomForestPlusRegressor):
-                    The baseline RF+ (no raw feature, only on in-bag samples,
-                    regular linear/logistic prediction model).
-    - rf_plus_lasso (RandomForestPlusClassifier/RandomForestPlusRegressor):
-                    The version of RF+ that worked best for Zhongyuan's feature
-                    selection experiments.
     
     Outputs:
     - lmdi_explainers (Dict[str, RFPlusMDI/AloRFPlusMDI]): The LMDI+ explainer
@@ -295,24 +430,82 @@ def get_lmdi_explainers(rf_plus, lmdi_variants: Dict[str, Dict[str, bool]],
         lmdi_explainers["lmdi_baseline"] = RFPlusMDI(rf_plus_baseline,
                                                      mode = "only_k",
                                                      evaluate_on = "inbag")
-    if rf_plus_lasso is not None:
-        lmdi_explainers["lmdi_lasso"] = RFPlusMDI(rf_plus_lasso,
-                                                      mode="only_k",
-                                                      evaluate_on="all")
-    if rf_plus_ridge is not None:
-        lmdi_explainers["lmdi_ridge"] = RFPlusMDI(rf_plus_ridge,
-                                                      mode="only_k",
-                                                      evaluate_on="all")
+    for variant_name in lmdi_variants.keys():
+        lmdi_explainers
+    
     # create the explainer objects for each variant, using AloRFPlusMDI if loo
     # is True and RFPlusMDI if loo is False
     for variant_name in lmdi_variants.keys():
-        if lmdi_variants[variant_name]["loo"]:
-            lmdi_explainers[variant_name] = AloRFPlusMDI(rf_plus,
-                                                         mode = "only_k")
+        if lmdi_variants[variant_name]["glm"] == "ridge":
+            lmdi_explainers[variant_name] = RFPlusMDI(rf_plus_ridge,
+                                                      mode = "only_k")
+        elif lmdi_variants[variant_name]["glm"] == "lasso":
+            lmdi_explainers[variant_name] = RFPlusMDI(rf_plus_lasso,
+                                                      mode = "only_k")
+        elif lmdi_variants[variant_name]["glm"] == "elastic":
+            lmdi_explainers[variant_name] = RFPlusMDI(rf_plus_elastic,
+                                                      mode = "only_k")
         else:
-            lmdi_explainers[variant_name] = RFPlusMDI(rf_plus, mode = "only_k")
+            raise ValueError("Invalid GLM type.")
     
     return lmdi_explainers
+
+# def get_lmdi_explainers(rf_plus, lmdi_variants: Dict[str, Dict[str, bool]],
+#                         rf_plus_baseline = None, rf_plus_lasso = None,
+#                         rf_plus_ridge = None):
+#     """
+#     Create the LMDI explainer objects for the subgroup experiments.
+    
+#     Inputs:
+#     - rf_plus (RandomForestPlusClassifier/RandomForestPlusRegressor): The RF+.
+#     - lmdi_variants (Dict[str, Dict[str, bool]]): The LMDI variants to use.
+#                     Stored as a dictionary with keys corresponding to the name
+#                     of the lmdi+ variant and the value correponding to the
+#                     argument mapping. In the argument mapping, keys are strings
+#                     corresponding to elements of the variant (e.g. "loo") and
+#                     the values are bools to indicate if they have that property.
+#     - rf_plus_baseline (RandomForestPlusClassifier/RandomForestPlusRegressor):
+#                     The baseline RF+ (no raw feature, only on in-bag samples,
+#                     regular linear/logistic prediction model).
+#     - rf_plus_lasso (RandomForestPlusClassifier/RandomForestPlusRegressor):
+#                     The version of RF+ that worked best for Zhongyuan's feature
+#                     selection experiments.
+    
+#     Outputs:
+#     - lmdi_explainers (Dict[str, RFPlusMDI/AloRFPlusMDI]): The LMDI+ explainer
+#                     objects. The keys correspond to the variant names, and the
+#                     values are the explainer objects, where AloRFPlusMDIs are
+#                     used if "loo" is True and RFPlusMDIs are used if "loo" is
+#                     False. Unique objects are used for each variant to prevent
+#                     saved fields from interfering with results.
+#     """
+    
+#     lmdi_explainers = {}
+    
+#     # if a baseline is provided, we need to treat it separately
+#     if rf_plus_baseline is not None:
+#         # evaluate on inbag samples only
+#         lmdi_explainers["lmdi_baseline"] = RFPlusMDI(rf_plus_baseline,
+#                                                      mode = "only_k",
+#                                                      evaluate_on = "inbag")
+#     if rf_plus_lasso is not None:
+#         lmdi_explainers["lmdi_lasso"] = RFPlusMDI(rf_plus_lasso,
+#                                                       mode="only_k",
+#                                                       evaluate_on="all")
+#     if rf_plus_ridge is not None:
+#         lmdi_explainers["lmdi_ridge"] = RFPlusMDI(rf_plus_ridge,
+#                                                       mode="only_k",
+#                                                       evaluate_on="all")
+#     # create the explainer objects for each variant, using AloRFPlusMDI if loo
+#     # is True and RFPlusMDI if loo is False
+#     for variant_name in lmdi_variants.keys():
+#         if lmdi_variants[variant_name]["loo"]:
+#             lmdi_explainers[variant_name] = AloRFPlusMDI(rf_plus,
+#                                                          mode = "only_k")
+#         else:
+#             lmdi_explainers[variant_name] = RFPlusMDI(rf_plus, mode = "only_k")
+    
+#     return lmdi_explainers
     
 
 def get_lmdi(X: np.ndarray, y: np.ndarray,
@@ -366,20 +559,30 @@ def get_lmdi(X: np.ndarray, y: np.ndarray,
     # if the explainer mapping has a lasso variant, we treat it differently
     if "lmdi_lasso" in lmdi_explainers:
         # print("Computing LMDI+ for Lasso variant...")
+        # lmdi_values["lmdi_lasso"] = \
+        #     lmdi_explainers["lmdi_lasso"].explain_linear_partial(X, y,
+        #                                     l2norm=True, sign=True,
+        #                                     normalize=True, leaf_average=False,
+        #                                     ranking=True)
         lmdi_values["lmdi_lasso"] = \
             lmdi_explainers["lmdi_lasso"].explain_linear_partial(X, y,
-                                            l2norm=True, sign=True,
-                                            normalize=True, leaf_average=False,
+                                            l2norm=False, sign=False,
+                                            normalize=False, leaf_average=False,
                                             ranking=True)
         # print("Done, values are:")
         # print(lmdi_values["lmdi_lasso"])
     
     if "lmdi_ridge" in lmdi_explainers:
         # print("Computing LMDI+ for Ridge variant...")
+        # lmdi_values["lmdi_ridge"] = \
+        #     lmdi_explainers["lmdi_ridge"].explain_linear_partial(X, y,
+        #                                     l2norm=True, sign=True,
+        #                                     normalize=True, leaf_average=False,
+        #                                     ranking=True)
         lmdi_values["lmdi_ridge"] = \
             lmdi_explainers["lmdi_ridge"].explain_linear_partial(X, y,
-                                            l2norm=True, sign=True,
-                                            normalize=True, leaf_average=False,
+                                            l2norm=False, sign=False,
+                                            normalize=False, leaf_average=False,
                                             ranking=True)
         # print("Done, values are:")
         # print
@@ -478,13 +681,21 @@ def get_train_clusters(lfi_train_values: Dict[str, np.ndarray], method: str):
             num_cluster_map = {}
             # number of clusters varies from 2 to 10
             for num_clusters in range(2, 11):
+                
+                ### kmeans - recommended because different random inits
+                kmeans = KMeans(n_clusters=num_clusters, random_state=42,
+                                n_init=10)
+                kmeans.fit(values)
+                num_cluster_map[num_clusters] = kmeans.labels_
+                
+                ### scipy - shouldn't use
                 # obtain the cluster centroids first (this is how they suggest
                 # doing it, although it feels weird)
-                centroids, _ = cluster.vq.kmeans(obs=values,
-                                                 k_or_guess=num_clusters)
+                # centroids, _ = cluster.vq.kmeans(obs=values,
+                #                                  k_or_guess=num_clusters)
                 # assign the values to the clusters using centroids
-                kmeans, _ = cluster.vq.vq(values, centroids)
-                num_cluster_map[num_clusters] = kmeans
+                # kmeans, _ = cluster.vq.vq(values, centroids)
+                # num_cluster_map[num_clusters] = kmeans
             # store the mapping for the variant
             method_to_labels[variant] = num_cluster_map
     
@@ -695,9 +906,11 @@ def compute_performance(X_train: np.ndarray, X_test: np.ndarray,
     
     # create a mapping of metrics to measure
     if task == "classification":
-        metrics = {"accuracy": accuracy_score, "roc_auc": roc_auc_score,
-                   "average_precision": average_precision_score,
-                   "f1": f1_score, "log_loss": log_loss}
+        # metrics = {"accuracy": accuracy_score, "roc_auc": roc_auc_score,
+        #            "average_precision": average_precision_score,
+        #            "f1": f1_score, "log_loss": log_loss}
+        metrics = {"accuracy": accuracy_score} # forget others since they aren't
+        # defined if only one class is present
     else:
         metrics = {"r2": r2_score, "rmse": root_mean_squared_error}
     
@@ -729,6 +942,18 @@ def compute_performance(X_train: np.ndarray, X_test: np.ndarray,
                     
                     # fit regression model to the cluster's training data
                     if task == "classification":
+                        # check if the train cluster has only one class
+                        if len(np.unique(y_cluster_train)) == 1:
+                            print(f"For {nclust} clusters, cluster #{c} in variant {variant} has only " + \
+                                  "one class. Predicting that class for all " + \
+                                      "test points.")
+                            # if so, predict that class for all test points
+                            y_cluster_pred = np.ones(X_cluster_test.shape[0])* \
+                                            y_cluster_train[0]
+                            cluster_scores.append(metric_func(y_cluster_test,
+                                                              y_cluster_pred))
+                            cluster_sizes.append(X_cluster_test.shape[0])
+                            continue
                         model = LogisticRegression()
                     else:
                         model = LinearRegression()
@@ -736,6 +961,11 @@ def compute_performance(X_train: np.ndarray, X_test: np.ndarray,
                     
                     # store the cluster scores and sizes for weighted average
                     y_cluster_pred = model.predict(X_cluster_test)
+                    if task == "regression" and metric_name == "rmse" and variant == "lasso_l2_signed_nonnormed_noleafavg_rank" and nclust == 9:
+                        print(f"Cluster {c} in variant {variant} has RMSE {metric_func(y_cluster_test, y_cluster_pred)}")
+                        # print coefficents of the model
+                        print("model coef:")
+                        print(model.coef_)
                     cluster_scores.append(metric_func(y_cluster_test,
                                                       y_cluster_pred))
                     cluster_sizes.append(X_cluster_test.shape[0])
@@ -752,6 +982,7 @@ def compute_performance(X_train: np.ndarray, X_test: np.ndarray,
     return metrics_to_variants
 
 def write_results(result_dir: str, dataid: int, seed: int, clustertype: str,
+                  task: str,
                   metrics_to_scores: Dict[str, Dict[str, Dict[int, float]]]):
     """
     Writes the results to a csv file.
@@ -761,6 +992,7 @@ def write_results(result_dir: str, dataid: int, seed: int, clustertype: str,
     - dataid (int): The OpenML dataset ID.
     - seed (int): The random seed used.
     - clustertype (str): The clustering method used.
+    - task (str): The task type, either 'classification' or 'regression'.
     - metrics_to_scores (Dict[str, Dict[str, Dict[int, float]]]): Results
                                             calculated from compute_performance.
     
@@ -779,12 +1011,12 @@ def write_results(result_dir: str, dataid: int, seed: int, clustertype: str,
                 columns=["nclust", f"{metric_name}"]
                 )
             # if the path does not exist, create it
-            if not os.path.exists(oj(result_dir, f"dataid{dataid}/seed{seed}"+ \
-                                     f"/metric{metric_name}/{clustertype}")):
-                os.makedirs(oj(result_dir, f"dataid{dataid}/seed{seed}" + \
-                               f"/metric{metric_name}/{clustertype}"))
+            if not os.path.exists(oj(result_dir, f"{task}/dataid{dataid}/seed{seed}"+ \
+                                     f"/{metric_name}/{clustertype}")):
+                os.makedirs(oj(result_dir, f"{task}/dataid{dataid}/seed{seed}" + \
+                               f"/{metric_name}/{clustertype}"))
             # save the dataframe to a csv file
-            df.to_csv(oj(result_dir, f"dataid{dataid}/seed{seed}/metric" + \
+            df.to_csv(oj(result_dir, f"{task}/dataid{dataid}/seed{seed}/" + \
                          f"{metric_name}/{clustertype}", f"{variant}.csv"))
 
     return
@@ -891,7 +1123,7 @@ def run_pipeline1(seed: int, dataid: int, clustertype: str):
     
     return
 
-def run_pipeline2(seed: int, dataid: int, clustertype: str):
+def run_pipeline2(seed: int, dataid: int, clustertype: str, standarize: bool):
     """
     Run pipeline 2 for the subgroup experiments.
     
@@ -899,13 +1131,14 @@ def run_pipeline2(seed: int, dataid: int, clustertype: str):
     - seed (int): The random seed to use.
     - dataid (int): The OpenML dataset ID.
     - clustertype (str): The clustering method to use.
+    - standardize (bool): Whether to standardize the data.
     
     Outputs:
     - None
     """
     
     # get data
-    X, y = get_openml_data(dataid)
+    X, y = get_openml_data(dataid, standardize)
     
     # split data
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size = 0.5,
@@ -918,16 +1151,8 @@ def run_pipeline2(seed: int, dataid: int, clustertype: str):
         task = 'regression'
         
     # fit the prediction models
-    rf, rf_plus_baseline, rf_plus = fit_models(X_train, y_train, task)
-    
-    rf_plus_ridge = RandomForestPlusRegressor(rf_model=rf,
-                                              prediction_model=RidgeCV(cv=5))
-    rf_plus_ridge.fit(X_train, y_train)
-    
-    rf_plus_lasso = RandomForestPlusRegressor(rf_model=rf,
-                                              prediction_model=LassoCV(cv=5,
-                                                max_iter=10000, random_state=0))
-    rf_plus_lasso.fit(X_train, y_train)
+    rf, rf_plus_baseline, rf_plus_ridge, rf_plus_lasso, rf_plus_elastic = \
+        fit_models(X_train, y_train, task)
     
     # obtain shap feature importances
     shap_explainer = shap.TreeExplainer(rf)
@@ -941,10 +1166,13 @@ def run_pipeline2(seed: int, dataid: int, clustertype: str):
     lmdi_variants = create_lmdi_variant_map()
     
     # obtain lmdi feature importances
-    lmdi_explainers = get_lmdi_explainers(rf_plus, lmdi_variants,
-                                          rf_plus_baseline = rf_plus_baseline,
-                                          rf_plus_lasso = rf_plus_lasso,
-                                          rf_plus_ridge = rf_plus_ridge)
+    # lmdi_explainers = get_lmdi_explainers(rf_plus, lmdi_variants,
+    #                                       rf_plus_baseline = rf_plus_baseline,
+    #                                       rf_plus_lasso = rf_plus_lasso,
+    #                                       rf_plus_ridge = rf_plus_ridge)
+    lmdi_explainers = get_lmdi_explainers(rf_plus_baseline, rf_plus_ridge,
+                                          rf_plus_lasso, rf_plus_elastic,
+                                          lmdi_variants)
     # we don't actually want to use the training values, but for leaf averaging
     # variants, we need to have the training data to compute the leaf averages
     lfi_train_values, lfi_train_rankings = get_lmdi(X_train, y_train,
@@ -978,11 +1206,17 @@ def run_pipeline2(seed: int, dataid: int, clustertype: str):
             fitting_c_to_idxs = {}
             evaluation_c_to_idxs = {}
             for c, idxs in cluster_map.items():
+                if len(idxs) < 3:
+                    # warning message that the cluster is too small
+                    warnings.warn(f"For {nclust} clusters, cluster #{c} in " + \
+                        f"variant {variant} has fewer than 3 observations.",
+                        Warning)
                 # shuffle the indices and split them in half
                 np.random.shuffle(idxs)
                 half = len(idxs) // 2
-                fitting_c_to_idxs[c] = idxs[:half]
-                evaluation_c_to_idxs[c] = idxs[half:]
+                # NOTE: half: and :half were switched below.
+                fitting_c_to_idxs[c] = idxs[half:]
+                evaluation_c_to_idxs[c] = idxs[:half]
             fitting_nclust_to_c[nclust] = fitting_c_to_idxs
             evaluation_nclust_to_c[nclust] = evaluation_c_to_idxs
         fitting_clusters[variant] = fitting_nclust_to_c
@@ -994,9 +1228,12 @@ def run_pipeline2(seed: int, dataid: int, clustertype: str):
                                             evaluation_clusters, task)
     
     # save the results
+    # result_dir = oj(os.path.dirname(os.path.realpath(__file__)),
+    #                 'results/pipeline2/')
     result_dir = oj(os.path.dirname(os.path.realpath(__file__)),
-                    'results/pipeline2/')
-    write_results(result_dir, dataid, seed, clustertype, metrics_to_scores)
+                    'results/')
+    write_results(result_dir, dataid, seed, clustertype, task,
+                  metrics_to_scores)
     
     print("Results saved!")
     
@@ -1011,7 +1248,7 @@ if __name__ == '__main__':
     parser.add_argument('--dataid', type=int, default=None)
     parser.add_argument('--pipeline', type=int, default=None)
     parser.add_argument('--clustertype', type=str, default=None)
-    parser.add_argument('--njobs', type=int, default=1)
+    parser.add_argument('--standardize', type=int, default=None)
     args = parser.parse_args()
     
     # convert namespace to a dictionary
@@ -1022,7 +1259,15 @@ if __name__ == '__main__':
     dataid = args_dict['dataid']
     pipeline = args_dict['pipeline']
     clustertype = args_dict['clustertype']
-    njobs = args_dict['njobs']
+    standardize = args_dict['standardize']
+    
+    # enforce that standardize is either 0 or 1
+    if standardize not in [0, 1]:
+        raise ValueError("Standardize must be 0 or 1.")
+    if standardize == 1:
+        standardize = True
+    else:
+        standardize = False
     
     # enforce that pipeline either needs to in [1, 2]
     if pipeline not in [1, 2]:
@@ -1031,8 +1276,8 @@ if __name__ == '__main__':
     ### PIPELINE 1 ###
     
     if pipeline == 1:
-        print("Running pipeline 1...")
+        print(f"Running pipeline 1 with data ID {dataid} ...")
         run_pipeline1(seed, dataid, clustertype)
     else:
-        print("Running pipeline 2...")
-        run_pipeline2(seed, dataid, clustertype)
+        print(f"Running pipeline 2 with data ID {dataid}...")
+        run_pipeline2(seed, dataid, clustertype, standardize)
