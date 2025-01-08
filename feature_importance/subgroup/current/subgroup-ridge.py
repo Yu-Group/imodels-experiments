@@ -252,10 +252,10 @@ def create_lmdi_variant_map() -> Dict[str, Dict[str, bool]]:
     for g in glm:
         for l2 in l2norm:
             for s in sign:
+                # sign is only relevant if l2norm is True
+                if (not l2) and (s):
+                    continue
                 for n in normalize:
-                    # sign and normalize are only relevant if l2norm is True
-                    if (not l2) and (s or n):
-                        continue
                     for la in leaf_average:
                         for r in ranking:
                             # ranking is only relevant if leaf_average is False
@@ -960,9 +960,7 @@ def compute_performance(X_train: np.ndarray, X_test: np.ndarray,
                         model = LogisticRegression()
                     else:
                         # model = LinearRegression()
-                        # model = RidgeCV()
-                        # make model a single decision tree
-                        model = DecisionTreeRegressor()
+                        model = RidgeCV()
                     model.fit(X_cluster_train, y_cluster_train)
                     
                     # store the cluster scores and sizes for weighted average
@@ -972,8 +970,8 @@ def compute_performance(X_train: np.ndarray, X_test: np.ndarray,
                         print(f"Cluster {c} in variant {variant} has train size {X_cluster_train.shape[0]}")
                         print(f"Cluster {c} in variant {variant} has RMSE {metric_func(y_cluster_test, y_cluster_pred)}")
                         # print coefficents of the model
-                        # print("model coef:")
-                        # print(model.coef_)
+                        print("model coef:")
+                        print(model.coef_)
                     cluster_scores.append(metric_func(y_cluster_test,
                                                       y_cluster_pred))
                     cluster_sizes.append(X_cluster_test.shape[0])
@@ -1019,14 +1017,14 @@ def write_results(result_dir: str, dataid: int, seed: int, clustertype: str,
                 columns=["nclust", f"{metric_name}"]
                 )
             # if the path does not exist, create it
-            if not os.path.exists(oj(result_dir, f"{task}/tree/dataid{dataid}/seed{seed}"+ \
+            if not os.path.exists(oj(result_dir, f"{task}/newabsridge/dataid{dataid}/seed{seed}"+ \
                                      f"/{metric_name}/{clustertype}")):
-                os.makedirs(oj(result_dir, f"{task}/tree/dataid{dataid}/seed{seed}" + \
+                os.makedirs(oj(result_dir, f"{task}/newabsridge/dataid{dataid}/seed{seed}" + \
                                f"/{metric_name}/{clustertype}"))
             # save the dataframe to a csv file
-            df.to_csv(oj(result_dir, f"{task}/tree/dataid{dataid}/seed{seed}/" + \
+            df.to_csv(oj(result_dir, f"{task}/newabsridge/dataid{dataid}/seed{seed}/" + \
                          f"{metric_name}/{clustertype}", f"{variant}.csv"))
-            print("result written to", oj(result_dir, f"{task}/tree/dataid{dataid}/seed{seed}/" + \
+            print("result written to", oj(result_dir, f"{task}/newabsridge/dataid{dataid}/seed{seed}/" + \
                          f"{metric_name}/{clustertype}", f"{variant}.csv"))
 
     return

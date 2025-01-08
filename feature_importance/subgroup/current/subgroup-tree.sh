@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=yugroup
+#SBATCH --partition=yss
 #SBATCH --cpus-per-task=8
 
 # seed=1
@@ -9,7 +9,7 @@ clustertype="hierarchical"
 standardize=1
 
 source activate mdi
-command="subgroup-ridge.py --seed ${2} --dataid ${1} --pipeline $pipeline --clustertype $clustertype --standardize $standardize"
+command="subgroup.py --seed ${2} --dataid ${1} --pipeline $pipeline --clustertype $clustertype --standardize $standardize"
 # command="subgroup.py --seed $seed --dataid $dataid --pipeline $pipeline --clustertype $clustertype"
 
 # Execute the command
