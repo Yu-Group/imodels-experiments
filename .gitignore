@@ -24,6 +24,7 @@ results.csv
 feature_importance/**/results/*
 feature_importance/**/old_results/*
 feature_importance/**/*.csv
+feature_importance/subgroup/test-subgroup/data/*
 
 # correlation bias images
 feature_importance/correlation-bias/images/*
