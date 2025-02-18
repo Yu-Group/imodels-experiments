@@ -3,8 +3,8 @@
 
 # dataname="361260"
 # seed=4
-gender=0
-dataname="abalone"
+gender=1
+dataname="diamond"
 
 source activate mdi
 command="investigation.py --dataname ${dataname} --seed ${1} --method ${2} --gender ${gender}"

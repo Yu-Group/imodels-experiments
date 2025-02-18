@@ -49,7 +49,7 @@ if __name__ == '__main__':
     
     print(f"Running Pipeline w/ {dataname}")
 
-    dir_data = f"data/data_{dataname}"
+    dir_data = f"../data/data_{dataname}"
 
     # X, y, names_covariates = load_regr_data(dataname, dir_data)
     
@@ -158,7 +158,7 @@ if __name__ == '__main__':
     print("Step 6: " + str(endtime - starttime) + " seconds")
     
     # get the path to the parent directory of the current file
-    parent_dir = os.path.dirname(os.path.realpath(__file__))
+    parent_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     result_dir = oj(parent_dir, "lfi-values", "fulldata", tree_method, f"seed{seed}")
 
     # if the path does not exist, create it
