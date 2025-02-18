@@ -26,7 +26,7 @@ feature_importance/**/old_results/*
 feature_importance/**/*.csv
 
 # correlation bias images
-feature_importance/correlation_bias/images/*
+feature_importance/correlation-bias/images/*
 
 # gene data files ending with .csv
 feature_importance/gene-data/*.csv
