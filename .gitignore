@@ -22,6 +22,8 @@ results.csv
 
 # results folders in feature_importance
 feature_importance/**/results/*
+feature_importance/**/old_results/*
+feature_importance/**/*.csv
 
 # gene data files ending with .csv
 feature_importance/gene-data/*.csv

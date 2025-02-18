@@ -74,14 +74,14 @@ temp_path="${path%.ipynb}-temp.ipynb"
 python3 compile_helper.py add_metadata "$path" "$title" "${authors[@]}"
 
 # use the following to convert to pdf by re-running the file
-# jupyter nbconvert --execute --no-input --to pdf "$temp_path" \
-#                   --output "$output_name"
+jupyter nbconvert --execute --no-input --to pdf "$temp_path" \
+                  --output "$output_name"
 
 # use the following to convert to pdf without re-running the file
 # jupyter nbconvert --no-input --to pdf "$temp_path" --output "$output_name"
 
 # use the following to convert to pdf including code
-jupyter nbconvert --execute --to pdf "$temp_path" --output "$output_name"
+# jupyter nbconvert --execute --to pdf "$temp_path" --output "$output_name"
 
 # delete temporary file
 python3 compile_helper.py delete_temp "$path"

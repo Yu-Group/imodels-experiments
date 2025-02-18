@@ -1,4 +1,5 @@
 #!/bin/bash
+#SBATCH --partition=jsteinhardt
 
 slurm_script="correlation.sh"
 
