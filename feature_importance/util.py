@@ -188,8 +188,6 @@ def apply_splitting_strategy(X: np.ndarray,
         test_size = 0.90  # X.shape[0] - X.shape[0] * 0.1
     elif splitting_strategy == "train-test":
         test_size = 0.33
-    elif splitting_strategy == "test-300":
-        test_size = 300
     else:
         test_size = 0.2
 

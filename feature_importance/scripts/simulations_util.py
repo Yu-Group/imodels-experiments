@@ -10,99 +10,34 @@ from ucimlrepo import fetch_ucirepo
 from sklearn.preprocessing import OneHotEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.preprocessing import LabelEncoder
-# def preprocessing_data_X(X):
-#     categorical_cols = X.select_dtypes(include=["object", "category"]).columns
-#     numerical_cols = X.select_dtypes(include=["number"]).columns
-#     if X[numerical_cols].isnull().any().any():
-#         num_imputer = SimpleImputer(strategy="mean")
-#         X[numerical_cols] = num_imputer.fit_transform(X[numerical_cols])
-#     if len(categorical_cols) > 0 and X[categorical_cols].isnull().any().any():
-#         # Convert categorical columns to string to ensure consistent types
-#         X[categorical_cols] = X[categorical_cols].astype(str)
-#         cat_imputer = SimpleImputer(strategy="most_frequent")
-#         X[categorical_cols] = cat_imputer.fit_transform(X[categorical_cols])
-#     if len(categorical_cols) > 0:
-#         encoder = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
-#         X_categorical = encoder.fit_transform(X[categorical_cols])
-#         X_categorical_df = pd.DataFrame(
-#             X_categorical,
-#             columns=encoder.get_feature_names_out(categorical_cols),
-#             index=X.index
-#         )
-#         X = pd.concat([X[numerical_cols], X_categorical_df], axis=1)
-#     else:
-#         X = X[numerical_cols]
-#     X = X.to_numpy()
-#     if X.shape[0]>2000:
-#         X = X[:2000,:]
-#     return X
-
-# def preprocessing_data_y(y):
-#     if y.to_numpy().shape[1] > 1:
-#         y = y.iloc[:, 0].to_numpy().flatten()
-#     else:
-#         y = y.to_numpy().flatten()
-#     if y.shape[0]>2000:
-#         y = y[:2000]
-    
-#     if np.all(np.vectorize(isinstance)(y, str)):
-#         encoder = LabelEncoder()
-#         y = encoder.fit_transform(y)
-#     return y
 
 
-
-def sample_real_data_X(source=None, data_name=None, file_path=None, task_id=None, data_id=None, seed=4307, normalize=False, sample_row_n=None):
-    if source == "imodels":
-        X, _, _ = imodels.get_clean_dataset(data_name)
-    elif source == "openml":
-        task = openml.tasks.get_task(task_id)
-        dataset = task.get_dataset()
-        X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
-    elif source == "uci":
-        dataset = fetch_ucirepo(id=data_id)
-        # X = preprocessing_data_X(dataset.data.features)
-    elif source == "csv":
-        X = pd.read_csv(file_path).to_numpy()
-    if X.shape[0]>2000:
-        np.random.seed(seed)
-        keep_idx = np.random.choice(X.shape[0], 2000, replace=False)
-        X = X[keep_idx, :]
+def sample_real_data_X(task_id=None, seed=4307, normalize=False, sample_row_n=None, return_sample_indices=False):
+    X = pd.read_csv(f"/accounts/projects/binyu/zhongyuan_liang/local_MDI+/imodels-experiments/feature_importance/data_openml/X_{task_id}.csv").to_numpy()
     if sample_row_n is not None:
         np.random.seed(seed)
-        keep_idx = np.random.choice(X.shape[0], sample_row_n, replace=False)
-        X = X[keep_idx, :]
+        if sample_row_n < X.shape[0]:
+            keep_idx = np.random.choice(X.shape[0], sample_row_n, replace=False)
+            X = X[keep_idx, :]
+        else:
+            keep_idx = np.arange(X.shape[0])
     if normalize:
-        X = (X - X.mean(axis=0)) / X.std(axis=0)
+        std = X.std(axis=0)
+        std[std == 0] = 1 
+        X = (X - X.mean(axis=0)) / std
+    if return_sample_indices:
+        return X, keep_idx
     return X
     
 
-def sample_real_data_y(X=None, source=None, data_name=None, file_path=None, task_id=None, data_id=None,
-                     seed=4307, sample_row_n=None, return_support=True):
-    if source == "imodels":
-        _, y, _ = imodels.get_clean_dataset(data_name)
-    elif source == "openml":
-        task = openml.tasks.get_task(task_id)
-        dataset = task.get_dataset()
-        _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute,dataset_format="array")
-        if task_id == 361260 or task_id == 361622:
-            y = np.log(y)
-    elif source == "uci":
-        dataset = fetch_ucirepo(id=data_id)
-        # y = preprocessing_data_y(dataset.data.targets)
-    elif source == "csv":
-        y = pd.read_csv(file_path).to_numpy().flatten()
-    if sample_row_n is not None:
-        np.random.seed(seed)
-        keep_idx = np.random.choice(y.shape[0], sample_row_n, replace=False)
-        y = y[keep_idx]
-    if y.shape[0]>2000:
-        np.random.seed(seed)
-        keep_idx = np.random.choice(y.shape[0], 2000, replace=False)
-        y = y[keep_idx]
+def sample_real_data_y(task_id=None, return_support=True, sample_indices=None):
+    y = pd.read_csv(f"/accounts/projects/binyu/zhongyuan_liang/local_MDI+/imodels-experiments/feature_importance/data_openml/y_{task_id}.csv").to_numpy().ravel()
+    if sample_indices is not None:
+        y = y[sample_indices]
     if return_support:
         return y, np.ones(y.shape), None
     return y
+
 
 def sample_real_X(fpath=None, X=None, seed=None, normalize=True,
                   sample_row_n=None, sample_col_n=None, permute_col=True,
@@ -409,8 +344,8 @@ def logistic_linear_model_random_feature(X, s, beta=None, frac_label_corruption=
         for j in range(s):
             linear_term += x[j] * beta[j]
         prob = 1 / (1 + np.exp(-linear_term))
-        #return (0.5 < prob) * 1
-        return (np.random.uniform(size=1) < prob) * 1
+        return (0.5 < prob) * 1
+        #return (np.random.uniform(size=1) < prob) * 1
     
     if feature_seed is not None:
         np.random.seed(feature_seed)
@@ -1050,8 +985,8 @@ def logistic_partial_linear_lss_model_random_feature(X, s, m, r, tau, beta, frac
 
     def logistic_link_func(y):
         prob = 1 / (1 + np.exp(-y))
-        # return (0.5 < prob) * 1
-        return (np.random.uniform(size=1) < prob) * 1
+        return (0.5 < prob) * 1
+        #return (np.random.uniform(size=1) < prob) * 1
     
     if feature_seed is not None:
         np.random.seed(feature_seed)
@@ -1281,8 +1216,8 @@ def logistic_poly_random_feature(X, m, r, beta=None, frac_label_corruption=None,
                 interaction_term *= x[i * r + j]
             y += interaction_term * beta[i]
         prob = 1 / (1 + np.exp(-y))
-        #return (0.5 < prob) * 1
-        return (np.random.uniform(size=1) < prob) * 1
+        return (0.5 < prob) * 1
+        #return (np.random.uniform(size=1) < prob) * 1
     
     if feature_seed is not None:
         np.random.seed(feature_seed)
@@ -1293,7 +1228,7 @@ def logistic_poly_random_feature(X, m, r, beta=None, frac_label_corruption=None,
     beta = generate_coef(beta, m)
 
     y_train = np.array([reg_func(X_signal[i, :], beta) for i in range(n)])
-
+    
     if error_seed is not None:
         np.random.seed(error_seed) 
     corrupt_indices = np.random.choice(np.arange(len(y_train)), size=math.ceil(frac_label_corruption*len(y_train)), replace=False)
