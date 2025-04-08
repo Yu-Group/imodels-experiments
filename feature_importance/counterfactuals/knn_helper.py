@@ -23,6 +23,10 @@ import openml
 import shap
 import lime
 
+# file system
+import os
+from os.path import join as oj
+
 
 def get_data(data_source, data_id):
     """
@@ -65,18 +69,22 @@ def get_data(data_source, data_id):
     if data_source == "openml":
         
         # get data
-        dataset = openml.datasets.get_dataset(data_id)
-        X, y, _, _ = dataset.get_data(target=dataset.default_target_attribute)
-        X = X.to_numpy()
-        y = y.to_numpy().flatten()
+        task = openml.tasks.get_task(data_id)
+        dataset = task.get_dataset()
+        X, y, categorical_mask, col_names = \
+            dataset.get_data(target=dataset.default_target_attribute,
+                            dataset_format="array")
         
-        if data_id == 43:
-            # transform y from 1/2 to 0/1
-            y = (y == 2).astype(int)
-
     # center and scale the covariates
     scaler = StandardScaler()
     X = scaler.fit_transform(X)
+    
+    # sample 1000 rows of X and y if X has more than 1000 rows
+    if X.shape[0] > 1000:
+        np.random.seed(42)
+        indices = np.random.choice(X.shape[0], 1000, replace=False)
+        X = X[indices]
+        y = y[indices]
 
     return X, y
 
@@ -106,6 +114,25 @@ def fit_models(X_train, y_train):
     rf_plus.fit(X_train, y_train)
 
     return rf, rf_plus
+
+def get_predictions(X, rf, rf_plus):
+    """
+    Get the predictions for the given data.
+    
+    Inputs:
+    - X (np.ndarray): The feature matrix.
+    - rf (RandomForestClassifier/Regressor): The fitted RF object.
+    - rf_plus (RandomForestPlusClassifier): The fitted RandomForestPlusClassifier.
+    
+    Outputs:
+    - rf_predictions (np.ndarray): The predictions from the RF model.
+    - rf_plus_predictions (np.ndarray): The predictions from the RF+ model.
+    """
+    
+    rf_predictions = rf.predict(X)
+    rf_plus_predictions = rf_plus.predict(X)
+    
+    return rf_predictions, rf_plus_predictions
 
 def get_lime(X: np.ndarray, rf):
     """
@@ -170,7 +197,7 @@ def get_lmdi(X, y, rf_plus):
     
     return lmdi_values
 
-def get_k_opposite_neighbors(k, lfi_valid, lfi_test,
+def get_k_opposite_neighbors(k, metric, lfi_valid, lfi_test,
                              y_valid, y_test):
     """
     Find the k closest neighbors to each point in lfi_test that have the opposite label.
@@ -186,8 +213,17 @@ def get_k_opposite_neighbors(k, lfi_valid, lfi_test,
     - opposite_neighbors (list of np.ndarray): The indices of the k closest neighbors with opposite labels for each point in lfi_test.
     """
     
+    # if metric == "l1":
+    #     metric = "manhattan"
+    # elif metric == "l2":
+    #     metric = "euclidean"
+    # elif metric == 'linfty':
+    #     metric == "chebyshev"
+    # else:
+    #     raise ValueError("metric must be either 'l1', 'l2', or 'linfty'")
+    
     # fit nearest neighbors model
-    nbrs = NearestNeighbors(n_neighbors=len(lfi_valid))
+    nbrs = NearestNeighbors(n_neighbors=len(lfi_valid), metric=metric)
     nbrs.fit(lfi_valid)
     
     # rank points in lfi_valid by distance to each point in lfi_test
@@ -208,7 +244,7 @@ def get_k_opposite_neighbors(k, lfi_valid, lfi_test,
     
     return lfi_opposite
 
-def get_average_nbr_dist(k, lfi_opposite, X_valid, X_test):
+def get_average_nbr_dist(k, metric, lfi_opposite, X_valid, X_test):
     """
     Calculate the average distance to the k closest neighbors with opposite labels for each point in lfi_test.
     
@@ -222,12 +258,135 @@ def get_average_nbr_dist(k, lfi_opposite, X_valid, X_test):
     - lfi_distances (np.ndarray): The average distances to the k closest neighbors with opposite labels for each point in lfi_test.
     """
     
+    if metric == "l1":
+        metric = 1
+    elif metric == "l2":
+        metric = 2
+    elif metric == 'chebyshev':
+        metric = float("-inf")
+    else:
+        raise ValueError
+    # else:
+    #     raise ValueError("metric must be either 'l1', 'l2', or 'linfty'")
+    
     lfi_distances = []
     for i in range(X_test.shape[0]):
         distances = []
         for j in range(k):
-            distances.append(np.linalg.norm(X_test[i] - X_valid[lfi_opposite[i][j]]))
+            distances.append(np.linalg.norm(X_test[i] - X_valid[lfi_opposite[i][j]], ord=metric))
         lfi_distances.append(distances)
     lfi_distances = np.array(lfi_distances)
     lfi_distances = lfi_distances.mean(axis=1)
     return lfi_distances
+
+def perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds):
+    """
+    Perform the entire pipeline of fetching data, fitting models, calculating LFI values,
+    finding opposite neighbors, and calculating distances.
+    
+    Inputs:
+    - k (int): The number of neighbors to consider.
+    - data_source (str): The source of the dataset, either 'uci' or 'openml'.
+    - data_id (int): The ID of the dataset.
+    - nbr_dist (str): The distance metric to use for finding neighbors.
+    - cfact_dist (str): The distance metric to use for calculating distances.
+    
+    Outputs:
+    - shap_distances (dict): The average distances for SHAP values.
+    - lime_distances (dict): The average distances for LIME values.
+    - lmdi_distances (dict): The average distances for LMDI values.
+    """
+    
+    # set seed
+    np.random.seed(42)
+    
+    # get and split data
+    # X, y, = get_data(data_source, data_id)
+    # X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.33, random_state=42)
+    # X_valid, X_test, y_valid, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
+    X = np.loadtxt(oj("data", f"{data_id}", "X.csv"), delimiter=",", dtype=float)
+    y = np.loadtxt(oj("data", f"{data_id}", "y.csv"), delimiter=",", dtype=float)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=42)
+    
+    print("Data Retrieved")
+    
+    # get fit models
+    rf, rf_plus = fit_models(X_train, y_train)
+    
+    if use_preds:
+        rf_y_test, rf_plus_y_test = get_predictions(X_test, rf, rf_plus)
+    
+    print("Models Fit")
+    
+    # get shap
+    shap_train = get_shap(X_train, rf)
+    shap_test = get_shap(X_test, rf)
+
+    # get lime
+    lime_train = get_lime(X_train, rf)
+    lime_test = get_lime(X_test, rf)
+    
+    # get lmdi values
+    lmdi_train = get_lmdi(X_train, y_train, rf_plus)
+    if use_preds:
+        lmdi_test = get_lmdi(X_test, rf_plus_y_test, rf_plus)
+    else:
+        lmdi_test = get_lmdi(X_test, y_test, rf_plus)
+    
+    print("LFI Values Retrieved")
+    
+    # metrics = ["l1", "l2", "linfty"]
+    
+    # shap_opposite = {}
+    # lime_opposite = {}
+    # lmdi_opposite = {}
+    
+    # for metric in metrics:
+    #     print(f"Calculating neighbors for metric: {metric}")
+    #     shap_opposite[metric] = get_k_opposite_neighbors(k, metric, shap_valid, shap_test, y_valid, y_test)
+    #     lime_opposite[metric] = get_k_opposite_neighbors(k, metric, lime_valid, lime_test, y_valid, y_test)
+    #     lmdi_opposite[metric] = get_k_opposite_neighbors(k, metric, lmdi_valid, lmdi_test, y_valid, y_test)
+    
+    if use_preds:
+        shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, rf_y_test)
+        lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, rf_y_test)
+        lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, rf_plus_y_test)
+    else:
+        shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, y_test)
+        lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, y_test)
+        lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, y_test)
+    
+    print(f"Opposite Neighbors Found Using '{nbr_dist}' Distance")
+    
+    # shap_distances = {}
+    # lime_distances = {}
+    # lmdi_distances = {}
+    
+    # for metric1 in metrics:
+    #     shap_distances[metric1] = {}
+    #     lime_distances[metric1] = {}
+    #     lmdi_distances[metric1] = {}
+    #     for metric2 in metrics:
+    #         print(f"Calculating distances for metric: {metric1} based on neighbors from metric: {metric2}")
+    #         shap_distances[metric1][metric2] = get_average_nbr_dist(k, metric1, shap_opposite[metric2], X_valid, X_test)
+    #         lime_distances[metric1][metric2] = get_average_nbr_dist(k, metric1, lime_opposite[metric2], X_valid, X_test)
+    #         lmdi_distances[metric1][metric2] = get_average_nbr_dist(k, metric1, lmdi_opposite[metric2], X_valid, X_test)
+
+    shap_distances = get_average_nbr_dist(k, cfact_dist, shap_opposite, X_train, X_test)
+    lime_distances = get_average_nbr_dist(k, cfact_dist, lime_opposite, X_train, X_test)
+    lmdi_distances = get_average_nbr_dist(k, cfact_dist, lmdi_opposite, X_train, X_test)
+
+    print(f"Average Distances Calculated Using '{cfact_dist}' Distance")
+
+    # plot distances
+    # plt.figure(figsize=(10, 6))
+    # plt.hist(shap_distances, bins=30, alpha=0.5, label='SHAP', color='blue')
+    # plt.hist(lime_distances, bins=30, alpha=0.5, label='LIME', color='orange')
+    # plt.hist(lmdi_distances, bins=30, alpha=0.5, label='LMDI', color='green')
+    # plt.xlabel('Average Distance to 3 Closest Opposite Label Neighbors')
+    # plt.ylabel('Frequency')
+    # plt.title('Distribution of Distances to Three Closest Opposite Label Neighbors')
+    # plt.legend()
+    # plt.show()
+    
+    return shap_distances, lime_distances, lmdi_distances

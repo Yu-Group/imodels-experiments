@@ -22,167 +22,66 @@ from ucimlrepo import fetch_ucirepo
 import shap
 import lime
 
-# fetch dataset
-breast_cancer_wisconsin_original = fetch_ucirepo(id=15)
+# helpers
+from knn_helper import *
 
-# data
-X = breast_cancer_wisconsin_original.data.features
-y = np.array(breast_cancer_wisconsin_original.data.targets).flatten()
+# for saving results
+import argparse
+import os
+from os.path import join as oj
 
-# remove rows with 'nan' entries for 'Bare_nuclei'
-X = X.dropna()
-# remove same observations from dataframe y
-y = y[X.index]
-# reset index
-X = X.reset_index(drop=True)
-X = X.to_numpy()
-
-# transform y from 2/4 to 0/1
-y = (y == 4).astype(int)
-
-# center and scale the covariates
-scaler = StandardScaler()
-X = scaler.fit_transform(X)
-
-# split evenly into train/valid/test
-X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.33,
-                                                  random_state=42)
-X_train, X_test, y_train, y_test = train_test_split(X_train, y_train, test_size=0.5,
-                                                    random_state=42)
-
-# fit random forest with params from MDI+
-rf = RandomForestClassifier(n_estimators=100, min_samples_leaf=3,
-                            max_features='sqrt', random_state=42)
-rf.fit(X_train, y_train)
-
-# elastic net rf+
-rf_plus_elastic = RandomForestPlusClassifier(rf_model=rf,
-            prediction_model=LogisticRegressionCV(penalty='elasticnet',
-                    l1_ratios=[0.1,0.5,0.9,0.99], solver='saga', cv=3,
-                n_jobs=-1, tol=5e-4, max_iter=5000, random_state=42))
-rf_plus_elastic.fit(X_train, y_train)
-
-def get_lime(X: np.ndarray, rf):
-    """
-    Get the LIME values and rankings for the given data.
+if __name__ == "__main__":
     
-    Inputs:
-    - X (np.ndarray): The feature matrix.
-    - rf (RandomForestClassifier/Regressor): The fitted RF object.
+    # store command-line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--datasource', type=str, default=None)
+    parser.add_argument('--dataid', type=int, default=None)
+    parser.add_argument('--k', type=int, default=None)
+    parser.add_argument('--nbr_dist', type=str, default="l2")
+    parser.add_argument('--cfact_dist', type=str, default="l2")
+    parser.add_argument('--use_preds', type=int, default=0)
+    args = parser.parse_args()
     
-    Outputs:
-    - lime_values (np.ndarray): The LIME values.
-    """
+    # convert namespace to a dictionary
+    args_dict = vars(args)
+
+    # assign the arguments to variables
+    data_source = args_dict['datasource']
+    data_id = args_dict['dataid']
+    k = args_dict['k']
+    nbr_dist = args_dict['nbr_dist']
+    cfact_dist = args_dict['cfact_dist']
+    use_preds = args_dict['use_preds']
+    if use_preds == 1:
+        use_preds = True
+    else:
+        use_preds = False
     
-    lime_values = np.zeros((X.shape[0], X.shape[1]))
-    explainer = lime.lime_tabular.LimeTabularExplainer(X, verbose = False,
-                                                       mode = "classification")
-    num_features = X.shape[1]
-    for i in range(X.shape[0]):
-        exp = explainer.explain_instance(X[i, :], rf.predict_proba,
-                                         num_features = num_features)
-        original_feature_importance = exp.as_map()[1]
-        sorted_feature_importance = sorted(original_feature_importance, key=lambda x: x[0])
-        for j in range(num_features):
-            lime_values[i, j] = sorted_feature_importance[j][1]
-        
-    return lime_values
+    # check that each input is valid
+    assert data_source in ["uci", "openml"], "data_source must be either 'uci' or 'openml'"
+    assert data_id is not None, "data_id must be provided"
+    assert k > 0, "k must be provided"
+    assert nbr_dist in ["l1", "l2", "chebyshev"], "nbr_dist must be either 'l1', 'l2', or 'chebyshev'"
+    assert cfact_dist in ["l1", "l2", "chebyshev"], "cfact_dist must be either 'l1', 'l2', or 'chebyshev'"
+    
+    # run pipeline
+    shap_distances, lime_distances, lmdi_distances = perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds)
+    
+    # save results
+    # metrics = ["l1", "l2", "linfty"]
+    use_preds_str = "preds" if use_preds else "oracle"
+    results_dir = oj("results", f"{data_source}_{data_id}")
+    for method in ["shap", "lime", "lmdi"]:
+        make_dir = oj(results_dir, method, use_preds_str, f"k{k}")
+        os.makedirs(make_dir, exist_ok=True)
+    np.savetxt(oj(results_dir, "shap", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), shap_distances, delimiter=",")
+    np.savetxt(oj(results_dir, "lime", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lime_distances, delimiter=",")
+    np.savetxt(oj(results_dir, "lmdi", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lmdi_distances, delimiter=",")
+    # for metric1 in metrics:
+    #     for metric2 in metrics:
+    #         np.savetxt(oj(results_dir, f"shap_distances_k{k}_{metric1}_{metric2}.csv"), shap_distances[metric1][metric2], delimiter=",")
+    #         np.savetxt(oj(results_dir, f"lime_distances_k{k}_{metric1}_{metric2}.csv"), lime_distances[metric1][metric2], delimiter=",")
+    #         np.savetxt(oj(results_dir, f"lmdi_distances_k{k}_{metric1}_{metric2}.csv"), lmdi_distances[metric1][metric2], delimiter=",")
 
-# get shap
-shap_explainer = shap.TreeExplainer(rf)
-shap_valid = shap_explainer.shap_values(X_valid,
-                                        check_additivity = False)[:, :, 1]
-shap_test = shap_explainer.shap_values(X_test,
-                                        check_additivity = False)[:, :, 1]
 
-# get lime
-lime_valid = get_lime(X_valid, rf)
-lime_test = get_lime(X_test, rf)
 
-# get lmdi values
-mdi_explainer = RFPlusMDI(rf_plus_elastic, mode = "only_k", evaluate_on = 'all')
-lmdi_valid = mdi_explainer.explain_linear_partial(X_valid, y_valid,
-                                                  normalize=False,
-                                                  square=False, ranking=False)
-lmdi_test = mdi_explainer.explain_linear_partial(X_test, y_test,
-                                                    normalize=False,
-                                                    square=False, ranking=False)
-
-# get all neighbors of each point
-shap_nbrs = NearestNeighbors(n_neighbors=len(X_valid))
-shap_nbrs.fit(shap_valid)
-shap_dist, shap_idxs = shap_nbrs.kneighbors(shap_test)
-lime_nbrs = NearestNeighbors(n_neighbors=len(X_valid))
-lime_nbrs.fit(lime_valid)
-lime_dist, lime_idxs = lime_nbrs.kneighbors(lime_test)
-lmdi_nbrs = NearestNeighbors(n_neighbors=len(X_valid))
-lmdi_nbrs.fit(lmdi_valid)
-lmdi_dist, lmdi_idxs = lmdi_nbrs.kneighbors(lmdi_test)
-
-# find the three closest neighbors to each point that have the opposite label
-shap_opposite = []
-for i in range(len(y_test)):
-    if y_test[i] == 1:
-        opposite = np.where(y_valid == 0)[0]
-    else:
-        opposite = np.where(y_valid == 1)[0]
-    distances = shap_dist[i][np.isin(shap_idxs[i], opposite)]
-    closest = np.argsort(distances)[:3]
-    shap_opposite.append(shap_idxs[i][np.isin(shap_idxs[i], opposite)][closest])
-shap_opposite = np.array(shap_opposite)
-lime_opposite = []
-for i in range(len(y_test)):
-    if y_test[i] == 1:
-        opposite = np.where(y_valid == 0)[0]
-    else:
-        opposite = np.where(y_valid == 1)[0]
-    distances = lime_dist[i][np.isin(lime_idxs[i], opposite)]
-    closest = np.argsort(distances)[:3]
-    lime_opposite.append(lime_idxs[i][np.isin(lime_idxs[i], opposite)][closest])
-lime_opposite = np.array(lime_opposite)
-lmdi_opposite = []
-for i in range(len(y_test)):
-    if y_test[i] == 1:
-        opposite = np.where(y_valid == 0)[0]
-    else:
-        opposite = np.where(y_valid == 1)[0]
-    distances = lmdi_dist[i][np.isin(lmdi_idxs[i], opposite)]
-    closest = np.argsort(distances)[:3]
-    lmdi_opposite.append(lmdi_idxs[i][np.isin(lmdi_idxs[i], opposite)][closest])
-lmdi_opposite = np.array(lmdi_opposite)
-
-shap_distances = []
-for i in range(len(y_test)):
-    distances = []
-    for j in range(3):
-        distances.append(np.linalg.norm(X_test[i] - X_valid[shap_opposite[i][j]]))
-    shap_distances.append(distances)
-shap_distances = np.array(shap_distances)
-shap_distances = shap_distances.mean(axis=1)
-lime_distances = []
-for i in range(len(y_test)):
-    distances = []
-    for j in range(3):
-        distances.append(np.linalg.norm(X_test[i] - X_valid[lime_opposite[i][j]]))
-    lime_distances.append(distances)
-lime_distances = np.array(lime_distances)
-lime_distances = lime_distances.mean(axis=1)
-lmdi_distances = []
-for i in range(len(y_test)):
-    distances = []
-    for j in range(3):
-        distances.append(np.linalg.norm(X_test[i] - X_valid[lmdi_opposite[i][j]]))
-    lmdi_distances.append(distances)
-lmdi_distances = np.array(lmdi_distances)
-lmdi_distances = lmdi_distances.mean(axis=1)
-
-# plot distances
-plt.figure(figsize=(10, 6))
-plt.hist(shap_distances, bins=30, alpha=0.5, label='SHAP', color='blue')
-plt.hist(lime_distances, bins=30, alpha=0.5, label='LIME', color='orange')
-plt.hist(lmdi_distances, bins=30, alpha=0.5, label='LMDI', color='green')
-plt.xlabel('Average Distance to 3 Closest Opposite Label Neighbors')
-plt.ylabel('Frequency')
-plt.title('Distribution of Distances to Three Closest Opposite Label Neighbors')
-plt.legend()
-plt.show()
