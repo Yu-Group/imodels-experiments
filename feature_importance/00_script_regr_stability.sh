@@ -9,3 +9,5 @@ for data_name in "openml_361242" "openml_361243" "openml_361253" "openml_361254"
         done
     done
 done
+
+#"openml_361242" "openml_361243" "openml_361253" "openml_361254" "openml_361259" "openml_361260"

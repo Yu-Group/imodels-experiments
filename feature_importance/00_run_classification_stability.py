@@ -102,6 +102,12 @@ def compare_estimators(estimators: List[ModelConfig],
                 rf_plus_inbag = RandomForestPlusClassifier(rf_model=est, include_raw=False, fit_on="inbag", prediction_model=LogisticRegression(penalty=None))
                 rf_plus_inbag.fit(X_train, y_train, n_jobs=None)
 
+                ablation_model1 = RandomForestPlusClassifier(rf_model=est, include_raw=True, fit_on="inbag", prediction_model=LogisticRegression(penalty=None))
+                ablation_model1.fit(X_train, y_train, n_jobs=None)
+
+                ablation_model2 = RandomForestPlusClassifier(rf_model=est, include_raw=True, fit_on="all", prediction_model=LogisticRegression(penalty=None))
+                ablation_model2.fit(X_train, y_train, n_jobs=None)
+
                 for fi_est in tqdm(fi_ests):
                     if fi_est.base_model == "None":
                         loaded_model = None

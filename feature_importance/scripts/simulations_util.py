@@ -30,7 +30,7 @@ def sample_real_data_X(task_id=None, seed=4307, normalize=False, sample_row_n=No
     return X
     
 
-def sample_real_data_y(task_id=None, return_support=True, sample_indices=None):
+def sample_real_data_y(X, task_id=None, return_support=True, sample_indices=None):
     y = pd.read_csv(f"/accounts/projects/binyu/zhongyuan_liang/local_MDI+/imodels-experiments/feature_importance/data_openml/y_{task_id}.csv").to_numpy().ravel()
     if sample_indices is not None:
         y = y[sample_indices]

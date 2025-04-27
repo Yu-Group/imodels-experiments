@@ -19,8 +19,6 @@ FI_ESTIMATORS = [
     [FIModelConfig('LIME_RF', lime_evaluation_RF_retrain, model_type='tree', base_model="RF", splitting_strategy = "train-test")],
     [FIModelConfig('MDI', LFI_evaluation_RFPlus_inbag_retrain, model_type='tree', base_model="RFPlus_inbag", splitting_strategy = "train-test")],
     [FIModelConfig('Local_MDI+_MDI_elasticnet_fit_on_all_ranking_RFPlus', LFI_evaluation_MDIRFPlus_all_ranking_retrain, model_type='tree', base_model="RFPlus_elastic", splitting_strategy = "train-test")],
-    [FIModelConfig('Local_MDI+_MDI_default_fit_on_all_ranking_RFPlus', LFI_evaluation_MDIRFPlus_all_ranking_retrain, model_type='tree', base_model="RFPlus_default", splitting_strategy = "train-test")],
-    [FIModelConfig('Local_MDI+_MDI_elasticnet_RFPlus_moe', LFI_evaluation_MDIRFPlus_all_ranking_moe_retrain, model_type='tree', base_model="RFPlus_moe_elasticnet", splitting_strategy = "train-test")],
-    [FIModelConfig('Local_MDI+_MDI_default_RFPlus_moe', LFI_evaluation_MDIRFPlus_all_ranking_moe_retrain, model_type='tree', base_model="RFPlus_moe_default", splitting_strategy = "train-test")],
-    [FIModelConfig('Local_MDI+_MDI_default_RFPlus_loo_moe', LFI_evaluation_MDIRFPlus_all_ranking_moe_retrain, model_type='tree', base_model="RFPlus_moe_loo_default", splitting_strategy = "train-test")],
+    [FIModelConfig('Ablation_model1', LFI_evaluation_MDIRFPlus_all_ranking_retrain, model_type='tree', base_model="Ablation_model1", splitting_strategy = "train-test")],
+    [FIModelConfig('Ablation_model2', LFI_evaluation_MDIRFPlus_all_ranking_retrain, model_type='tree', base_model="Ablation_model2", splitting_strategy = "train-test")],
 ]

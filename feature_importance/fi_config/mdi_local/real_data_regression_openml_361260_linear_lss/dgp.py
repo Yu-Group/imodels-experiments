@@ -23,4 +23,4 @@ Y_PARAMS_DICT = {
 
 VARY_PARAM_NAME = ["heritability", "sample_row_n"]
 VARY_PARAM_VALS = {"heritability": {"0.1": 0.1, "0.2": 0.2, "0.4": 0.4, "0.8": 0.8},
-                   "sample_row_n": {"150": 150, "300":300, "500": 500, "1000":1000}}
+                   "sample_row_n": {"150": 150, "500": 500, "1000":1000}}

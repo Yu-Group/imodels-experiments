@@ -20,4 +20,4 @@ Y_PARAMS_DICT = {
 
 VARY_PARAM_NAME = ["frac_label_corruption", "sample_row_n"]
 VARY_PARAM_VALS = {"frac_label_corruption": {"0.15": 0.15, "0.10": 0.10, "0.05": 0.05, "0": 0},
-                    "sample_row_n": {"150": 150, "300": 300, "500": 500, "1000":1000}}
+                    "sample_row_n": {"150": 150, "500": 500, "1000":1000}}

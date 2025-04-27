@@ -122,6 +122,12 @@ def compare_estimators(estimators: List[ModelConfig],
             rf_plus_mdi_plus = RandomForestPlusClassifierMDIPlus(rf_model=est)
             rf_plus_mdi_plus.fit(X_train, y_train)
 
+            ablation_model1 = RandomForestPlusClassifier(rf_model=est, include_raw=True, fit_on="inbag", prediction_model=LogisticRegression(penalty=None))
+            ablation_model1.fit(X_train, y_train, n_jobs=None)
+
+            ablation_model2 = RandomForestPlusClassifier(rf_model=est, include_raw=True, fit_on="all", prediction_model=LogisticRegression(penalty=None))
+            ablation_model2.fit(X_train, y_train, n_jobs=None)
+
             mask_values = {}
             for i in range(X_train.shape[1]):
                 unique_values = np.unique(X_train[:, i])
@@ -150,6 +156,10 @@ def compare_estimators(estimators: List[ModelConfig],
                     loaded_model = rf_plus_inbag
                 elif fi_est.base_model == "RFPlus_mdi_plus":
                     loaded_model = rf_plus_mdi_plus
+                elif fi_est.base_model == "Ablation_model1":
+                    loaded_model = ablation_model1
+                elif fi_est.base_model == "Ablation_model2":
+                    loaded_model = ablation_model2
                     
                 print(f"Compute feature importance")
                 local_fi_score_train, _ = fi_est.cls(X_train=X_train, y_train=y_train, X_test=X_test, fit=loaded_model, mode="absolute")
