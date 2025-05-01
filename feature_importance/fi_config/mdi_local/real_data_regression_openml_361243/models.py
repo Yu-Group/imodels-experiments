@@ -20,6 +20,7 @@ FI_ESTIMATORS = [
     [FIModelConfig('MDI', LFI_evaluation_RFPlus_inbag_retrain, model_type='tree', base_model="RFPlus_inbag", splitting_strategy = "train-test")],
     [FIModelConfig('MDI+', mdi_plus_evaluation_RF_retrain, model_type='tree', base_model="RFPlus_mdi_plus", splitting_strategy = "train-test")],
     [FIModelConfig('Local_MDI+_MDI_elasticnet_fit_on_all_ranking_RFPlus', LFI_evaluation_MDIRFPlus_all_ranking_retrain, model_type='tree', base_model="RFPlus_elastic", splitting_strategy = "train-test")],
+    [FIModelConfig('Ablation_model_ranking', LFI_evaluation_RFPlus_inbag_ranking_retrain, model_type='tree', base_model="RFPlus_inbag", splitting_strategy = "train-test")],
+    [FIModelConfig('Ablation_model0', LFI_evaluation_MDIRFPlus_all_ranking_retrain, model_type='tree', base_model="Ablation_model0", splitting_strategy = "train-test")],
     [FIModelConfig('Ablation_model1', LFI_evaluation_MDIRFPlus_all_ranking_retrain, model_type='tree', base_model="Ablation_model1", splitting_strategy = "train-test")],
-    [FIModelConfig('Ablation_model2', LFI_evaluation_MDIRFPlus_all_ranking_retrain, model_type='tree', base_model="Ablation_model2", splitting_strategy = "train-test")],
 ]

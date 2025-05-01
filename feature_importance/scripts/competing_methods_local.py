@@ -99,3 +99,13 @@ def LFI_evaluation_RFPlus_inbag_retrain(X_train, y_train, X_test, fit=None, mode
         return np.abs(local_fi_score_train), np.abs(local_fi_score_test)
     else:
         return local_fi_score_train, local_fi_score_test
+    
+def LFI_evaluation_RFPlus_inbag_ranking_retrain(X_train, y_train, X_test, fit=None, mode="absolute"):
+    assert isinstance(fit, RandomForestPlusRegressor) or isinstance(fit, RandomForestPlusClassifier)
+    rf_plus_mdi = RFPlusMDI(fit, mode = 'only_k', evaluate_on="inbag")
+    local_fi_score_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, ranking = True)
+    local_fi_score_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, ranking = True)
+    if mode == "absolute":
+        return np.abs(local_fi_score_train), np.abs(local_fi_score_test)
+    else:
+        return local_fi_score_train, local_fi_score_test

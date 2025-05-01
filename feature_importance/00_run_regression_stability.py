@@ -102,11 +102,11 @@ def compare_estimators(estimators: List[ModelConfig],
                 rf_plus_inbag = RandomForestPlusRegressor(rf_model=est, include_raw=False, fit_on="inbag", prediction_model=LinearRegression())
                 rf_plus_inbag.fit(X_train, y_train, n_jobs=None)
 
-                ablation_model1 = RandomForestPlusRegressor(rf_model=est, include_raw=True, fit_on="inbag", prediction_model=LinearRegression())
-                ablation_model1.fit(X_train, y_train, n_jobs=None)
+                ablation_model0 = RandomForestPlusRegressor(rf_model=est, include_raw=False, fit_on="all", prediction_model=LinearRegression())
+                ablation_model0.fit(X_train, y_train, n_jobs=None)
 
-                ablation_model2 = RandomForestPlusRegressor(rf_model=est, include_raw=True, fit_on="all", prediction_model=LinearRegression())
-                ablation_model2.fit(X_train, y_train, n_jobs=None)
+                ablation_model1 = RandomForestPlusRegressor(rf_model=est, include_raw=True, fit_on="all", prediction_model=LinearRegression())
+                ablation_model1.fit(X_train, y_train, n_jobs=None)
 
                 for fi_est in tqdm(fi_ests):
                     if fi_est.base_model == "None":
@@ -117,10 +117,10 @@ def compare_estimators(estimators: List[ModelConfig],
                         loaded_model = rf_plus_elastic
                     elif fi_est.base_model == "RFPlus_inbag":
                         loaded_model = rf_plus_inbag
+                    elif fi_est.base_model == "Ablation_model0":
+                        loaded_model = ablation_model0
                     elif fi_est.base_model == "Ablation_model1":
                         loaded_model = ablation_model1
-                    elif fi_est.base_model == "Ablation_model2":
-                        loaded_model = ablation_model2
 
                     local_fi_score_train, local_fi_score_test = fi_est.cls(X_train=X_train, y_train=y_train, X_test=X_test, fit=loaded_model, mode="absolute")
 
