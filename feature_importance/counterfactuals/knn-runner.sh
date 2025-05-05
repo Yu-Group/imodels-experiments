@@ -4,10 +4,13 @@
 slurm_script="knn.sh"
 
 ids=("43" "361062" "361071" "9978" "361069" "361063")
-kvals=("1" "3" "5" "7" "9")
-nbr_dists=("l1" "l2")
-cfact_dists=("l1" "l2" "chebyshev")
-use_preds=("1")
+# kvals=("1" "3" "5" "7" "9")
+kvals=("1")
+# nbr_dists=("l1" "l2")
+# cfact_dists=("l1" "l2")
+nbr_dists=("l1")
+cfact_dists=("l1")
+use_preds=("0" "1")
 
 for id in "${ids[@]}"; do
     for k in "${kvals[@]}"; do

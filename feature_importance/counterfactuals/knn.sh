@@ -2,10 +2,10 @@
 #SBATCH --partition=yugroup
 
 src="openml"
-id=43
+id=361062
 kval=3
-nbr_dist="l1"
-cfact_dist="l1"
+nbr_dist="l2"
+cfact_dist="l2"
 use_preds=1
 
 source activate mdi

@@ -62,21 +62,25 @@ if __name__ == "__main__":
     assert data_id is not None, "data_id must be provided"
     assert k > 0, "k must be provided"
     assert nbr_dist in ["l1", "l2", "chebyshev"], "nbr_dist must be either 'l1', 'l2', or 'chebyshev'"
-    assert cfact_dist in ["l1", "l2", "chebyshev"], "cfact_dist must be either 'l1', 'l2', or 'chebyshev'"
+    # assert cfact_dist in ["l1", "l2", "chebyshev"], "cfact_dist must be either 'l1', 'l2', or 'chebyshev'"
     
     # run pipeline
-    shap_distances, lime_distances, lmdi_distances = perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds)
+    raw_distances, shap_distances, lime_distances, lmdi_distances, lmdi_noraw_distances = \
+        perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds)
     
     # save results
     # metrics = ["l1", "l2", "linfty"]
     use_preds_str = "preds" if use_preds else "oracle"
     results_dir = oj("results", f"{data_source}_{data_id}")
-    for method in ["shap", "lime", "lmdi"]:
+    for method in ["raw", "shap", "lime", "lmdi", "lmdi_noraw"]:
         make_dir = oj(results_dir, method, use_preds_str, f"k{k}")
         os.makedirs(make_dir, exist_ok=True)
+    
+    np.savetxt(oj(results_dir, "raw", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), raw_distances, delimiter=",")
     np.savetxt(oj(results_dir, "shap", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), shap_distances, delimiter=",")
     np.savetxt(oj(results_dir, "lime", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lime_distances, delimiter=",")
     np.savetxt(oj(results_dir, "lmdi", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lmdi_distances, delimiter=",")
+    np.savetxt(oj(results_dir, "lmdi_noraw", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lmdi_noraw_distances, delimiter=",")
     # for metric1 in metrics:
     #     for metric2 in metrics:
     #         np.savetxt(oj(results_dir, f"shap_distances_k{k}_{metric1}_{metric2}.csv"), shap_distances[metric1][metric2], delimiter=",")
