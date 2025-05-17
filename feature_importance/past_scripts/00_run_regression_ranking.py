@@ -82,8 +82,8 @@ def compare_estimators(estimators: List[ModelConfig],
             X_test = scaler.transform(X_test)
             
             # fit RF model
-            est = RandomForestRegressor(n_estimators=100, min_samples_leaf=5, max_features=0.33, random_state=42)
-            est.fit(X_train, y_train)
+            rf = RandomForestRegressor(n_estimators=100, min_samples_leaf=5, max_features=0.33, random_state=42)
+            rf.fit(X_train, y_train)
 
             rf_plus_elastic = RandomForestPlusRegressor(rf_model=est, prediction_model=ElasticNetCV(cv=3, l1_ratio=[0.1,0.5,0.99], max_iter=2000, random_state=0))
             rf_plus_elastic.fit(X_train, y_train)

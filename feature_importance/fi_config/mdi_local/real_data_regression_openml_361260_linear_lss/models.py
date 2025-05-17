@@ -14,8 +14,8 @@ ESTIMATORS = [
 ]
 
 FI_ESTIMATORS = [
-    [FIModelConfig('TreeSHAP_RF', tree_shap_evaluation_RF_retrain, model_type='tree', base_model="RF", splitting_strategy = "train-test")],
-    [FIModelConfig('LIME_RF', lime_evaluation_RF_retrain, model_type='tree', base_model="RF", splitting_strategy = "train-test")],
-    [FIModelConfig('MDI', LFI_evaluation_RFPlus_inbag_retrain, model_type='tree', base_model="RFPlus_inbag", splitting_strategy = "train-test")],
-    [FIModelConfig('Local_MDI+_MDI_elasticnet_fit_on_all_ranking_RFPlus', LFI_evaluation_MDIRFPlus_all_ranking_retrain, model_type='tree', base_model="RFPlus_elastic", splitting_strategy = "train-test")],
+    [FIModelConfig('Treeshap', treeshap_score, model_type='tree', base_model="RF", splitting_strategy = "train-test")],
+    [FIModelConfig('LIME', lime_score, model_type='tree', base_model="RF", splitting_strategy = "train-test")],
+    [FIModelConfig('lmdi', lmdi_score, model_type='tree', base_model="RFPlus_inbag", splitting_strategy = "train-test")],
+    [FIModelConfig('lmdi+', lmdi_plus_score, model_type='tree', base_model="RFPlus", splitting_strategy = "train-test")],
 ]

@@ -18,4 +18,3 @@ Y_PARAMS_DICT = {
 # vary one parameter
 VARY_PARAM_NAME = ["sample_row_n"]
 VARY_PARAM_VALS = {"sample_row_n":{"2000":2000}}
-# VARY_PARAM_VALS = {"sample_row_n":{"500":500, "1000":1000, "2000":2000}}

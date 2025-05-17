@@ -6,14 +6,16 @@ import warnings
 import math
 import imodels
 import openml
-from ucimlrepo import fetch_ucirepo
-from sklearn.preprocessing import OneHotEncoder
-from sklearn.impute import SimpleImputer
-from sklearn.preprocessing import LabelEncoder
 
 
-def sample_real_data_X(task_id=None, seed=4307, normalize=False, sample_row_n=None, return_sample_indices=False):
-    X = pd.read_csv(f"/accounts/projects/binyu/zhongyuan_liang/local_MDI+/imodels-experiments/feature_importance/data_openml/X_{task_id}.csv").to_numpy()
+def sample_real_data_X(task_id=None, seed=4307, normalize=False, sample_row_n=None, return_sample_indices=False, from_local=True):
+    if from_local:
+        X = pd.read_csv(f"/accounts/projects/binyu/zhongyuan_liang/local_MDI+/imodels-experiments/feature_importance/data_openml/X_{task_id}.csv").to_numpy()
+    else:
+        task = openml.tasks.get_task(task_id)
+        dataset_id = task.dataset_id
+        dataset = openml.datasets.get_dataset(dataset_id)
+        X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute)
     if sample_row_n is not None:
         np.random.seed(seed)
         if sample_row_n < X.shape[0]:
@@ -30,8 +32,15 @@ def sample_real_data_X(task_id=None, seed=4307, normalize=False, sample_row_n=No
     return X
     
 
-def sample_real_data_y(X, task_id=None, return_support=True, sample_indices=None):
-    y = pd.read_csv(f"/accounts/projects/binyu/zhongyuan_liang/local_MDI+/imodels-experiments/feature_importance/data_openml/y_{task_id}.csv").to_numpy().ravel()
+def sample_real_data_y(X, task_id=None, return_support=True, sample_indices=None, from_local=True):
+    if from_local:
+        y = pd.read_csv(f"/accounts/projects/binyu/zhongyuan_liang/local_MDI+/imodels-experiments/feature_importance/data_openml/y_{task_id}.csv").to_numpy().ravel()
+    else:
+        task = openml.tasks.get_task(task_id)
+        dataset_id = task.dataset_id
+        dataset = openml.datasets.get_dataset(dataset_id)
+        _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute)
+        y = pd.DataFrame(y)
     if sample_indices is not None:
         y = y[sample_indices]
     if return_support:
@@ -368,95 +377,6 @@ def logistic_linear_model_random_feature(X, s, beta=None, frac_label_corruption=
     else:
         return y_train
 
-# def linear_model_two_groups(X, sigma, s, beta, group_intercept=0.5, heritability=None, snr=None, error_fun=None,
-#                  frac_corrupt=None, corrupt_how='permute', corrupt_size=None, 
-#                  corrupt_mean=None, return_support=False, seed=None):
-#     """
-#     This method is used to crete responses for two groups from a linear model with hard sparsity
-#     Parameters:
-#     X: X matrix
-#     s: sparsity
-#     beta: coefficient vector. If beta not a vector, then assumed a constant
-#     sigma: s.d. of added noise
-#     Returns:
-#     numpy array of shape (n)
-#     """
-#     n, p = X.shape
-
-#     ### Update start for local MDI+
-#     def create_y(x, s, beta, group_index):
-#         assert group_index in [0, 1]
-#         linear_term = 0
-#         start = group_index * s
-#         for j in range(s):
-#             linear_term += x[start+j] * beta[j]
-#         return linear_term
-    
-#     if seed is not None:
-#         np.random.seed(seed)
-
-#     # Generate two coefficient vectors for each subgroup
-#     beta = generate_coef(beta, s) 
-#     # Generate two response vectors for each subgroup5
-#     y_train_group1 = np.array([create_y(X[i, :], s, beta, group_index=0) for i in range(n//2)]) - group_intercept
-#     y_train_group2 = np.array([create_y(X[i, :], s, beta, group_index=1) for i in range(n//2, n)]) + group_intercept
-#     y_train = np.concatenate((y_train_group1, y_train_group2))
-#     ### Update for local MDI+ done
-#     if heritability is not None:
-#         sigma_group1 = (np.var(y_train_group1) * ((1.0 - heritability) / heritability)) ** 0.5
-#         sigma_group2 = (np.var(y_train_group2) * ((1.0 - heritability) / heritability)) ** 0.5
-#         sigma = (sigma_group1 + sigma_group2) / 2
-#     if snr is not None:
-#         assert False
-#         sigma = (np.var(y_train) / snr) ** 0.5
-#     if error_fun is None:
-#         error_fun = np.random.randn
-#     if frac_corrupt is None and corrupt_size is None:
-#         y_train = y_train + sigma * error_fun(n)
-#     else:
-#         assert False
-#         if frac_corrupt is None:
-#             frac_corrupt = 0
-#         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
-#         corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
-#         if corrupt_how == 'permute':
-#             corrupt_array = y_train[corrupt_indices]
-#             corrupt_array = random.sample(list(corrupt_array), len(corrupt_array))
-#             for i,index in enumerate(corrupt_indices):
-#                 y_train[index] = corrupt_array[i]
-#             y_train = y_train + sigma * error_fun(n)           
-#         elif corrupt_how == 'cauchy':
-#             for i in range(len(y_train)):
-#                 if i in corrupt_indices:
-#                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
-#                 else:
-#                      y_train[i] = y_train[i] + sigma*error_fun()
-#         elif corrupt_how == "leverage_constant":
-#             if isinstance(corrupt_size, int):
-#                 corrupt_quantile = corrupt_size / n
-#             else:
-#                 corrupt_quantile = corrupt_size
-#             y_train = y_train + sigma * error_fun(n)
-#             corrupt_idx = np.random.choice(range(s, p), size=1)
-#             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
-#         elif corrupt_how == "leverage_normal":
-#             if isinstance(corrupt_size, int):
-#                 corrupt_quantile = corrupt_size / n
-#             else:
-#                 corrupt_quantile = corrupt_size
-#             y_train = y_train + sigma * error_fun(n)
-#             corrupt_idx = np.random.choice(range(s, p), size=1)
-#             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
-#     ### Update start for local MDI+
-#     if return_support:
-#         support_group1 = np.concatenate((np.ones(s), np.zeros(X.shape[1] - s)))
-#         support_group2 = np.concatenate((np.zeros(s), np.ones(s), np.zeros(X.shape[1] - 2*s)))
-#         support_groups = (support_group1, support_group2)
-#         return y_train, support_groups, beta
-#     else:
-#         return y_train
-#     ### Update for local MDI+ done
-
 def lss_model(X, sigma, m, r, tau, beta, heritability=None, snr=None, error_fun=None, min_active=None,
               frac_corrupt=None, corrupt_how='permute', corrupt_size=None, corrupt_mean=None,
               return_support=False, seed=None):
@@ -620,131 +540,6 @@ def lss_model_random_feature(X, m, r, tau, beta, sigma=None, heritability=None, 
         return y_train, support, beta
     else:
         return y_train
-
-# def lss_model_two_groups(X, sigma, m, r, tau, beta, group_intercept=0.5, heritability=None, snr=None, error_fun=None, min_active=None,
-#               frac_corrupt=None, corrupt_how='permute', corrupt_size=None, corrupt_mean=None,
-#               return_support=False, seed=None):
-#     """
-#     This method creates response from an LSS model
-
-#     X: data matrix
-#     m: number of interaction terms
-#     r: max order of interaction
-#     tau: threshold
-#     sigma: standard deviation of noise
-#     beta: coefficient vector. If beta not a vector, then assumed a constant
-
-#     :return
-#     y_train: numpy array of shape (n)
-#     """
-#     n, p = X.shape
-#     assert p >= m * r  # Cannot have more interactions * size than the dimension
-#     if seed is not None:
-#         np.random.seed(seed)
-
-#     def lss_func_two_group(x, beta, group_index):
-#         assert group_index in [0, 1]
-#         start = group_index * m * r
-#         x_bool = (x - tau) > 0
-#         y = 0
-#         for j in range(m):
-#             lss_term_components = x_bool[start+(j*r):start+(j*r)+r]
-#             lss_term = int(all(lss_term_components))
-#             y += lss_term * beta[j]
-#         return y
-
-#     # def lss_vector_fun(x, beta):
-#     #     x_bool = (x - tau) > 0
-#     #     y = 0
-#     #     max_iter = 100
-#     #     features = np.arange(p)
-#     #     support_idx = []
-#     #     for j in range(m):
-#     #         cnt = 0
-#     #         while True:
-#     #             int_features = np.random.choice(features, size=r, replace=False)
-#     #             lss_term_components = x_bool[:, int_features]
-#     #             lss_term = np.apply_along_axis(all, 1, lss_term_components)
-#     #             cnt += 1
-#     #             if np.mean(lss_term) >= min_active or cnt > max_iter:
-#     #                 y += lss_term * beta[j]
-#     #                 features = list(set(features).difference(set(int_features)))
-#     #                 support_idx.append(int_features)
-#     #                 if cnt > max_iter:
-#     #                     warnings.warn("Could not find interaction {} with min active >= {}".format(j, min_active))
-#     #                 break
-#     #     support_idx = np.stack(support_idx).ravel()
-#     #     support = np.zeros(p)
-#     #     for j in support_idx:
-#     #         support[j] = 1
-#     #     return y, support
-
-#     beta = generate_coef(beta, m)
-#     if tau == 'median':
-#         tau = np.median(X,axis = 0)
-    
-#     if min_active is None:
-#         y_train_group1 = np.array([lss_func_two_group(X[i, :], beta, group_index=0) for i in range(n//2)]) - group_intercept
-#         y_train_group2 = np.array([lss_func_two_group(X[i, :], beta, group_index=1) for i in range(n//2, n)]) + group_intercept
-#         y_train = np.concatenate((y_train_group1, y_train_group2))
-#         support_group1 = np.concatenate((np.ones(m * r), np.zeros(X.shape[1] - (m * r))))
-#         support_group2 = np.concatenate((np.zeros(m * r), np.ones(m * r), np.zeros(X.shape[1] - 2*(m * r))))
-#         support_groups = (support_group1, support_group2)
-#     else:
-#         assert False
-#         y_train, support = lss_vector_fun(X, beta)
-
-#     if heritability is not None:
-#         sigma_group1 = (np.var(y_train_group1) * ((1.0 - heritability) / heritability)) ** 0.5
-#         sigma_group2 = (np.var(y_train_group2) * ((1.0 - heritability) / heritability)) ** 0.5
-#         sigma = (sigma_group1 + sigma_group2) / 2
-#     if snr is not None:
-#         assert False
-#         sigma = (np.var(y_train) / snr) ** 0.5
-#     if error_fun is None:
-#         error_fun = np.random.randn
-
-#     if frac_corrupt is None and corrupt_size is None:
-#         y_train = y_train + sigma * error_fun(n)
-#     else:
-#         assert False
-#         if frac_corrupt is None:
-#             frac_corrupt = 0
-#         num_corrupt = int(np.floor(frac_corrupt*len(y_train)))
-#         corrupt_indices = random.sample([*range(len(y_train))], k=num_corrupt)
-#         if corrupt_how == 'permute':
-#             corrupt_array = y_train[corrupt_indices]
-#             corrupt_array = random.sample(list(corrupt_array), len(corrupt_array))
-#             for i,index in enumerate(corrupt_indices):
-#                 y_train[index] = corrupt_array[i]
-#             y_train = y_train + sigma * error_fun(n)           
-#         elif corrupt_how == 'cauchy':
-#             for i in range(len(y_train)):
-#                 if i in corrupt_indices:
-#                     y_train[i] = y_train[i] + sigma*np.random.standard_cauchy()
-#                 else:
-#                      y_train[i] = y_train[i] + sigma*error_fun()
-#         elif corrupt_how == "leverage_constant":
-#             if isinstance(corrupt_size, int):
-#                 corrupt_quantile = corrupt_size / n
-#             else:
-#                 corrupt_quantile = corrupt_size
-#             y_train = y_train + sigma * error_fun(n)
-#             corrupt_idx = np.random.choice(range(m*r, p), size=1)
-#             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="constant")
-#         elif corrupt_how == "leverage_normal":
-#             if isinstance(corrupt_size, int):
-#                 corrupt_quantile = corrupt_size / n
-#             else:
-#                 corrupt_quantile = corrupt_size
-#             y_train = y_train + sigma * error_fun(n)
-#             corrupt_idx = np.random.choice(range(m*r, p), size=1)
-#             y_train = corrupt_leverage(X[:, corrupt_idx], y_train, mean_shift=corrupt_mean, corrupt_quantile=corrupt_quantile, mode="normal")
-  
-#     if return_support:
-#         return y_train, support_groups, beta
-#     else:
-#         return y_train
 
 def partial_linear_lss_model(X, sigma, s, m, r, tau, beta, heritability=None, snr=None, error_fun=None,
                              min_active=None, frac_corrupt=None, corrupt_how='permute', corrupt_size=None,
