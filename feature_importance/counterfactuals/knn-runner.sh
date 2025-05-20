@@ -1,5 +1,4 @@
 #!/bin/bash
-#SBATCH --partition=yugroup
 
 slurm_script="knn.sh"
 

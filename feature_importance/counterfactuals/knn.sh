@@ -1,5 +1,4 @@
 #!/bin/bash
-#SBATCH --partition=yugroup
 
 src="openml"
 # id=361062
