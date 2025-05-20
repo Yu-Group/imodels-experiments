@@ -104,11 +104,16 @@ if __name__ == '__main__':
         # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5,
         #                                                     random_state = seed)
         # read in lmdi variants
-        glm = ["ridge", "lasso", "elastic"]
-        normalize = {True: "normed", False: "nonnormed"}
-        square = {True: "squared", False: "nosquared"}
-        leaf_average = {True: "leafavg", False: "noleafavg"}
-        ranking = {True: "rank", False: "norank"}
+        # glm = ["ridge", "lasso", "elastic"]
+        # normalize = {True: "normed", False: "nonnormed"}
+        # square = {True: "squared", False: "nosquared"}
+        # leaf_average = {True: "leafavg", False: "noleafavg"}
+        # ranking = {True: "rank", False: "norank"}
+        glm = ["elastic"]
+        normalize = {False: "nonnormed"}
+        square = {False: "nosquared"}
+        leaf_average = {False: "noleafavg"}
+        ranking = {False: "norank"}
 
         # create the mapping of variants to argument mappings
         lfi_methods = []
@@ -157,7 +162,7 @@ if __name__ == '__main__':
         
         # k_size_info_maps = {}
 
-        for k in range(2, 11):
+        for k in range(1, 11):
             
             variant_mse = {}
                 

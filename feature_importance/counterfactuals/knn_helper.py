@@ -13,7 +13,8 @@ import matplotlib.pyplot as plt
 # imodels imports
 from imodels import get_clean_dataset
 from imodels.tree.rf_plus.rf_plus.rf_plus_models import RandomForestPlusClassifier
-from imodels.tree.rf_plus.feature_importance.rfplus_explainer import RFPlusMDI
+# from imodels.tree.rf_plus.feature_importance.rfplus_explainer import RFPlusMDI
+from imodels.tree.rf_plus.feature_importance.rfplus_explainer import LMDIPlus
 
 # data getters
 from ucimlrepo import fetch_ucirepo
@@ -198,12 +199,10 @@ def get_lmdi(X, y, rf_plus, inbag=False):
     """
     
     if inbag:
-        mdi_explainer = RFPlusMDI(rf_plus, mode="only_k", evaluate_on='inbag')
+        mdi_explainer = LMDIPlus(rf_plus, evaluate_on='inbag')
     else:
-        mdi_explainer = RFPlusMDI(rf_plus, mode="only_k", evaluate_on='all')
-    lmdi_values = mdi_explainer.explain_linear_partial(X, y, normalize=False,
-                                                       square=False,
-                                                       ranking=False)
+        mdi_explainer = LMDIPlus(rf_plus, evaluate_on='all')
+    lmdi_values = mdi_explainer.get_lmdi_plus_scores(X, y, ranking=False)
     
     return lmdi_values
 

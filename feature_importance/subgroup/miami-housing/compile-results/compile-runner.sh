@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=jsteinhardt
+#SBATCH --partition=yugroup
 
 slurm_script="compile-results.sh"
 
@@ -8,7 +8,7 @@ slurm_script="compile-results.sh"
 #      "China_glucose_women2" "China_glucose_men2" "Spain_Hair" "China_HIV")
 # clusttype=("hierarchical" "kmeans")
 # modeltype=("tree" "linear")
-modeltype=("tree")
+modeltype=("linear")
 # seeds=(1 2 3 4 5)
 # ids=("361253" "361254" "361259" "361260" "361622" "361242")
 ids=("361260")

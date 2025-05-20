@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --partition=jsteinhardt
+#SBATCH --partition=yugroup
 
 # dataname="361260"
 # seed=0
