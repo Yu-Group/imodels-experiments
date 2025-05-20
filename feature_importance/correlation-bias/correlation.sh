@@ -1,5 +1,4 @@
 #!/bin/bash
-#SBATCH --partition=jsteinhardt
 
 njobs=8
 
