@@ -2,11 +2,11 @@
 #SBATCH --partition=yugroup
 
 src="openml"
-id=361062
-kval=3
-nbr_dist="l2"
-cfact_dist="l2"
-use_preds=1
+# id=361062
+# kval=1
+# nbr_dist="l1"
+# cfact_dist="l1"
+# use_preds=1
 
 source activate mdi
 command="knn.py --datasource ${src} --dataid ${1} --k ${2} --nbr_dist ${3} --cfact_dist ${4} --use_preds ${5}"

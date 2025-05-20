@@ -221,26 +221,13 @@ def get_k_opposite_neighbors(k, metric, lfi_valid, lfi_test, y_valid, y_test): #
     - opposite_neighbors (list of np.ndarray): The indices of the k closest neighbors with opposite labels for each point in lfi_test.
     """
     
-    # if weight is true, then check that X_valid and X_test are provided
-    # if weight and (X_valid is None or X_test is None):
-    #     raise ValueError("If weight is True, X_valid and X_test must be provided")
-    
     if metric == "l1":
         metric = 1
     elif metric == "l2":
         metric = 2
-    # elif metric == 'linfty':
-    #     metric == "chebyshev"
     else:
         raise ValueError("metric must be either 'l1' or 'l2'")
     
-    # fit nearest neighbors model
-    # if weight:
-    #     avg_lfi_valid = np.mean(np.abs(lfi_valid), axis=0)
-    #     nbrs = NearestNeighbors(n_neighbors=len(X_valid), p=metric, metric_params={'w': avg_lfi_valid})
-    #     nbrs.fit(X_valid)
-    #     lfi_dist, lfi_idxs = nbrs.kneighbors(X_test)
-    # else:
     nbrs = NearestNeighbors(n_neighbors=len(lfi_valid), p=metric)
     nbrs.fit(lfi_valid)
     
@@ -321,7 +308,7 @@ def get_coord_nbr_dist(k, lfi_opposite, X_valid, X_test):
     lfi_distances = lfi_distances.mean(axis=1)
     return lfi_distances
 
-def perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds, weight_by_imp=False, coord_dist=False):
+def perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds):
     """
     Perform the entire pipeline of fetching data, fitting models, calculating LFI values,
     finding opposite neighbors, and calculating distances.
@@ -343,9 +330,6 @@ def perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds, weight_by_imp=
     np.random.seed(42)
     
     # get and split data
-    # X, y, = get_data(data_source, data_id)
-    # X_train, X_temp, y_train, y_temp = train_test_split(X, y, test_size=0.33, random_state=42)
-    # X_valid, X_test, y_valid, y_test = train_test_split(X_temp, y_temp, test_size=0.5, random_state=42)
     X = np.loadtxt(oj("data", f"{data_id}", "X.csv"), delimiter=",", dtype=float)
     y = np.loadtxt(oj("data", f"{data_id}", "y.csv"), delimiter=",", dtype=float)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=42)
@@ -391,95 +375,27 @@ def perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds, weight_by_imp=
     
     print("LFI Values Retrieved")
     
-    # metrics = ["l1", "l2", "linfty"]
-    
-    # shap_opposite = {}
-    # lime_opposite = {}
-    # lmdi_opposite = {}
-    
-    # for metric in metrics:
-    #     print(f"Calculating neighbors for metric: {metric}")
-    #     shap_opposite[metric] = get_k_opposite_neighbors(k, metric, shap_valid, shap_test, y_valid, y_test)
-    #     lime_opposite[metric] = get_k_opposite_neighbors(k, metric, lime_valid, lime_test, y_valid, y_test)
-    #     lmdi_opposite[metric] = get_k_opposite_neighbors(k, metric, lmdi_valid, lmdi_test, y_valid, y_test)
-    
-    if weight_by_imp:
-        if use_preds:
-            raw_opposite = None # get_k_opposite_neighbors(k, nbr_dist, raw_train, raw_test, y_train, rf_y_test)
-            shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, rf_y_test, weight=True, X_valid=X_train, X_test=X_test)
-            lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, rf_y_test, weight=True, X_valid=X_train, X_test=X_test)
-            lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, rf_plus_y_test, weight=True, X_valid=X_train, X_test=X_test)
-            lmdi_baseline_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_baseline_train, lmdi_baseline_test, y_train, rf_plus_baseline_y_test, weight=True, X_valid=X_train, X_test=X_test)
-        else:
-            raw_opposite = None # get_k_opposite_neighbors(k, nbr_dist, raw_train, raw_test, y_train, y_test)
-            shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, y_test, weight=True, X_valid=X_train, X_test=X_test)
-            lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, y_test, weight=True, X_valid=X_train, X_test=X_test)
-            lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, y_test, weight=True, X_valid=X_train, X_test=X_test)
-            lmdi_baseline_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_baseline_train, lmdi_baseline_test, y_train, y_test, weight=True, X_valid=X_train, X_test=X_test)
+    if use_preds:
+        raw_opposite = get_k_opposite_neighbors(k, nbr_dist, raw_train, raw_test, y_train, rf_y_test)
+        shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, rf_y_test)
+        lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, rf_y_test)
+        lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, rf_plus_y_test)
+        lmdi_baseline_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_baseline_train, lmdi_baseline_test, y_train, rf_plus_baseline_y_test)
     else:
-        if use_preds:
-            raw_opposite = get_k_opposite_neighbors(k, nbr_dist, raw_train, raw_test, y_train, rf_y_test)
-            shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, rf_y_test)
-            lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, rf_y_test)
-            lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, rf_plus_y_test)
-            lmdi_baseline_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_baseline_train, lmdi_baseline_test, y_train, rf_plus_baseline_y_test)
-        else:
-            raw_opposite = get_k_opposite_neighbors(k, nbr_dist, raw_train, raw_test, y_train, y_test)
-            shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, y_test)
-            lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, y_test)
-            lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, y_test)
-            lmdi_baseline_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_baseline_train, lmdi_baseline_test, y_train, y_test)
-    
+        raw_opposite = get_k_opposite_neighbors(k, nbr_dist, raw_train, raw_test, y_train, y_test)
+        shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, y_test)
+        lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, y_test)
+        lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, y_test)
+        lmdi_baseline_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_baseline_train, lmdi_baseline_test, y_train, y_test)
+
     print(f"Opposite Neighbors Found Using '{nbr_dist}' Distance")
     
-    # shap_distances = {}
-    # lime_distances = {}
-    # lmdi_distances = {}
-    
-    # for metric1 in metrics:
-    #     shap_distances[metric1] = {}
-    #     lime_distances[metric1] = {}
-    #     lmdi_distances[metric1] = {}
-    #     for metric2 in metrics:
-    #         print(f"Calculating distances for metric: {metric1} based on neighbors from metric: {metric2}")
-    #         shap_distances[metric1][metric2] = get_average_nbr_dist(k, metric1, shap_opposite[metric2], X_valid, X_test)
-    #         lime_distances[metric1][metric2] = get_average_nbr_dist(k, metric1, lime_opposite[metric2], X_valid, X_test)
-    #         lmdi_distances[metric1][metric2] = get_average_nbr_dist(k, metric1, lmdi_opposite[metric2], X_valid, X_test)
+    raw_distances = get_average_nbr_dist(k, cfact_dist, raw_opposite, X_train, X_test)
+    shap_distances = get_average_nbr_dist(k, cfact_dist, shap_opposite, X_train, X_test)
+    lime_distances = get_average_nbr_dist(k, cfact_dist, lime_opposite, X_train, X_test)
+    lmdi_distances = get_average_nbr_dist(k, cfact_dist, lmdi_opposite, X_train, X_test)
+    lmdi_baseline_distances = get_average_nbr_dist(k, cfact_dist, lmdi_baseline_opposite, X_train, X_test)
 
-    if coord_dist:
-        if weight_by_imp:
-            raw_distances = None
-        else:
-            raw_distances = get_coord_nbr_dist(k, raw_opposite, X_train, X_test)
-        shap_distances = get_coord_nbr_dist(k, shap_opposite, X_train, X_test)
-        lime_distances = get_coord_nbr_dist(k, lime_opposite, X_train, X_test)
-        lmdi_distances = get_coord_nbr_dist(k, lmdi_opposite, X_train, X_test)
-        lmdi_baseline_distances = get_coord_nbr_dist(k, lmdi_baseline_opposite, X_train, X_test)
-    else:
-        if weight_by_imp:
-            raw_distances = None
-        else:
-            raw_distances = get_average_nbr_dist(k, cfact_dist, raw_opposite, X_train, X_test)
-        shap_distances = get_average_nbr_dist(k, cfact_dist, shap_opposite, X_train, X_test)
-        lime_distances = get_average_nbr_dist(k, cfact_dist, lime_opposite, X_train, X_test)
-        lmdi_distances = get_average_nbr_dist(k, cfact_dist, lmdi_opposite, X_train, X_test)
-        lmdi_baseline_distances = get_average_nbr_dist(k, cfact_dist, lmdi_baseline_opposite, X_train, X_test)
-    
     print(f"Average Distances Calculated")
-
-    # plot distances
-    # plt.figure(figsize=(10, 6))
-    # plt.hist(shap_distances, bins=30, alpha=0.5, label='SHAP', color='blue')
-    # plt.hist(lime_distances, bins=30, alpha=0.5, label='LIME', color='orange')
-    # plt.hist(lmdi_distances, bins=30, alpha=0.5, label='LMDI', color='green')
-    # plt.xlabel('Average Distance to 3 Closest Opposite Label Neighbors')
-    # plt.ylabel('Frequency')
-    # plt.title('Distribution of Distances to Three Closest Opposite Label Neighbors')
-    # plt.legend()
-    # plt.show()
     
-    if coord_dist:
-        return raw_distances, shap_distances, lime_distances, lmdi_distances, lmdi_baseline_distances, mdi_vals, np.abs(shap_test), np.abs(lime_test), np.abs(lmdi_test), np.abs(lmdi_baseline_test)
-    else:
-        return raw_distances, shap_distances, lime_distances, lmdi_distances, lmdi_baseline_distances
-    # return raw_distances, shap_distances, lime_distances, lmdi_distances, mdi_vals, np.abs(shap_train), np.abs(lime_train), np.abs(lmdi_train)
+    return raw_distances, shap_distances, lime_distances, lmdi_distances, lmdi_baseline_distances
