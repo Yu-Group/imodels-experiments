@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --cpus-per-task=8
+#SBATCH --partition=jsteinhardt
 
 njobs=8
 
