@@ -62,9 +62,9 @@ def lime_score(X_train, y_train, X_test, model=None, absolute=True):
 
 def lmdi_score(X_train, y_train, X_test, model=None, absolute=True):
     assert isinstance(model, RandomForestPlusRegressor) or isinstance(model, RandomForestPlusClassifier)
-    rf_plus_mdi = RFPlusMDI(model, mode = 'only_k', evaluate_on="inbag")
-    lfi_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train)
-    lfi_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None)
+    rf_plus_mdi = LMDIPlus(model, evaluate_on="inbag")
+    lfi_train = rf_plus_mdi.get_lmdi_plus_scores(X=X_train, y=y_train)
+    lfi_test = rf_plus_mdi.get_lmdi_plus_scores(X=X_test, y=None)
     if absolute:
         return np.abs(lfi_train), np.abs(lfi_test)
     else:
@@ -72,9 +72,9 @@ def lmdi_score(X_train, y_train, X_test, model=None, absolute=True):
 
 def lmdi_plus_score(X_train, y_train, X_test, model=None, absolute=True):
     assert isinstance(model, RandomForestPlusRegressor) or isinstance(model, RandomForestPlusClassifier)
-    rf_plus_mdi = RFPlusMDI(model, mode = 'only_k', evaluate_on="all")
-    lfi_train = rf_plus_mdi.explain_linear_partial(X=X_train, y=y_train, ranking = True)
-    lfi_test = rf_plus_mdi.explain_linear_partial(X=X_test, y=None, ranking = True)
+    rf_plus_mdi = LMDIPlus(model, evaluate_on="all")
+    lfi_train = rf_plus_mdi.get_lmdi_plus_scores(X=X_train, y=y_train, ranking = True)
+    lfi_test = rf_plus_mdi.get_lmdi_plus_scores(X=X_test, y=None, ranking = True)
     if absolute:
         return np.abs(lfi_train), np.abs(lfi_test)
     else:
