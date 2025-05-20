@@ -1,5 +1,4 @@
 #!/bin/bash
-#SBATCH --partition=jsteinhardt
 
 slurm_script="compile-results.sh"
 modeltype=("linear")
