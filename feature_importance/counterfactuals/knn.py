@@ -48,7 +48,7 @@ if __name__ == "__main__":
     
     # save results
     use_preds_str = "preds" if use_preds else "oracle"
-    results_dir = oj("results-testcode", f"{data_source}_{data_id}")
+    results_dir = oj("results", f"{data_source}_{data_id}")
     for method in ["raw", "shap", "lime", "lmdi_plus", "lmdi_baseline"]:
         make_dir = oj(results_dir, method, use_preds_str, f"k{k}")
         os.makedirs(make_dir, exist_ok=True)
