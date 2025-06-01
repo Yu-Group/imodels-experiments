@@ -30,11 +30,9 @@ from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score
 from sklearn.kernel_ridge import KernelRidge
 warnings.filterwarnings("ignore", message="Bins whose width")
 from sklearn.model_selection import train_test_split
-#RUN THE FILE
-# python 01_run_ablation_regression.py --nreps 5 --config mdi_local.real_data_regression --split_seed 331 --ignore_cache --create_rmd --result_name diabetes_regression
 
 #RF plus prediction imports
-from imodels.tree.rf_plus.rf_plus_prediction_models.aloocv_regression import AloElasticNetRegressorCV
+# from imodels.tree.rf_plus.rf_plus_prediction_models.aloocv_regression import AloElasticNetRegressorCV
 
 ### MDI imports
 from imodels.importance import RandomForestPlusRegressor as RandomForestPlusRegressorMDIPlus

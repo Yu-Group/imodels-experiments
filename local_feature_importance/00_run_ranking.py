@@ -28,7 +28,7 @@ import fi_config
 from util import ModelConfig, FIModelConfig, tp, fp, neg, pos, specificity_score, auroc_score, auprc_score, compute_nsg_feat_corr_w_sig_subspace, apply_splitting_strategy
 warnings.filterwarnings("ignore", message="Bins whose width")
 from sklearn.linear_model import RidgeCV, LassoCV, ElasticNetCV
-from imodels.tree.rf_plus.rf_plus_prediction_models.aloocv_regression import AloElasticNetRegressorCV
+# from imodels.tree.rf_plus.rf_plus_prediction_models.aloocv_regression import AloElasticNetRegressorCV
 import sklearn.base
 from sklearn.base import RegressorMixin, ClassifierMixin
 

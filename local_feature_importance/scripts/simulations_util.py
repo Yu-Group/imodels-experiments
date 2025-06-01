@@ -4,18 +4,20 @@ import random
 from scipy.linalg import toeplitz
 import warnings
 import math
-import imodels
+import sys
+sys.path.append(".")
+sys.path.append("..")
 import openml
 
 
 def sample_real_data_X(task_id=None, seed=4307, normalize=False, sample_row_n=None, return_sample_indices=False, from_local=True):
     if from_local:
-        X = pd.read_csv(f"/accounts/projects/binyu/zhongyuan_liang/local_MDI+/imodels-experiments/feature_importance/data_openml/X_{task_id}.csv").to_numpy()
+        X = pd.read_csv(f"./data_openml/X_{task_id}.csv").to_numpy()
     else:
         task = openml.tasks.get_task(task_id)
         dataset_id = task.dataset_id
         dataset = openml.datasets.get_dataset(dataset_id)
-        X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute)
+        X, _, _, _ = dataset.get_data(target=dataset.default_target_attribute).to_numpy()
     if sample_row_n is not None:
         np.random.seed(seed)
         if sample_row_n < X.shape[0]:
@@ -34,13 +36,13 @@ def sample_real_data_X(task_id=None, seed=4307, normalize=False, sample_row_n=No
 
 def sample_real_data_y(X, task_id=None, return_support=True, sample_indices=None, from_local=True):
     if from_local:
-        y = pd.read_csv(f"/accounts/projects/binyu/zhongyuan_liang/local_MDI+/imodels-experiments/feature_importance/data_openml/y_{task_id}.csv").to_numpy().ravel()
+        y = pd.read_csv(f"./data_openml/y_{task_id}.csv").to_numpy().ravel()
     else:
         task = openml.tasks.get_task(task_id)
         dataset_id = task.dataset_id
         dataset = openml.datasets.get_dataset(dataset_id)
         _, y, _, _ = dataset.get_data(target=dataset.default_target_attribute)
-        y = pd.DataFrame(y)
+        y = np.array(y).ravel()
     if sample_indices is not None:
         y = y[sample_indices]
     if return_support:

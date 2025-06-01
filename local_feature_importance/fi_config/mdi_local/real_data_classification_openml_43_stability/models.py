@@ -2,9 +2,9 @@ import copy
 import numpy as np
 # from sklearn.linear_model import RidgeClassifierCV, LogisticRegressionCV
 # from sklearn.utils.extmath import softmax
-from feature_importance.util import ModelConfig, FIModelConfig
+from local_feature_importance.util import ModelConfig, FIModelConfig
 from sklearn.ensemble import RandomForestClassifier
-from feature_importance.scripts.competing_methods_local import *
+from local_feature_importance.scripts.competing_methods_local import *
 from sklearn.linear_model import Ridge
 
 ESTIMATORS = [

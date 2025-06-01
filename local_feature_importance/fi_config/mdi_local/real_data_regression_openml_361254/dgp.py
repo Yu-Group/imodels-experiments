@@ -1,6 +1,6 @@
 import sys
 sys.path.append("../..")
-from feature_importance.scripts.simulations_util import *
+from local_feature_importance.scripts.simulations_util import *
 
 
 X_DGP = sample_real_data_X
