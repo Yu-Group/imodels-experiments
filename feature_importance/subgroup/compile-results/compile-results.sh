@@ -1,4 +1,6 @@
 #!/bin/bash
+#SBATCH --partition=yugroup
+#SBATCH --cpus-per-task=4
 
 dataname="361260"
 clustertype="kmeans"

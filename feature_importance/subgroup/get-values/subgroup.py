@@ -10,6 +10,8 @@ from imodels.tree.rf_plus.feature_importance.rfplus_explainer import LMDIPlus
 # functions for subgroup experiments
 import shap
 import lime
+import skmaple
+from sklearn.linear_model import Ridge
 
 # sklearn imports
 from sklearn.linear_model import LogisticRegression, LinearRegression, LassoCV,\
@@ -179,6 +181,28 @@ def get_lime(X: np.ndarray, rf, task: str):
         lime_rankings = np.argsort(-np.abs(lime_values), axis = 1)    
         
     return lime_values, lime_rankings
+
+def get_maple(X_train, y_train, X_test, model):
+    
+    lr = Ridge(alpha=0.001)
+    maple = skmaple.MAPLE(model, lr)
+    maple.fit(X_train, y_train)
+    # lfi_train = []
+    # for xi in X_train:
+    #     _ = maple.predict([xi])
+    #     lfi_train.append(maple.fitted_linear_models_[-1].coef_)
+    # lfi_train = np.array(lfi_train)
+
+    lfi_test = []
+    for xi in X_test:
+        _ = maple.predict([xi])
+        lfi_test.append(maple.fitted_linear_models_[-1].coef_)
+    lfi_test = np.array(lfi_test)
+    
+    # get test rankings
+    maple_rankings = np.argsort(-np.abs(lfi_test), axis= 1)
+    
+    return lfi_test, maple_rankings
 
 def get_lmdi_explainers(rf_plus_baseline, rf_plus_elastic,
                         lmdi_variants: Dict[str, Dict[str, bool]]):

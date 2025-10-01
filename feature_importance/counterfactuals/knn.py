@@ -43,18 +43,20 @@ if __name__ == "__main__":
     assert nbr_dist in ["l1", "l2", "chebyshev"], "nbr_dist must be either 'l1', 'l2', or 'chebyshev'"
     
     # run pipeline
-    raw_distances, shap_distances, lime_distances, lmdi_plus_distances, lmdi_baseline_distances = \
+    raw_distances, shap_distances, lime_distances, maple_distances, lmdi_distances, lmdi_plus_distances, lmdi_baseline_distances = \
         perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds)
     
     # save results
     use_preds_str = "preds" if use_preds else "oracle"
     results_dir = oj("results", f"{data_source}_{data_id}")
-    for method in ["raw", "shap", "lime", "lmdi_plus", "lmdi_baseline"]:
+    for method in ["raw", "shap", "lime", "maple", "lmdi", "lmdi_plus", "lmdi_baseline"]:
         make_dir = oj(results_dir, method, use_preds_str, f"k{k}")
         os.makedirs(make_dir, exist_ok=True)
     print(f"Saving results to {oj(results_dir, 'raw', use_preds_str, f'k{k}')}")
     np.savetxt(oj(results_dir, "raw", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), raw_distances, delimiter=",")
     np.savetxt(oj(results_dir, "shap", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), shap_distances, delimiter=",")
     np.savetxt(oj(results_dir, "lime", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lime_distances, delimiter=",")
+    np.savetxt(oj(results_dir, "maple", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), maple_distances, delimiter=",")
+    np.savetxt(oj(results_dir, "lmdi", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lmdi_distances, delimiter=",")
     np.savetxt(oj(results_dir, "lmdi_plus", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lmdi_plus_distances, delimiter=",")
     np.savetxt(oj(results_dir, "lmdi_baseline", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lmdi_baseline_distances, delimiter=",")

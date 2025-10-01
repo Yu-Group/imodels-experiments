@@ -3,6 +3,7 @@ import numpy as np
 
 # functions for subgroup experiments
 import shap
+from local_mdi import local_mdi_score
 
 # sklearn imports
 from sklearn.model_selection import train_test_split
@@ -15,7 +16,7 @@ import time
 
 # subgroup imports
 from subgroup import fit_models, create_lmdi_variant_map, get_lmdi_explainers, \
-    get_lmdi, get_shap, get_lime
+    get_lmdi, get_shap, get_lime, get_maple
 
 if __name__ == '__main__':
     
@@ -109,6 +110,11 @@ if __name__ == '__main__':
 
     print("Step 6: " + str(endtime - starttime) + " seconds")
     
+    # obtain maple feature importances
+    maple_values, maple_rankings = get_maple(X_train, y_train, X_test, rf)
+    
+    _, lmdi_sutera_values = local_mdi_score(X_train, X_test, model=rf, absolute=False)
+    
     # get the path to the parent directory of the current file
     parent_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
     result_dir = oj(parent_dir, "lfi-values", f"seed{seed}")
@@ -126,3 +132,5 @@ if __name__ == '__main__':
         
     np.savetxt(oj(result_dir, dataname, "shap.csv"), shap_values, delimiter=",")
     np.savetxt(oj(result_dir, dataname, "lime.csv"), lime_values, delimiter=",")
+    np.savetxt(oj(result_dir, dataname, "maple.csv"), maple_values, delimiter=",")
+    np.savetxt(oj(result_dir, dataname, "lmdi_sutera.csv"), lmdi_sutera_values, delimiter=",")

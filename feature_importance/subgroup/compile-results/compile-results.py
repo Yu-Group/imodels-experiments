@@ -103,6 +103,8 @@ if __name__ == '__main__':
         lfi_value_dict["random"] = X_test
         lfi_value_dict["shap"] = np.loadtxt(f"../lfi-values/seed{seed}/{dataname}/shap.csv", delimiter = ",")
         lfi_value_dict["lime"] = np.loadtxt(f"../lfi-values/seed{seed}/{dataname}/lime.csv", delimiter = ",")
+        lfi_value_dict["maple"] = np.loadtxt(f"../lfi-values/seed{seed}/{dataname}/maple.csv", delimiter = ",")
+        lfi_value_dict["lmdi_sutera"] = np.loadtxt(f"../lfi-values/seed{seed}/{dataname}/lmdi_sutera.csv", delimiter = ",")
         
         # metrics when predicting according to decision tree
         variant_mse_means = []

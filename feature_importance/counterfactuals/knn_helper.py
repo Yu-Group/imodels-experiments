@@ -23,6 +23,9 @@ import openml
 # local feature importance
 import shap
 import lime
+import skmaple
+from sklearn.linear_model import Ridge
+from local_mdi import local_mdi_score
 
 # file system
 import os
@@ -185,7 +188,29 @@ def get_shap(X, rf):
     
     return shap_values
 
-def get_lmdi(X, y, rf_plus, inbag=False):
+def get_maple(X_train, y_train, X_test, model):
+    
+    lr = Ridge(alpha=0.001)
+    maple = skmaple.MAPLE(model, lr)
+    maple.fit(X_train, y_train)
+    # lfi_train = []
+    # for xi in X_train:
+    #     _ = maple.predict([xi])
+    #     lfi_train.append(maple.fitted_linear_models_[-1].coef_)
+    # lfi_train = np.array(lfi_train)
+
+    lfi_test = []
+    for xi in X_test:
+        _ = maple.predict([xi])
+        lfi_test.append(maple.fitted_linear_models_[-1].coef_)
+    lfi_test = np.array(lfi_test)
+    
+    # get test rankings
+    # maple_rankings = np.argsort(-np.abs(lfi_test), axis= 1)
+    
+    return lfi_test# , maple_rankings   
+
+def get_lmdi_plus(X, y, rf_plus, inbag=False):
     """
     Get the LMDI values for the given data.
     
@@ -359,19 +384,26 @@ def perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds):
     lime_train = get_lime(X_train, rf)
     lime_test = get_lime(X_test, rf)
     
-    # get lmdi values
-    lmdi_train = get_lmdi(X_train, y_train, rf_plus)
+    # get maple
+    maple_train = get_maple(X_train, y_train, X_train, rf)
+    maple_test = get_maple(X_train, y_train, X_test, rf)
+    
+    # get lmdi
+    lmdi_train, lmdi_test = local_mdi_score(X_train, X_test, model=rf, absolute=False)
+    
+    # get lmdi plus values
+    lmdi_plus_train = get_lmdi_plus(X_train, y_train, rf_plus)
     if use_preds:
-        lmdi_test = get_lmdi(X_test, rf_plus_y_test, rf_plus)
+        lmdi_plus_test = get_lmdi_plus(X_test, rf_plus_y_test, rf_plus)
     else:
-        lmdi_test = get_lmdi(X_test, y_test, rf_plus)
-        
+        lmdi_plus_test = get_lmdi_plus(X_test, y_test, rf_plus)
+
     # get lmdi baseline values
-    lmdi_baseline_train = get_lmdi(X_train, y_train, rf_plus_baseline)
+    lmdi_baseline_train = get_lmdi_plus(X_train, y_train, rf_plus_baseline)
     if use_preds:
-        lmdi_baseline_test = get_lmdi(X_test, rf_plus_baseline_y_test, rf_plus_baseline)
+        lmdi_baseline_test = get_lmdi_plus(X_test, rf_plus_baseline_y_test, rf_plus_baseline)
     else:
-        lmdi_baseline_test = get_lmdi(X_test, y_test, rf_plus_baseline)
+        lmdi_baseline_test = get_lmdi_plus(X_test, y_test, rf_plus_baseline)
     
     print("LFI Values Retrieved")
     
@@ -379,13 +411,17 @@ def perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds):
         raw_opposite = get_k_opposite_neighbors(k, nbr_dist, raw_train, raw_test, y_train, rf_y_test)
         shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, rf_y_test)
         lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, rf_y_test)
-        lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, rf_plus_y_test)
+        maple_opposite = get_k_opposite_neighbors(k, nbr_dist, maple_train, maple_test, y_train, rf_y_test)
+        lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, rf_y_test)
+        lmdi_plus_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_plus_train, lmdi_plus_test, y_train, rf_plus_y_test)
         lmdi_baseline_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_baseline_train, lmdi_baseline_test, y_train, rf_plus_baseline_y_test)
     else:
         raw_opposite = get_k_opposite_neighbors(k, nbr_dist, raw_train, raw_test, y_train, y_test)
         shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, y_test)
         lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, y_test)
+        maple_opposite = get_k_opposite_neighbors(k, nbr_dist, maple_train, maple_test, y_train, y_test)
         lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, y_test)
+        lmdi_plus_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_plus_train, lmdi_plus_test, y_train, y_test)
         lmdi_baseline_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_baseline_train, lmdi_baseline_test, y_train, y_test)
 
     print(f"Opposite Neighbors Found Using '{nbr_dist}' Distance")
@@ -393,9 +429,11 @@ def perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds):
     raw_distances = get_average_nbr_dist(k, cfact_dist, raw_opposite, X_train, X_test)
     shap_distances = get_average_nbr_dist(k, cfact_dist, shap_opposite, X_train, X_test)
     lime_distances = get_average_nbr_dist(k, cfact_dist, lime_opposite, X_train, X_test)
+    maple_distances = get_average_nbr_dist(k, cfact_dist, maple_opposite, X_train, X_test)
     lmdi_distances = get_average_nbr_dist(k, cfact_dist, lmdi_opposite, X_train, X_test)
+    lmdi_plus_distances = get_average_nbr_dist(k, cfact_dist, lmdi_plus_opposite, X_train, X_test)
     lmdi_baseline_distances = get_average_nbr_dist(k, cfact_dist, lmdi_baseline_opposite, X_train, X_test)
 
     print(f"Average Distances Calculated")
-    
-    return raw_distances, shap_distances, lime_distances, lmdi_distances, lmdi_baseline_distances
+
+    return raw_distances, shap_distances, lime_distances, maple_distances, lmdi_distances, lmdi_plus_distances, lmdi_baseline_distances
