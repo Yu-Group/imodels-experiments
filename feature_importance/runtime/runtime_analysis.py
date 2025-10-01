@@ -102,7 +102,11 @@ def get_lime(X: np.ndarray, rf_model, is_classification):
                                                        mode = mode)
     num_features = X.shape[1]
     for i in range(X.shape[0]):
-        exp = explainer.explain_instance(X[i, :], rf_model.predict,
+        if mode == "classification":
+            exp = explainer.explain_instance(X[i, :], rf_model.predict_proba,
+                                         num_features = num_features)
+        else:
+            exp = explainer.explain_instance(X[i, :], rf_model.predict,
                                          num_features = num_features)
         original_feature_importance = exp.as_map()[1]
         sorted_feature_importance = sorted(original_feature_importance, key=lambda x: x[0])
