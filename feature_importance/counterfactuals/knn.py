@@ -50,21 +50,20 @@ if __name__ == "__main__":
 
     # save results
     use_preds_str = "preds" if use_preds else "oracle"
-    results_dir = oj("results", f"{data_source}_{data_id}")
     for method in ["raw", "shap", "lime", "lmdi", "lmdi_plus"]:
-        make_rf_dir = oj("rf", results_dir, method, use_preds_str, f"k{k}")
-        make_gb_dir = oj("gb", results_dir, method, use_preds_str, f"k{k}")
+        make_rf_dir = oj("results", "rf", f"{data_source}_{data_id}", method, use_preds_str, f"k{k}")
+        make_gb_dir = oj("results", "gb", f"{data_source}_{data_id}", method, use_preds_str, f"k{k}")
         os.makedirs(make_rf_dir, exist_ok=True)
         os.makedirs(make_gb_dir, exist_ok=True)
     print(f"Saving results")
-    
-    np.savetxt(oj("rf", results_dir, "raw", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), raw_distances_rf, delimiter=",")
-    np.savetxt(oj("rf", results_dir, "shap", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), shap_distances_rf, delimiter=",")
-    np.savetxt(oj("rf", results_dir, "lime", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lime_distances_rf, delimiter=",")
-    np.savetxt(oj("rf", results_dir, "lmdi", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lmdi_distances_rf, delimiter=",")
-    np.savetxt(oj("rf", results_dir, "lmdi_plus", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lmdi_plus_distances_rf, delimiter=",")
-    
-    np.savetxt(oj("gb", results_dir, "raw", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), raw_distances_gb, delimiter=",")
-    np.savetxt(oj("gb", results_dir, "shap", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), shap_distances_gb, delimiter=",")
-    np.savetxt(oj("gb", results_dir, "lime", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lime_distances_gb, delimiter=",")
-    np.savetxt(oj("gb", results_dir, "lmdi_plus", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lmdi_plus_distances_gb, delimiter=",")
+
+    np.savetxt(oj("results", "rf", f"{data_source}_{data_id}", "raw", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), raw_distances_rf, delimiter=",")
+    np.savetxt(oj("results", "rf", f"{data_source}_{data_id}", "shap", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), shap_distances_rf, delimiter=",")
+    np.savetxt(oj("results", "rf", f"{data_source}_{data_id}", "lime", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lime_distances_rf, delimiter=",")
+    np.savetxt(oj("results", "rf", f"{data_source}_{data_id}", "lmdi", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lmdi_distances_rf, delimiter=",")
+    np.savetxt(oj("results", "rf", f"{data_source}_{data_id}", "lmdi_plus", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lmdi_plus_distances_rf, delimiter=",")
+
+    np.savetxt(oj("results", "gb", f"{data_source}_{data_id}", "raw", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), raw_distances_gb, delimiter=",")
+    np.savetxt(oj("results", "gb", f"{data_source}_{data_id}", "shap", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), shap_distances_gb, delimiter=",")
+    np.savetxt(oj("results", "gb", f"{data_source}_{data_id}", "lime", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lime_distances_gb, delimiter=",")
+    np.savetxt(oj("results", "gb", f"{data_source}_{data_id}", "lmdi_plus", use_preds_str, f"k{k}", f"nbr-dist-{nbr_dist}_cfact-dist-{cfact_dist}.csv"), lmdi_plus_distances_gb, delimiter=",")
