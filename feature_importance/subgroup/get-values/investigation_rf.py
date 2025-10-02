@@ -15,8 +15,8 @@ from os.path import join as oj
 import time
 
 # subgroup imports
-from subgroup import fit_models, create_lmdi_variant_map, get_lmdi_explainers, \
-    get_lmdi, get_shap, get_lime, get_maple
+from subgroup import fit_rf_models, create_lmdi_variant_map, get_lmdi_explainers, \
+    get_lmdi, get_shap, get_lime
 
 if __name__ == '__main__':
     
@@ -61,7 +61,7 @@ if __name__ == '__main__':
                                                         random_state = seed)
 
     # fit random forest models
-    rf, rf_plus_baseline, rf_plus_elastic = fit_models(X_train, y_train, "regression")
+    rf, rf_plus_elastic = fit_rf_models(X_train, y_train, "regression")
                 
     endtime = time.time()
 
@@ -73,8 +73,7 @@ if __name__ == '__main__':
     lmdi_variants = create_lmdi_variant_map()
 
     # obtain lmdi+ feature importances
-    lmdi_explainers = get_lmdi_explainers(rf_plus_baseline, rf_plus_elastic,
-                                          lmdi_variants)
+    lmdi_explainers = get_lmdi_explainers(rf_plus_elastic, lmdi_variants)
 
     endtime = time.time()
     
@@ -110,14 +109,17 @@ if __name__ == '__main__':
 
     print("Step 6: " + str(endtime - starttime) + " seconds")
     
-    # obtain maple feature importances
-    maple_values, maple_rankings = get_maple(X_train, y_train, X_test, rf)
+    starttime = time.time()
     
     _, lmdi_sutera_values = local_mdi_score(X_train, X_test, model=rf, absolute=False)
     
+    endtime = time.time()
+
+    print("Step 7: " + str(endtime - starttime) + " seconds")
+
     # get the path to the parent directory of the current file
     parent_dir = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-    result_dir = oj(parent_dir, "lfi-values", f"seed{seed}")
+    result_dir = oj(parent_dir, "lfi-values", "rf", f"seed{seed}")
 
     # if the path does not exist, create it
     if not os.path.exists(oj(result_dir, dataname)):
@@ -132,5 +134,4 @@ if __name__ == '__main__':
         
     np.savetxt(oj(result_dir, dataname, "shap.csv"), shap_values, delimiter=",")
     np.savetxt(oj(result_dir, dataname, "lime.csv"), lime_values, delimiter=",")
-    np.savetxt(oj(result_dir, dataname, "maple.csv"), maple_values, delimiter=",")
     np.savetxt(oj(result_dir, dataname, "lmdi_sutera.csv"), lmdi_sutera_values, delimiter=",")
