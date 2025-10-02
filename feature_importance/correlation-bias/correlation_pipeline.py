@@ -1,14 +1,13 @@
 # imports from imodels
 from imodels.tree.rf_plus.rf_plus.rf_plus_models import \
-    RandomForestPlusRegressor, RandomForestPlusClassifier
+    RandomForestPlusRegressor
 from imodels.tree.rf_plus.feature_importance.rfplus_explainer import LMDIPlus
 from simulations_util import partial_linear_lss_model
 
 # imports from sklearn
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression, ElasticNetCV, Ridge
-import skmaple
+from sklearn.linear_model import ElasticNetCV
 from local_mdi import local_mdi_score
 
 # timing imports
@@ -29,7 +28,6 @@ def simulate_data(rho, pve, seed):
     
     np.random.seed(seed)
     
-    # n = 250 # number of samples
     n = 500 # number of samples
     p1 = 50  # number of correlated features
     p2 = 50  # number of uncorrelated features
@@ -67,25 +65,18 @@ def split_data(X, y, test_size, seed):
 
 def fit_models(X_train, y_train):
     
-    rf = RandomForestRegressor(n_estimators = 100, min_samples_leaf=5,
-                                max_features = 0.33, random_state=42)
+    rf = RandomForestRegressor(n_estimators=100, min_samples_leaf=5,
+                                max_features=0.33, random_state=42)
     rf.fit(X_train, y_train)
-    
-    # baseline rf+
-    rf_plus_baseline = RandomForestPlusRegressor(rf_model=rf,
-                                    include_raw=False, fit_on="inbag",
-                                    prediction_model=LinearRegression())
-    rf_plus_baseline.fit(X_train, y_train)
-    
+
     # elastic net rf+
     rf_plus_elastic = RandomForestPlusRegressor(rf_model=rf,
-                                        prediction_model=ElasticNetCV(cv=5,
-                                    l1_ratio=[0.1,0.5,0.7,0.9,0.95,0.99],
-                                    max_iter=10000,random_state=42))
+                                    prediction_model=ElasticNetCV(cv=3,
+                                    l1_ratio=[0.1,0.5,0.99],
+                                    max_iter=2000,random_state=42))
     rf_plus_elastic.fit(X_train, y_train)
-    
-    # return rf, rf_plus_baseline, rf_plus_ridge, rf_plus_lasso, rf_plus_elastic
-    return rf, rf_plus_baseline, rf_plus_elastic
+
+    return rf, rf_plus_elastic
 
 def get_shap(X, shap_explainer):
     
@@ -126,28 +117,6 @@ def get_lime(X: np.ndarray, rf):
         lime_rankings = np.argsort(-np.abs(lime_values), axis = 1)    
         
     return lime_values, lime_rankings
-
-def get_maple(X_train, y_train, X_test, model):
-    
-    lr = Ridge(alpha=0.001)
-    maple = skmaple.MAPLE(model, lr)
-    maple.fit(X_train, y_train)
-    # lfi_train = []
-    # for xi in X_train:
-    #     _ = maple.predict([xi])
-    #     lfi_train.append(maple.fitted_linear_models_[-1].coef_)
-    # lfi_train = np.array(lfi_train)
-
-    lfi_test = []
-    for xi in X_test:
-        _ = maple.predict([xi])
-        lfi_test.append(maple.fitted_linear_models_[-1].coef_)
-    lfi_test = np.array(lfi_test)
-    
-    # get test rankings
-    maple_rankings = np.argsort(-np.abs(lfi_test), axis= 1)
-    
-    return lfi_test, maple_rankings
 
 def get_lmdi_plus(X, lmdi_plus_explainer, ranking):
     
@@ -194,7 +163,7 @@ if __name__ == '__main__':
     start = time.time()
     
     # fit the prediction models
-    rf, rf_plus_baseline, rf_plus_elastic = fit_models(X_train, y_train)
+    rf, rf_plus_elastic = fit_models(X_train, y_train)
             
     # end time
     end = time.time()
@@ -230,25 +199,20 @@ if __name__ == '__main__':
     # start time
     start = time.time()
     
-    # obtain MAPLE feature importances
-    # obtain MAPLE feature importances
-    maple_rf_values, maple_rf_rankings = get_maple(X_train, y_train, X_test, rf)
+    _, lmdi_sutera_values = local_mdi_score(X_train, X_test, model=rf, absolute=False)
+    lmdi_sutera_rankings = np.argsort(-np.abs(lmdi_sutera_values), axis = 1)
     
     # end time
     end = time.time()
     
-    print(f"Progress Message 5/6: MAPLE values/rankings obtained.")
+    print(f"Progress Message 5/6: LMDI values/rankings obtained.")
     print(f"Step #5 took {end-start} seconds.")
-    
-    _, lmdi_sutera_values = local_mdi_score(X_train, X_test, model=rf, absolute=False)
-    lmdi_sutera_rankings = np.argsort(-np.abs(lmdi_sutera_values), axis = 1)
-    
+
     # start time
     start = time.time()
                 
     # create the explainer objects for each variant
     lmdi_plus_rf_explainer = LMDIPlus(rf_plus_elastic, evaluate_on = "all")
-    baseline_rf_explainer = LMDIPlus(rf_plus_baseline, evaluate_on = "inbag")
     
     # initialize storage mappings
     lfi_values = {}
@@ -258,26 +222,21 @@ if __name__ == '__main__':
     lmdi_plus_values, lmdi_plus_rankings = get_lmdi_plus(X_test,
                                                   lmdi_plus_rf_explainer,
                                                   ranking=True)
-    lfi_values["lmdi_plus"] = lmdi_plus_values
-    lfi_rankings["lmdi_plus"] = lmdi_plus_rankings
-    baseline_rf_values, baseline_rf_rankings = get_lmdi_plus(X_test, baseline_rf_explainer,
-                                                  ranking=False)
-    lfi_rankings["lmdi_baseline"] = baseline_rf_rankings
-    lfi_values["lmdi_baseline"] = baseline_rf_values
-    lfi_rankings["shap"] = shap_rf_rankings
-    lfi_values["shap"] = shap_rf_values
-    lfi_rankings["lime"] = lime_rf_rankings
-    lfi_values["lime"] = lime_rf_values
-    lfi_rankings["maple"] = maple_rf_rankings
-    lfi_values["maple"] = maple_rf_values
-    lfi_rankings["lmdi_sutera"] = lmdi_sutera_rankings
-    lfi_values["lmdi_sutera"] = lmdi_sutera_values
     
     # end time
     end = time.time()
     
     print(f"Progress Message 6/6: LMDI+ values/rankings obtained.")
     print(f"Step #6 took {end-start} seconds.")
+    
+    lfi_values["lmdi_plus"] = lmdi_plus_values
+    lfi_rankings["lmdi_plus"] = lmdi_plus_rankings
+    lfi_rankings["shap"] = shap_rf_rankings
+    lfi_values["shap"] = shap_rf_values
+    lfi_rankings["lime"] = lime_rf_rankings
+    lfi_values["lime"] = lime_rf_values
+    lfi_rankings["lmdi_sutera"] = lmdi_sutera_rankings
+    lfi_values["lmdi_sutera"] = lmdi_sutera_values
     
     result_dir = oj(os.path.dirname(os.path.realpath(__file__)),
                     f'results/pve{pve}/rho{rho}/seed{seed}')

@@ -1,19 +1,17 @@
 # sklearn imports
-from sklearn.neighbors import NearestNeighbors, KNeighborsTransformer
+from sklearn.neighbors import NearestNeighbors
 from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LogisticRegression, LogisticRegressionCV
-from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegressionCV, ElasticNetCV
+from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+from sklearn.tree import DecisionTreeRegressor
 from sklearn.model_selection import train_test_split
 
 # data science imports
-import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
 
 # imodels imports
-from imodels import get_clean_dataset
-from imodels.tree.rf_plus.rf_plus.rf_plus_models import RandomForestPlusClassifier
-# from imodels.tree.rf_plus.feature_importance.rfplus_explainer import RFPlusMDI
+from imodels.tree.rf_plus.rf_plus.rf_plus_models import \
+    RandomForestPlusClassifier, RandomForestPlusRegressor
 from imodels.tree.rf_plus.feature_importance.rfplus_explainer import LMDIPlus
 
 # data getters
@@ -23,12 +21,9 @@ import openml
 # local feature importance
 import shap
 import lime
-import skmaple
-from sklearn.linear_model import Ridge
 from local_mdi import local_mdi_score
 
 # file system
-import os
 from os.path import join as oj
 
 
@@ -92,7 +87,7 @@ def get_data(data_source, data_id):
 
     return X, y
 
-def fit_models(X_train, y_train):
+def fit_rf_models(X_train, y_train):
     """
     Fits a RandomForestClassifier and a RandomForestPlusClassifier to the training data.
     
@@ -106,63 +101,81 @@ def fit_models(X_train, y_train):
     """
     
     # fit random forest
-    rf = RandomForestClassifier(n_estimators=100, min_samples_leaf=3,
+    rf = RandomForestClassifier(n_estimators=100, min_samples_leaf=1,
                                 max_features='sqrt', random_state=42)
     rf.fit(X_train, y_train)
 
     # elastic net rf+
     rf_plus = RandomForestPlusClassifier(rf_model=rf,
                 prediction_model=LogisticRegressionCV(penalty='elasticnet',
-                    l1_ratios=[0.1,0.5,0.9,0.99], solver='saga', cv=3,
-                    n_jobs=-1, tol=5e-4, max_iter=5000, random_state=42))
+                    l1_ratios=[0.1,0.5,0.99], solver='saga', cv=3,
+                    n_jobs=-1, tol=5e-4, max_iter=2000, random_state=42))
     rf_plus.fit(X_train, y_train)
+
+    return rf, rf_plus
+
+def fit_gb_models(X_train, y_train):
     
-    # elastic net rf+ with no raw feature
-    rf_plus_baseline = RandomForestPlusClassifier(rf_model=rf,
-                include_raw=False, fit_on="inbag",
-                prediction_model=LogisticRegression(penalty=None))
-    rf_plus_baseline.fit(X_train, y_train)
+    gb = GradientBoostingClassifier(n_estimators=100, min_samples_leaf=5,
+                                    max_features=0.33, random_state=42)
+    gb.fit(X_train, y_train)
+    
+    # elastic net gb+
+    gb_plus_elastic = RandomForestPlusRegressor(rf_model=gb,
+                                    prediction_model=ElasticNetCV(cv=3,
+                                    l1_ratio=[0.1,0.5,0.99],
+                                    max_iter=2000,random_state=42))
+    gb_plus_elastic.fit(X_train, y_train)
+    
+    return gb, gb_plus_elastic
 
-    return rf, rf_plus, rf_plus_baseline
-
-def get_predictions(X, rf, rf_plus, rf_plus_baseline):
+def get_predictions(X, ensemble, ensemble_plus):
     """
     Get the predictions for the given data.
     
     Inputs:
     - X (np.ndarray): The feature matrix.
-    - rf (RandomForestClassifier/Regressor): The fitted RF object.
-    - rf_plus (RandomForestPlusClassifier): The fitted RandomForestPlusClassifier.
+    - ensemble: The fitted RF/GB object.
+    - ensemble_plus: The fitted RF+/GB+ object.
     
     Outputs:
-    - rf_predictions (np.ndarray): The predictions from the RF model.
-    - rf_plus_predictions (np.ndarray): The predictions from the RF+ model.
+    - ensemble_predictions (np.ndarray): The predictions from the RF/GB model.
+    - ensemble_plus_predictions (np.ndarray): The predictions from the RF+/GB+ model.
     """
-    
-    rf_predictions = rf.predict(X)
-    rf_plus_predictions = rf_plus.predict(X)
-    rf_plus_baseline_predictions = rf_plus_baseline.predict(X)
-    
-    return rf_predictions, rf_plus_predictions, rf_plus_baseline_predictions
 
-def get_lime(X: np.ndarray, rf):
+    ensemble_predictions = ensemble.predict(X)
+    ensemble_plus_predictions = ensemble_plus.predict(X)
+
+    return ensemble_predictions, ensemble_plus_predictions
+
+def get_lime(X: np.ndarray, ensemble, is_boosting: bool):
     """
     Get the LIME values and rankings for the given data.
     
     Inputs:
     - X (np.ndarray): The feature matrix.
-    - rf (RandomForestClassifier/Regressor): The fitted RF object.
+    - ensemble: The fitted RF/GB object.
+    - is_boosting (bool): Whether the model is a boosting model (True) or a random forest model (False).
     
     Outputs:
     - lime_values (np.ndarray): The LIME values.
     """
     
+    if is_boosting:
+        mode = "regression"
+    else:
+        mode = "classification"
+
     lime_values = np.zeros((X.shape[0], X.shape[1]))
     explainer = lime.lime_tabular.LimeTabularExplainer(X, verbose = False,
-                                                       mode = "classification")
+                                                       mode = mode)
     num_features = X.shape[1]
     for i in range(X.shape[0]):
-        exp = explainer.explain_instance(X[i, :], rf.predict_proba,
+        if mode == "regression":
+            exp = explainer.explain_instance(X[i, :], ensemble.predict,
+                                         num_features = num_features)
+        else:
+            exp = explainer.explain_instance(X[i, :], ensemble.predict_proba,
                                          num_features = num_features)
         original_feature_importance = exp.as_map()[1]
         sorted_feature_importance = sorted(original_feature_importance, key=lambda x: x[0])
@@ -171,7 +184,7 @@ def get_lime(X: np.ndarray, rf):
         
     return lime_values
 
-def get_shap(X, rf):
+def get_shap(X, ensemble, is_boosting: bool):
     """
     Get the SHAP values for the given data.
     
@@ -183,34 +196,16 @@ def get_shap(X, rf):
     - shap_values (np.ndarray): The SHAP values.
     """
     
-    shap_explainer = shap.TreeExplainer(rf)
-    shap_values = shap_explainer.shap_values(X, check_additivity=False)[:, :, 1]
-    
+    shap_explainer = shap.TreeExplainer(ensemble)
+    # check if first tree is regression or classification
+    if is_boosting:
+        shap_values = shap_explainer.shap_values(X, check_additivity=False)
+    else:
+        shap_values = shap_explainer.shap_values(X, check_additivity=False)[:, :, 1]
+
     return shap_values
 
-def get_maple(X_train, y_train, X_test, model):
-    
-    lr = Ridge(alpha=0.001)
-    maple = skmaple.MAPLE(model, lr)
-    maple.fit(X_train, y_train)
-    # lfi_train = []
-    # for xi in X_train:
-    #     _ = maple.predict([xi])
-    #     lfi_train.append(maple.fitted_linear_models_[-1].coef_)
-    # lfi_train = np.array(lfi_train)
-
-    lfi_test = []
-    for xi in X_test:
-        _ = maple.predict([xi])
-        lfi_test.append(maple.fitted_linear_models_[-1].coef_)
-    lfi_test = np.array(lfi_test)
-    
-    # get test rankings
-    # maple_rankings = np.argsort(-np.abs(lfi_test), axis= 1)
-    
-    return lfi_test# , maple_rankings   
-
-def get_lmdi_plus(X, y, rf_plus, inbag=False):
+def get_lmdi_plus(X, y, ensemble_plus, inbag=False):
     """
     Get the LMDI values for the given data.
     
@@ -224,9 +219,9 @@ def get_lmdi_plus(X, y, rf_plus, inbag=False):
     """
     
     if inbag:
-        mdi_explainer = LMDIPlus(rf_plus, evaluate_on='inbag')
+        mdi_explainer = LMDIPlus(ensemble_plus, evaluate_on='inbag')
     else:
-        mdi_explainer = LMDIPlus(rf_plus, evaluate_on='all')
+        mdi_explainer = LMDIPlus(ensemble_plus, evaluate_on='all')
     lmdi_values = mdi_explainer.get_lmdi_plus_scores(X, y, ranking=False)
     
     return lmdi_values
@@ -333,7 +328,7 @@ def get_coord_nbr_dist(k, lfi_opposite, X_valid, X_test):
     lfi_distances = lfi_distances.mean(axis=1)
     return lfi_distances
 
-def perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds):
+def perform_rf_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds):
     """
     Perform the entire pipeline of fetching data, fitting models, calculating LFI values,
     finding opposite neighbors, and calculating distances.
@@ -362,13 +357,13 @@ def perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds):
     print("Data Retrieved")
     
     # get fit models
-    rf, rf_plus, rf_plus_baseline = fit_models(X_train, y_train)
-    
-    mdi_vals = rf.feature_importances_
+    rf, rf_plus = fit_rf_models(X_train, y_train)
+
+    # mdi_vals = rf.feature_importances_
     
     if use_preds:
-        rf_y_test, rf_plus_y_test, rf_plus_baseline_y_test = \
-            get_predictions(X_test, rf, rf_plus, rf_plus_baseline)
+        rf_y_test, rf_plus_y_test = \
+            get_predictions(X_test, rf, rf_plus)
     
     print("Models Fit")
     
@@ -377,17 +372,13 @@ def perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds):
     raw_test = X_test
     
     # get shap
-    shap_train = get_shap(X_train, rf)
-    shap_test = get_shap(X_test, rf)
+    shap_train = get_shap(X_train, rf, is_boosting=False)
+    shap_test = get_shap(X_test, rf, is_boosting=False)
 
     # get lime
-    lime_train = get_lime(X_train, rf)
-    lime_test = get_lime(X_test, rf)
-    
-    # get maple
-    maple_train = get_maple(X_train, y_train, X_train, rf)
-    maple_test = get_maple(X_train, y_train, X_test, rf)
-    
+    lime_train = get_lime(X_train, rf, is_boosting=False)
+    lime_test = get_lime(X_test, rf, is_boosting=False)
+
     # get lmdi
     lmdi_train, lmdi_test = local_mdi_score(X_train, X_test, model=rf, absolute=False)
     
@@ -398,42 +389,111 @@ def perform_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds):
     else:
         lmdi_plus_test = get_lmdi_plus(X_test, y_test, rf_plus)
 
-    # get lmdi baseline values
-    lmdi_baseline_train = get_lmdi_plus(X_train, y_train, rf_plus_baseline)
-    if use_preds:
-        lmdi_baseline_test = get_lmdi_plus(X_test, rf_plus_baseline_y_test, rf_plus_baseline)
-    else:
-        lmdi_baseline_test = get_lmdi_plus(X_test, y_test, rf_plus_baseline)
-    
     print("LFI Values Retrieved")
     
     if use_preds:
         raw_opposite = get_k_opposite_neighbors(k, nbr_dist, raw_train, raw_test, y_train, rf_y_test)
         shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, rf_y_test)
         lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, rf_y_test)
-        maple_opposite = get_k_opposite_neighbors(k, nbr_dist, maple_train, maple_test, y_train, rf_y_test)
         lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, rf_y_test)
         lmdi_plus_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_plus_train, lmdi_plus_test, y_train, rf_plus_y_test)
-        lmdi_baseline_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_baseline_train, lmdi_baseline_test, y_train, rf_plus_baseline_y_test)
     else:
         raw_opposite = get_k_opposite_neighbors(k, nbr_dist, raw_train, raw_test, y_train, y_test)
         shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, y_test)
         lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, y_test)
-        maple_opposite = get_k_opposite_neighbors(k, nbr_dist, maple_train, maple_test, y_train, y_test)
         lmdi_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_train, lmdi_test, y_train, y_test)
         lmdi_plus_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_plus_train, lmdi_plus_test, y_train, y_test)
-        lmdi_baseline_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_baseline_train, lmdi_baseline_test, y_train, y_test)
 
     print(f"Opposite Neighbors Found Using '{nbr_dist}' Distance")
     
     raw_distances = get_average_nbr_dist(k, cfact_dist, raw_opposite, X_train, X_test)
     shap_distances = get_average_nbr_dist(k, cfact_dist, shap_opposite, X_train, X_test)
     lime_distances = get_average_nbr_dist(k, cfact_dist, lime_opposite, X_train, X_test)
-    maple_distances = get_average_nbr_dist(k, cfact_dist, maple_opposite, X_train, X_test)
     lmdi_distances = get_average_nbr_dist(k, cfact_dist, lmdi_opposite, X_train, X_test)
     lmdi_plus_distances = get_average_nbr_dist(k, cfact_dist, lmdi_plus_opposite, X_train, X_test)
-    lmdi_baseline_distances = get_average_nbr_dist(k, cfact_dist, lmdi_baseline_opposite, X_train, X_test)
 
     print(f"Average Distances Calculated")
 
-    return raw_distances, shap_distances, lime_distances, maple_distances, lmdi_distances, lmdi_plus_distances, lmdi_baseline_distances
+    return raw_distances, shap_distances, lime_distances, lmdi_distances, lmdi_plus_distances
+
+def perform_gb_pipeline(k, data_id, nbr_dist, cfact_dist, use_preds):
+    """
+    Perform the entire pipeline of fetching data, fitting models, calculating LFI values,
+    finding opposite neighbors, and calculating distances.
+    
+    Inputs:
+    - k (int): The number of neighbors to consider.
+    - data_source (str): The source of the dataset, either 'uci' or 'openml'.
+    - data_id (int): The ID of the dataset.
+    - nbr_dist (str): The distance metric to use for finding neighbors.
+    - cfact_dist (str): The distance metric to use for calculating distances.
+    
+    Outputs:
+    - shap_distances (dict): The average distances for SHAP values.
+    - lime_distances (dict): The average distances for LIME values.
+    - lmdi_distances (dict): The average distances for LMDI values.
+    """
+    
+    # set seed
+    np.random.seed(42)
+    
+    # get and split data
+    X = np.loadtxt(oj("data", f"{data_id}", "X.csv"), delimiter=",", dtype=float)
+    y = np.loadtxt(oj("data", f"{data_id}", "y.csv"), delimiter=",", dtype=float)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.5, random_state=42)
+    
+    print("Data Retrieved")
+    
+    # get fit models
+    gb, gb_plus = fit_gb_models(X_train, y_train)
+
+    # mdi_vals = rf.feature_importances_
+    
+    if use_preds:
+        gb_y_test, gb_plus_y_test = \
+            get_predictions(X_test, gb, gb_plus)
+    
+    print("Models Fit")
+    
+    # get raw data
+    raw_train = X_train
+    raw_test = X_test
+    
+    # get shap
+    shap_train = get_shap(X_train, gb, is_boosting=True)
+    shap_test = get_shap(X_test, gb, is_boosting=True)
+
+    # get lime
+    lime_train = get_lime(X_train, gb, is_boosting=True)
+    lime_test = get_lime(X_test, gb, is_boosting=True)
+    
+    # get lmdi plus values
+    lmdi_plus_train = get_lmdi_plus(X_train, y_train, gb_plus)
+    if use_preds:
+        lmdi_plus_test = get_lmdi_plus(X_test, gb_plus_y_test, gb_plus)
+    else:
+        lmdi_plus_test = get_lmdi_plus(X_test, y_test, gb_plus)
+
+    print("LFI Values Retrieved")
+    
+    if use_preds:
+        raw_opposite = get_k_opposite_neighbors(k, nbr_dist, raw_train, raw_test, y_train, gb_y_test)
+        shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, gb_y_test)
+        lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, gb_y_test)
+        lmdi_plus_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_plus_train, lmdi_plus_test, y_train, gb_plus_y_test)
+    else:
+        raw_opposite = get_k_opposite_neighbors(k, nbr_dist, raw_train, raw_test, y_train, y_test)
+        shap_opposite = get_k_opposite_neighbors(k, nbr_dist, shap_train, shap_test, y_train, y_test)
+        lime_opposite = get_k_opposite_neighbors(k, nbr_dist, lime_train, lime_test, y_train, y_test)
+        lmdi_plus_opposite = get_k_opposite_neighbors(k, nbr_dist, lmdi_plus_train, lmdi_plus_test, y_train, y_test)
+
+    print(f"Opposite Neighbors Found Using '{nbr_dist}' Distance")
+    
+    raw_distances = get_average_nbr_dist(k, cfact_dist, raw_opposite, X_train, X_test)
+    shap_distances = get_average_nbr_dist(k, cfact_dist, shap_opposite, X_train, X_test)
+    lime_distances = get_average_nbr_dist(k, cfact_dist, lime_opposite, X_train, X_test)
+    lmdi_plus_distances = get_average_nbr_dist(k, cfact_dist, lmdi_plus_opposite, X_train, X_test)
+
+    print(f"Average Distances Calculated")
+
+    return raw_distances, shap_distances, lime_distances, lmdi_plus_distances

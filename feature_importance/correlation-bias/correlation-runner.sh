@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --partition=yugroup
 
-slurm_script="correlation.sh"
+slurm_script="correlation-gb.sh"
 
 pve=0.1
 

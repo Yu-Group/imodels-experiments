@@ -1,13 +1,13 @@
 # imports from imodels
 from imodels.tree.rf_plus.rf_plus.rf_plus_models import \
-    RandomForestPlusRegressor, RandomForestPlusClassifier
+    RandomForestPlusRegressor
 from imodels.tree.rf_plus.feature_importance.rfplus_explainer import LMDIPlus
 from simulations_util import partial_linear_lss_model
 
 # imports from sklearn
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import GradientBoostingRegressor
-from sklearn.linear_model import LinearRegression, ElasticNetCV, Ridge
+from sklearn.linear_model import ElasticNetCV
 
 # timing imports
 import time
@@ -17,7 +17,6 @@ import numpy as np
 import pandas as pd
 import shap
 import lime
-import skmaple
 
 # i/o imports 
 import argparse
@@ -65,25 +64,18 @@ def split_data(X, y, test_size, seed):
 
 def fit_models(X_train, y_train):
     
-    gb = GradientBoostingRegressor(random_state=42, max_features="sqrt",
-                                   min_samples_leaf=5)
+    gb = GradientBoostingRegressor(n_estimators=100, min_samples_leaf=5,
+                                   max_features=0.33, random_state=42)
     gb.fit(X_train, y_train)
-    
-    # baseline gb+
-    gb_plus_baseline = RandomForestPlusRegressor(rf_model=gb,
-                                    include_raw=False, fit_on="inbag",
-                                    prediction_model=LinearRegression())
-    gb_plus_baseline.fit(X_train, y_train)
     
     # elastic net gb+
     gb_plus_elastic = RandomForestPlusRegressor(rf_model=gb,
-                                        prediction_model=ElasticNetCV(cv=5,
-                                    l1_ratio=[0.1,0.5,0.7,0.9,0.95,0.99],
-                                    max_iter=10000,random_state=42))
+                                    prediction_model=ElasticNetCV(cv=3,
+                                    l1_ratio=[0.1,0.5,0.99],
+                                    max_iter=2000,random_state=42))
     gb_plus_elastic.fit(X_train, y_train)
     
-    # return gb, gb_plus_baseline, gb_plus_elastic
-    return gb, gb_plus_baseline, gb_plus_elastic
+    return gb, gb_plus_elastic
 
 def get_shap(X, shap_explainer):
     
@@ -124,23 +116,6 @@ def get_lime(X: np.ndarray, gb):
         lime_rankings = np.argsort(-np.abs(lime_values), axis = 1)    
         
     return lime_values, lime_rankings
-    
-def get_maple(X_train, y_train, model):
-    
-    lr = Ridge(alpha=0.001)
-    maple = skmaple.MAPLE(model, lr)
-    maple.fit(X_train, y_train)
-    maple_values = []
-    for xi in X_train:
-        _ = maple.predict(xi.reshape(-1, 1))
-        maple_values.append(maple.fitted_linear_models_[-1].coef_)
-    maple_values = np.array(maple_values)
-
-    # get rankings
-    maple_rankings = np.argsort(-np.abs(maple_values), axis= 1)
-    
-    return maple_values, maple_rankings
-
 
 def get_lmdi(X, y, lmdi_plus_explainer, ranking):
     
@@ -179,19 +154,19 @@ if __name__ == '__main__':
     end = time.time()
     
     # print progress message
-    print(f"Progress Message 1/6: Obtained data with PVE = {pve}, rho = {rho}, and seed = {seed}.")
+    print(f"Progress Message 1/5: Obtained data with PVE = {pve}, rho = {rho}, and seed = {seed}.")
     print(f"Step #1 took {end-start} seconds.")
     
     # start time
     start = time.time()
     
     # fit the prediction models
-    gb, gb_plus_baseline, gb_plus_elastic = fit_models(X_train, y_train)
+    gb, gb_plus_elastic = fit_models(X_train, y_train)
             
     # end time
     end = time.time()
     
-    print(f"Progress Message 2/6: GB/GB+ models fit.")
+    print(f"Progress Message 2/5: GB/GB+ models fit.")
     print(f"Step #2 took {end-start} seconds.")
     
     # start time
@@ -204,7 +179,7 @@ if __name__ == '__main__':
     # end time
     end = time.time()
     
-    print(f"Progress Message 3/6: SHAP values/rankings obtained.")
+    print(f"Progress Message 3/5: SHAP values/rankings obtained.")
     print(f"Step #3 took {end-start} seconds.")
     
     # start time
@@ -216,27 +191,14 @@ if __name__ == '__main__':
     # end time
     end = time.time()
     
-    print(f"Progress Message 4/6: LIME values/rankings obtained.")
+    print(f"Progress Message 4/5: LIME values/rankings obtained.")
     print(f"Step #4 took {end-start} seconds.")
-    
-    # start time
-    start = time.time()
-    
-    # obtain MAPLE feature importances
-    maple_gb_values, maple_gb_rankings = get_maple(X_train, y_train, gb)
-    
-    # end time
-    end = time.time()
-    
-    print(f"Progress Message 5/6: MAPLE values/rankings obtained.")
-    print(f"Step #5 took {end-start} seconds.")
     
     # start time
     start = time.time()
                 
     # create the explainer objects for each variant
     lmdi_plus_gb_explainer = LMDIPlus(gb_plus_elastic, evaluate_on = "all")
-    baseline_gb_explainer = LMDIPlus(gb_plus_baseline, evaluate_on = "inbag")
     
     # initialize storage mappings
     lfi_values = {}
@@ -246,24 +208,19 @@ if __name__ == '__main__':
     lmdi_plus_values, lmdi_plus_rankings = get_lmdi(X_train, y_train,
                                                   lmdi_plus_gb_explainer,
                                                   ranking=True)
-    lfi_values["lmdi_plus"] = lmdi_plus_values
-    lfi_rankings["lmdi_plus"] = lmdi_plus_rankings
-    baseline_gb_values, baseline_gb_rankings = get_lmdi(X_train, y_train, baseline_gb_explainer,
-                                                  ranking=False)
-    lfi_rankings["lmdi_baseline"] = baseline_gb_rankings
-    lfi_values["lmdi_baseline"] = baseline_gb_values
-    lfi_rankings["shap"] = shap_gb_rankings
-    lfi_values["shap"] = shap_gb_values
-    lfi_rankings["lime"] = lime_gb_rankings
-    lfi_values["lime"] = lime_gb_values
-    lfi_rankings["maple"] = maple_gb_rankings
-    lfi_values["maple"] = maple_gb_values
     
     # end time
     end = time.time()
     
-    print(f"Progress Message 6/6: LMDI+ values/rankings obtained.")
-    print(f"Step #6 took {end-start} seconds.")
+    print(f"Progress Message 5/5: LMDI+ values/rankings obtained.")
+    print(f"Step #5 took {end-start} seconds.")
+    
+    lfi_values["lmdi_plus"] = lmdi_plus_values
+    lfi_rankings["lmdi_plus"] = lmdi_plus_rankings
+    lfi_rankings["shap"] = shap_gb_rankings
+    lfi_values["shap"] = shap_gb_values
+    lfi_rankings["lime"] = lime_gb_rankings
+    lfi_values["lime"] = lime_gb_values
     
     result_dir = oj(os.path.dirname(os.path.realpath(__file__)),
                     f'results/pve{pve}/rho{rho}/seed{seed}')

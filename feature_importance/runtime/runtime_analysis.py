@@ -7,7 +7,7 @@ import argparse
 import os
 from os.path import join as oj
 
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor, GradientBoostingClassifier, GradientBoostingRegressor
 import shap
 import lime
 import time
@@ -16,6 +16,7 @@ from sklearn.linear_model import LinearRegression, ElasticNetCV, LogisticRegress
 
 from imodels.tree.rf_plus.rf_plus.rf_plus_models import RandomForestPlusClassifier, RandomForestPlusRegressor
 from imodels.tree.rf_plus.feature_importance.rfplus_explainer import LMDIPlus
+from local_mdi import local_mdi_score
 
 def read_data(data_id):
     """
@@ -33,8 +34,6 @@ def read_data(data_id):
 
     return X, y
     
-    return X, y
-
 def fit_rf_model(X, y, is_classification, n_estimators, min_samples_leaf, max_features):
     """
     Fits a Random Forest model to the data.
@@ -43,44 +42,59 @@ def fit_rf_model(X, y, is_classification, n_estimators, min_samples_leaf, max_fe
         rf_model = RandomForestClassifier(n_estimators=n_estimators, min_samples_leaf=min_samples_leaf,
                                           max_features=max_features, random_state=42)
     else:
-        rf_model = RandomForestRegressor(n_estimators=100, min_samples_leaf=5,
-                                         max_features=0.33, random_state=42)
-    
+        rf_model = RandomForestRegressor(n_estimators=n_estimators, min_samples_leaf=min_samples_leaf,
+                                         max_features=max_features, random_state=42)
+
     rf_model.fit(X, y)
     return rf_model
 
-def fit_rf_plus_baseline_model(X, y, is_classification):
+def fit_gb_model(X, y, is_classification, n_estimators, min_samples_leaf, max_features):
+    """
+    Fits a Gradient Boosting model to the data.
+    """
     if is_classification:
-        rf_plus_baseline_model = RandomForestPlusClassifier(rf_model=rf_model,
-                include_raw=False, fit_on="inbag",
-                prediction_model=LogisticRegression(penalty=None))
+        gb_model = GradientBoostingClassifier(n_estimators=n_estimators, min_samples_leaf=min_samples_leaf,
+                                              max_features=max_features, random_state=42)
     else:
-        rf_plus_baseline_model = RandomForestPlusRegressor(rf_model=rf_model,
-                                    include_raw=False, fit_on="inbag",
-                                    prediction_model=LinearRegression())
-        
-    rf_plus_baseline_model.fit(X, y)
-    return rf_plus_baseline_model
+        gb_model = GradientBoostingRegressor(n_estimators=n_estimators, min_samples_leaf=min_samples_leaf,
+                                             max_features=max_features, random_state=42)
 
-def fit_rf_plus_elasticnet_model(X, y, is_classification):
+    gb_model.fit(X, y)
+    return gb_model
+
+def fit_rf_plus_elasticnet_model(X, y, rf_model, is_classification):
     if is_classification:
         rf_plus_model = RandomForestPlusClassifier(rf_model=rf_model,
                 prediction_model=LogisticRegressionCV(penalty='elasticnet',
-                    l1_ratios=[0.1,0.5,0.9,0.99], solver='saga', cv=3,
-                    n_jobs=-1, tol=5e-4, max_iter=5000, random_state=42))
+                    l1_ratios=[0.1,0.5,0.99], solver='saga', cv=3,
+                    n_jobs=-1, tol=5e-4, max_iter=2000, random_state=42))
     else:
         rf_plus_model = RandomForestPlusRegressor(rf_model=rf_model,
-                                        prediction_model=ElasticNetCV(cv=5,
-                                    l1_ratio=[0.1,0.5,0.7,0.9,0.95,0.99],
-                                    max_iter=10000,random_state=42))
+                                    prediction_model=ElasticNetCV(cv=3,
+                                    l1_ratio=[0.1,0.5,0.99],
+                                    max_iter=2000,random_state=42))
     rf_plus_model.fit(X, y)
     
     return rf_plus_model
 
-def get_shap(X, shap_explainer):
+def fit_gb_plus_elasticnet_model(X, y, gb_model):
+    
+    # elastic net gb+
+    gb_plus_model = RandomForestPlusRegressor(rf_model=gb_model,
+                                    prediction_model=ElasticNetCV(cv=3,
+                                    l1_ratio=[0.1,0.5,0.99],
+                                    max_iter=2000,random_state=42))
+    gb_plus_model.fit(X, y)
+
+    return gb_plus_model
+
+def get_shap(X, shap_explainer, is_classification):
     
     # check_additivity=False is used to speed up computation.
-    shap_values = shap_explainer.shap_values(X)
+    if is_classification:
+        shap_values = shap_explainer.shap_values(X, check_additivity=False)[:,:,1]
+    else:
+        shap_values = shap_explainer.shap_values(X)
     return shap_values
 
 def get_lime(X: np.ndarray, rf_model, is_classification):
@@ -131,7 +145,7 @@ if __name__ == "__main__":
     parser.add_argument('--classification', type=int, default=None)
     parser.add_argument('--n_estimators', type=int, default=None)
     parser.add_argument('--min_samples_leaf', type=int, default=None)
-    parser.add_argument('--max_features', type=float, default=None)
+    parser.add_argument('--max_features', type=str, default=None)
     args = parser.parse_args()
     
     # convert namespace to a dictionary
@@ -146,7 +160,10 @@ if __name__ == "__main__":
     # convert to bool
     is_classification = bool(is_classification)
     print(f"Running runtime analysis for data_id {data_id} with classification={is_classification}")
-    
+    # convert max_features to float if not 'sqrt'
+    if max_features != "sqrt":
+        max_features = float(max_features)
+
     X, y = read_data(data_id)
     
     rf_start_time = time.time()
@@ -158,23 +175,12 @@ if __name__ == "__main__":
     rf_fitting_time = rf_end_time - rf_start_time
     
     print(f"Random Forest fitting time: {rf_fitting_time:.2f} seconds")
-    
-    # create rf+ baseline model
-    rf_plus_baseline_start_time = time.time()
-    
-    rf_plus_baseline_model = fit_rf_plus_baseline_model(X, y, is_classification)
-    
-    rf_plus_baseline_end_time = time.time()
-    
-    rf_plus_baseline_fitting_time = rf_plus_baseline_end_time - rf_plus_baseline_start_time
-    
-    print(f"Random Forest Plus (baseline) fitting time: {rf_plus_baseline_fitting_time:.2f} seconds")
-    
+
     # create elasticnet rf+ model
     
     rf_plus_start_time = time.time()
     
-    rf_plus_model = fit_rf_plus_elasticnet_model(X, y, is_classification)
+    rf_plus_model = fit_rf_plus_elasticnet_model(X, y, rf_model, is_classification)
     
     rf_plus_end_time = time.time()
     
@@ -183,73 +189,141 @@ if __name__ == "__main__":
     print(f"Random Forest Plus fitting time: {rf_plus_fitting_time:.2f} seconds")
     
     # create shap explainer
-    shap_explainer_start_time = time.time()
+    shap_rf_explainer_start_time = time.time()
     shap_rf_explainer = shap.TreeExplainer(rf_model)
-    shap_explainer_end_time = time.time()
-    shap_explainer_time = shap_explainer_end_time - shap_explainer_start_time
-    print(f"SHAP explainer creation time: {shap_explainer_time:.2f} seconds")
+    shap_rf_explainer_end_time = time.time()
+    shap_rf_explainer_time = shap_rf_explainer_end_time - shap_rf_explainer_start_time
+    print(f"SHAP explainer creation time: {shap_rf_explainer_time:.2f} seconds")
     
     # get shap values
-    shap_values_start_time = time.time()
-    shap_values = get_shap(X, shap_rf_explainer)
-    shap_values_end_time = time.time()
-    shap_values_time = shap_values_end_time - shap_values_start_time
-    print(f"SHAP values computation time: {shap_values_time:.2f} seconds")
+    shap_rf_values_start_time = time.time()
+    shap_rf_values = get_shap(X, shap_rf_explainer, is_classification)
+    shap_rf_values_end_time = time.time()
+    shap_rf_values_time = shap_rf_values_end_time - shap_rf_values_start_time
+    print(f"SHAP values computation time: {shap_rf_values_time:.2f} seconds")
     
     # get lime values
-    lime_start_time = time.time()
-    lime_values = get_lime(X, rf_model, is_classification)
-    lime_end_time = time.time()
-    lime_time = lime_end_time - lime_start_time
-    print(f"LIME values computation time: {lime_time:.2f} seconds")
+    lime_rf_start_time = time.time()
+    lime_rf_values = get_lime(X, rf_model, is_classification)
+    lime_rf_end_time = time.time()
+    lime_rf_time = lime_rf_end_time - lime_rf_start_time
+    print(f"LIME values computation time: {lime_rf_time:.2f} seconds")
     
-    # get lmdi baseline explainer
-    baseline_explainer_start_time = time.time()
-    baseline_rf_plus_explainer = LMDIPlus(rf_plus_baseline_model, evaluate_on = "inbag")
-    baseline_explainer_end_time = time.time()
-    baseline_explainer_time = baseline_explainer_end_time - baseline_explainer_start_time
-    print(f"LMDI+ baseline explainer creation time: {baseline_explainer_time:.2f} seconds")
-    
-    # get lmdi baseline values
-    lmdi_baseline_start_time = time.time()
-    lmdi_baseline_values = get_lmdi(X, baseline_rf_plus_explainer)
-    lmdi_baseline_end_time = time.time()
-    lmdi_baseline_time = lmdi_baseline_end_time - lmdi_baseline_start_time
-    print(f"LMDI+ baseline values computation time: {lmdi_baseline_time:.2f} seconds")
-    
+    # get local mdi values
+    local_mdi_start_time = time.time()
+    local_mdi_values = local_mdi_score(X, model=rf_model)
+    local_mdi_end_time = time.time()
+    local_mdi_time = local_mdi_end_time - local_mdi_start_time
+    print(f"Local MDI values computation time: {local_mdi_time:.2f} seconds")
+
     # get lmdi plus explainer
-    lmdi_plus_explainer_start_time = time.time()
+    lmdi_plus_rf_explainer_start_time = time.time()
     lmdi_plus_rf_explainer = LMDIPlus(rf_plus_model, evaluate_on = "all")
-    lmdi_plus_explainer_end_time = time.time()
-    lmdi_plus_explainer_time = lmdi_plus_explainer_end_time - lmdi_plus_explainer_start_time
-    print(f"LMDI+ explainer creation time: {lmdi_plus_explainer_time:.2f} seconds")
+    lmdi_plus_rf_explainer_end_time = time.time()
+    lmdi_plus_rf_explainer_time = lmdi_plus_rf_explainer_end_time - lmdi_plus_rf_explainer_start_time
+    print(f"LMDI+ explainer creation time: {lmdi_plus_rf_explainer_time:.2f} seconds")
     
     # get lmdi plus values
-    lmdi_plus_start_time = time.time()
-    lmdi_plus_values = get_lmdi(X, lmdi_plus_rf_explainer)
-    lmdi_plus_end_time = time.time()
-    lmdi_plus_time = lmdi_plus_end_time - lmdi_plus_start_time
-    print(f"LMDI+ values computation time: {lmdi_plus_time:.2f} seconds")
+    lmdi_plus_rf_start_time = time.time()
+    lmdi_plus_rf_values = get_lmdi(X, lmdi_plus_rf_explainer)
+    lmdi_plus_rf_end_time = time.time()
+    lmdi_plus_rf_values_time = lmdi_plus_rf_end_time - lmdi_plus_rf_start_time
+    print(f"LMDI+ values computation time: {lmdi_plus_rf_values_time:.2f} seconds")
     
     # save results to df
-    results_dir = oj("results", f"{data_id}/n_estimators_{n_estimators}/min_samples_leaf_{min_samples_leaf}/max_features_{max_features}")
+    results_dir = oj("results", "rf", f"{data_id}/n_estimators_{n_estimators}/min_samples_leaf_{min_samples_leaf}/max_features_{max_features}")
     os.makedirs(results_dir, exist_ok=True)
     # make df with data_id and each run time
     results_df = pd.DataFrame({
         "data_id": [data_id],
         "rf_fitting_time": [rf_fitting_time],
-        "rf_plus_baseline_fitting_time": [rf_plus_baseline_fitting_time],
         "rf_plus_fitting_time": [rf_plus_fitting_time],
-        "shap_explainer_time": [shap_explainer_time],
-        "shap_values_time": [shap_values_time],
-        "lime_time": [lime_time],
-        "lmdi_baseline_explainer_time": [baseline_explainer_time],
-        "lmdi_baseline_values_time": [lmdi_baseline_time],
-        "lmdi_plus_explainer_time": [lmdi_plus_explainer_time],
-        "lmdi_plus_values_time": [lmdi_plus_time]
+        "shap_rf_explainer_time": [shap_rf_explainer_time],
+        "shap_rf_values_time": [shap_rf_values_time],
+        "lime_rf_time": [lime_rf_time],
+        "local_mdi_time": [local_mdi_time],
+        "lmdi_plus_rf_explainer_time": [lmdi_plus_rf_explainer_time],
+        "lmdi_plus_rf_values_time": [lmdi_plus_rf_values_time]
     })
     
     results_df.to_csv(oj(results_dir, "runtime_results.csv"), index=False)
+
+    print(f"RF results saved to {oj(results_dir, 'runtime_results.csv')}")
+    print("gb runtime analysis completed successfully.")
     
-    print(f"Results saved to {oj(results_dir, 'runtime_results.csv')}")
-    print("Runtime analysis completed successfully.")
+    gb_start_time = time.time()
+    
+    gb_model = fit_gb_model(X, y, is_classification, n_estimators, min_samples_leaf, max_features)
+    
+    gb_end_time = time.time()
+    
+    gb_fitting_time = gb_end_time - gb_start_time
+    
+    print(f"Gradient boosting fitting time: {gb_fitting_time:.2f} seconds")
+
+    # create elasticnet gb+ model
+    
+    gb_plus_start_time = time.time()
+    
+    gb_plus_model = fit_gb_plus_elasticnet_model(X, y, gb_model)
+    
+    gb_plus_end_time = time.time()
+    
+    gb_plus_fitting_time = gb_plus_end_time - gb_plus_start_time
+    
+    print(f"GB Plus fitting time: {gb_plus_fitting_time:.2f} seconds")
+    
+    # create shap explainer
+    shap_gb_explainer_start_time = time.time()
+    shap_gb_explainer = shap.TreeExplainer(gb_model)
+    shap_gb_explainer_end_time = time.time()
+    shap_gb_explainer_time = shap_gb_explainer_end_time - shap_gb_explainer_start_time
+    print(f"SHAP explainer creation time: {shap_gb_explainer_time:.2f} seconds")
+    
+    # get shap values
+    shap_gb_values_start_time = time.time()
+    shap_gb_values = get_shap(X, shap_gb_explainer, is_classification=False) # gb is always regression
+    shap_gb_values_end_time = time.time()
+    shap_gb_values_time = shap_gb_values_end_time - shap_gb_values_start_time
+    print(f"SHAP values computation time: {shap_gb_values_time:.2f} seconds")
+    
+    # get lime values
+    lime_gb_start_time = time.time()
+    lime_gb_values = get_lime(X, gb_model, is_classification=False) # gb is always regression
+    lime_gb_end_time = time.time()
+    lime_gb_time = lime_gb_end_time - lime_gb_start_time
+    print(f"LIME values computation time: {lime_gb_time:.2f} seconds")
+
+    # get lmdi plus explainer
+    lmdi_plus_gb_explainer_start_time = time.time()
+    lmdi_plus_gb_explainer = LMDIPlus(gb_plus_model, evaluate_on = "all")
+    lmdi_plus_gb_explainer_end_time = time.time()
+    lmdi_plus_gb_explainer_time = lmdi_plus_gb_explainer_end_time - lmdi_plus_gb_explainer_start_time
+    print(f"LMDI+ explainer creation time: {lmdi_plus_gb_explainer_time:.2f} seconds")
+    
+    # get lmdi plus values
+    lmdi_plus_gb_start_time = time.time()
+    lmdi_plus_gb_values = get_lmdi(X, lmdi_plus_gb_explainer)
+    lmdi_plus_gb_end_time = time.time()
+    lmdi_plus_gb_values_time = lmdi_plus_gb_end_time - lmdi_plus_gb_start_time
+    print(f"LMDI+ values computation time: {lmdi_plus_gb_values_time:.2f} seconds")
+    
+    # save results to df
+    results_dir = oj("results", "gb", f"{data_id}/n_estimators_{n_estimators}/min_samples_leaf_{min_samples_leaf}/max_features_{max_features}")
+    os.makedirs(results_dir, exist_ok=True)
+    # make df with data_id and each run time
+    results_df = pd.DataFrame({
+        "data_id": [data_id],
+        "gb_fitting_time": [gb_fitting_time],
+        "gb_plus_fitting_time": [gb_plus_fitting_time],
+        "shap_gb_explainer_time": [shap_gb_explainer_time],
+        "shap_gb_values_time": [shap_gb_values_time],
+        "lime_gb_time": [lime_gb_time],
+        "lmdi_plus_gb_explainer_time": [lmdi_plus_gb_explainer_time],
+        "lmdi_plus_gb_values_time": [lmdi_plus_gb_values_time]
+    })
+    
+    results_df.to_csv(oj(results_dir, "runtime_results.csv"), index=False)
+
+    print(f"gb results saved to {oj(results_dir, 'runtime_results.csv')}")
+    print("gb runtime analysis completed successfully.")
