@@ -1,6 +1,6 @@
 #!/bin/bash
 
-slurm_script="compile-results.sh"
+slurm_script="compile-rf-results.sh"
 modeltype=("linear")
 ids=("361260")
 clusttype=("kmeans")

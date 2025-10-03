@@ -62,7 +62,7 @@ if __name__ == '__main__':
         " clustering and " + clustermodel + " cluster model")
 
     # if dataname not in results folder, skip
-    if not os.path.exists(f"../lfi-values/seed{seed}/{dataname}"):
+    if not os.path.exists(f"../lfi-values/gb/seed{seed}/{dataname}"):
         print("No results for " + dataname)
     else:
         
@@ -89,22 +89,19 @@ if __name__ == '__main__':
                 # store the arguments for the lmdi+ explainer
                 arg_map = {"glm": g, "ranking": r}
                 lfi_methods.append(variant_name)
-        lfi_methods.append("lmdi_baseline")
 
         # for each variant, read in the array
         lfi_value_dict = {}
         for variant in lfi_methods:
             # read in the variant
-            lmdi = np.loadtxt(f"../lfi-values/seed{seed}/{dataname}/{variant}.csv", delimiter = ",")
+            lmdi = np.loadtxt(f"../lfi-values/gb/seed{seed}/{dataname}/{variant}.csv", delimiter = ",")
             # get the mse of the variant
             lfi_value_dict[variant] = lmdi
             
         lfi_value_dict["rawdata"] = X_test
         lfi_value_dict["random"] = X_test
-        lfi_value_dict["shap"] = np.loadtxt(f"../lfi-values/seed{seed}/{dataname}/shap.csv", delimiter = ",")
-        lfi_value_dict["lime"] = np.loadtxt(f"../lfi-values/seed{seed}/{dataname}/lime.csv", delimiter = ",")
-        lfi_value_dict["maple"] = np.loadtxt(f"../lfi-values/seed{seed}/{dataname}/maple.csv", delimiter = ",")
-        lfi_value_dict["lmdi_sutera"] = np.loadtxt(f"../lfi-values/seed{seed}/{dataname}/lmdi_sutera.csv", delimiter = ",")
+        lfi_value_dict["shap"] = np.loadtxt(f"../lfi-values/gb/seed{seed}/{dataname}/shap.csv", delimiter = ",")
+        lfi_value_dict["lime"] = np.loadtxt(f"../lfi-values/gb/seed{seed}/{dataname}/lime.csv", delimiter = ",")
         
         # metrics when predicting according to decision tree
         variant_mse_means = []
@@ -180,7 +177,7 @@ if __name__ == '__main__':
                         cluster_mses[rand, clust] = mean_squared_error(y_test_cluster, y_pred)
                     
                 if k == 4:
-                    result_dir = f"../cluster-results"
+                    result_dir = f"../cluster-results/gb"
                     if not os.path.exists(oj(result_dir, clustertype, clustermodel, dataname, f"seed{seed}")):
                         os.makedirs(oj(result_dir, clustertype, clustermodel, dataname, f"seed{seed}"))
                     # write the cluster labels along with the first two columns of X to csv
@@ -227,7 +224,7 @@ if __name__ == '__main__':
 
         # write each of the dataframes to a csv
         # if the path does not exist, create it
-        result_dir = f"../cluster-results"
+        result_dir = f"../cluster-results/gb"
         if not os.path.exists(oj(result_dir, clustertype, clustermodel, dataname, f"seed{seed}")):
             os.makedirs(oj(result_dir, clustertype, clustermodel, dataname, f"seed{seed}"))
         variant_mse_means_df.to_csv(f"{result_dir}/{clustertype}/{clustermodel}/{dataname}/seed{seed}/cluster_mse_mean.csv")
