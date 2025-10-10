@@ -178,6 +178,11 @@ if __name__ == '__main__':
     shap_rf_explainer = shap.TreeExplainer(rf)
     shap_rf_values, shap_rf_rankings = get_shap(X_test, shap_rf_explainer)
     
+    # obtain interventional shap feature importances
+    background = shap.sample(X_train, 150, random_state=150)
+    interventional_shap_rf_explainer = shap.TreeExplainer(rf, data=background, feature_perturbation="interventional")
+    interventional_shap_rf_values, interventional_shap_rf_rankings = get_shap(X_test, interventional_shap_rf_explainer)
+
     # end time
     end = time.time()
     
@@ -233,6 +238,8 @@ if __name__ == '__main__':
     lfi_rankings["lmdi_plus"] = lmdi_plus_rankings
     lfi_rankings["shap"] = shap_rf_rankings
     lfi_values["shap"] = shap_rf_values
+    lfi_rankings["interventional_shap"] = interventional_shap_rf_rankings
+    lfi_values["interventional_shap"] = interventional_shap_rf_values
     lfi_rankings["lime"] = lime_rf_rankings
     lfi_values["lime"] = lime_rf_values
     lfi_rankings["lmdi_sutera"] = lmdi_sutera_rankings

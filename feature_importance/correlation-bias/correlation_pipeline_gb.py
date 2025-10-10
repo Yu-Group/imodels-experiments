@@ -1,4 +1,4 @@
-# imports from imodels
+  # imports from imodels
 from imodels.tree.rf_plus.rf_plus.rf_plus_models import \
     RandomForestPlusRegressor
 from imodels.tree.rf_plus.feature_importance.rfplus_explainer import LMDIPlus
@@ -6,8 +6,9 @@ from simulations_util import partial_linear_lss_model
 
 # imports from sklearn
 from sklearn.model_selection import train_test_split
-from sklearn.ensemble import GradientBoostingRegressor
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.linear_model import ElasticNetCV
+from local_mdi import local_mdi_score
 
 # timing imports
 import time
@@ -27,7 +28,7 @@ def simulate_data(rho, pve, seed):
     
     np.random.seed(seed)
     
-    n = 250 # number of samples
+    n = 500 # number of samples
     p1 = 50  # number of correlated features
     p2 = 50  # number of uncorrelated features
 
@@ -52,7 +53,7 @@ def simulate_data(rho, pve, seed):
     X = np.random.multivariate_normal(mu, Sigma, size = n)
     
     y = partial_linear_lss_model(X=X, s=2, m=3, r=2, tau=0, beta=1, heritability=pve)
-    
+        
     return X, y
 
 def split_data(X, y, test_size, seed):
@@ -65,7 +66,8 @@ def split_data(X, y, test_size, seed):
 def fit_models(X_train, y_train):
     
     gb = GradientBoostingRegressor(n_estimators=100, min_samples_leaf=5,
-                                   max_features=0.33, random_state=42)
+                                   max_depth=None, max_features='sqrt',
+                                   random_state=42)
     gb.fit(X_train, y_train)
     
     # elastic net gb+
@@ -92,7 +94,7 @@ def get_lime(X: np.ndarray, gb):
     
     Inputs:
     - X (np.ndarray): The feature matrix.
-    - gb (GradientBoostingClassifier/Regressor): The fitted RF object.
+    - gb (GradientBoostingClassifier/Regressor): The fitted GB object.
     
     Outputs:
     - lime_values (np.ndarray): The LIME values.
@@ -117,10 +119,10 @@ def get_lime(X: np.ndarray, gb):
         
     return lime_values, lime_rankings
 
-def get_lmdi(X, y, lmdi_plus_explainer, ranking):
+def get_lmdi_plus(X, lmdi_plus_explainer, ranking):
     
     # get feature importances
-    lmdi_plus = lmdi_plus_explainer.get_lmdi_plus_scores(X, y, ranking=ranking)
+    lmdi_plus = lmdi_plus_explainer.get_lmdi_plus_scores(X, ranking=ranking)
     
     lmdi_plus_rankings = np.argsort(-np.abs(lmdi_plus), axis = 1)
     
@@ -148,13 +150,14 @@ if __name__ == '__main__':
     pve = args_dict['pve']
     njobs = args_dict['njobs']
     
-    X_train, y_train = simulate_data(rho, pve, seed)
+    X, y = simulate_data(rho, pve, seed)
+    X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.5, seed=seed)
     
     # end time
     end = time.time()
     
     # print progress message
-    print(f"Progress Message 1/5: Obtained data with PVE = {pve}, rho = {rho}, and seed = {seed}.")
+    print(f"Progress Message 1/6: Obtained data with PVE = {pve}, rho = {rho}, and seed = {seed}.")
     print(f"Step #1 took {end-start} seconds.")
     
     # start time
@@ -162,38 +165,43 @@ if __name__ == '__main__':
     
     # fit the prediction models
     gb, gb_plus_elastic = fit_models(X_train, y_train)
-            
+
     # end time
     end = time.time()
     
-    print(f"Progress Message 2/5: GB/GB+ models fit.")
+    print(f"Progress Message 2/6: RF/RF+ and GB/GB+ models fit.")
     print(f"Step #2 took {end-start} seconds.")
     
     # start time
     start = time.time()
     
-    # # obtain shap feature importances
+    # obtain shap feature importances
     shap_gb_explainer = shap.TreeExplainer(gb)
-    shap_gb_values, shap_gb_rankings = get_shap(X_train, shap_gb_explainer)
-    
+    shap_gb_values, shap_gb_rankings = get_shap(X_test, shap_gb_explainer)
+
+    # obtain interventional shap feature importances
+    background = shap.sample(X_train, 150, random_state=150)
+    interventional_shap_gb_explainer = shap.TreeExplainer(gb, data=background, feature_perturbation="interventional")
+    interventional_shap_gb_values, interventional_shap_gb_rankings = get_shap(X_test, interventional_shap_gb_explainer)
+
     # end time
     end = time.time()
     
-    print(f"Progress Message 3/5: SHAP values/rankings obtained.")
+    print(f"Progress Message 3/6: SHAP values/rankings obtained.")
     print(f"Step #3 took {end-start} seconds.")
     
     # start time
     start = time.time()
     
     # obtain LIME feature importances
-    lime_gb_values, lime_gb_rankings = get_lime(X_train, gb)
+    lime_gb_values, lime_gb_rankings = get_lime(X_test, gb)
     
     # end time
     end = time.time()
     
-    print(f"Progress Message 4/5: LIME values/rankings obtained.")
+    print(f"Progress Message 4/6: LIME values/rankings obtained.")
     print(f"Step #4 took {end-start} seconds.")
-    
+
     # start time
     start = time.time()
                 
@@ -205,20 +213,22 @@ if __name__ == '__main__':
     lfi_rankings = {}
     
     # obtain feature importances
-    lmdi_plus_values, lmdi_plus_rankings = get_lmdi(X_train, y_train,
+    lmdi_plus_values, lmdi_plus_rankings = get_lmdi_plus(X_test,
                                                   lmdi_plus_gb_explainer,
                                                   ranking=True)
     
     # end time
     end = time.time()
     
-    print(f"Progress Message 5/5: LMDI+ values/rankings obtained.")
-    print(f"Step #5 took {end-start} seconds.")
+    print(f"Progress Message 6/6: LMDI+ values/rankings obtained.")
+    print(f"Step #6 took {end-start} seconds.")
     
     lfi_values["lmdi_plus"] = lmdi_plus_values
     lfi_rankings["lmdi_plus"] = lmdi_plus_rankings
     lfi_rankings["shap"] = shap_gb_rankings
     lfi_values["shap"] = shap_gb_values
+    lfi_rankings["interventional_shap"] = interventional_shap_gb_rankings
+    lfi_values["interventional_shap"] = interventional_shap_gb_values
     lfi_rankings["lime"] = lime_gb_rankings
     lfi_values["lime"] = lime_gb_values
     
