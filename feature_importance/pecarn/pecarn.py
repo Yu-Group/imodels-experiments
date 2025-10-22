@@ -31,7 +31,7 @@ results_dir = os.path.join(curr_dir, 'results')
 os.makedirs(results_dir, exist_ok=True)
 
 # save to results subdir
+np.savetxt(os.path.join(results_dir, 'lmdi_plus.csv'), lmdi_plus_values, delimiter=',')
 np.savetxt(os.path.join(results_dir, 'shap.csv'), shap_values, delimiter=',')
 np.savetxt(os.path.join(results_dir, 'lime.csv'), lime_values, delimiter=',')
 np.savetxt(os.path.join(results_dir, 'lmdi.csv'), lmdi_values, delimiter=',')
-np.savetxt(os.path.join(results_dir, 'lmdi_plus.csv'), lmdi_plus_values, delimiter=',')
