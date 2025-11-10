@@ -7,7 +7,7 @@ from simulations_util import partial_linear_lss_model
 # imports from sklearn
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import ElasticNetCV
+from sklearn.linear_model import LinearRegression, ElasticNetCV
 from local_mdi import local_mdi_score
 
 # timing imports
@@ -28,7 +28,7 @@ def simulate_data(rho, pve, seed):
     
     np.random.seed(seed)
     
-    n = 500 # number of samples
+    n = 250 # number of samples
     p1 = 50  # number of correlated features
     p2 = 50  # number of uncorrelated features
 
@@ -53,29 +53,23 @@ def simulate_data(rho, pve, seed):
     X = np.random.multivariate_normal(mu, Sigma, size = n)
     
     y = partial_linear_lss_model(X=X, s=2, m=3, r=2, tau=0, beta=1, heritability=pve)
-        
+    
     return X, y
-
-def split_data(X, y, test_size, seed):
-    # split data into train and test sets
-    X_train, X_test, y_train, y_test = train_test_split(X, y,
-                                                        test_size=test_size,
-                                                        random_state=seed)
-    return X_train, X_test, y_train, y_test
 
 def fit_models(X_train, y_train):
     
-    rf = RandomForestRegressor(n_estimators=100, min_samples_leaf=5,
-                                max_features=0.33, random_state=42)
+    # fit rf
+    rf = RandomForestRegressor(n_estimators = 100, min_samples_leaf=5,
+                                max_features = 0.33, random_state=42)
     rf.fit(X_train, y_train)
-
-    # elastic net rf+
+    
+    # fit rf+
     rf_plus_elastic = RandomForestPlusRegressor(rf_model=rf,
-                                    prediction_model=ElasticNetCV(cv=3,
-                                    l1_ratio=[0.1,0.5,0.99],
-                                    max_iter=2000,random_state=42))
+                                            prediction_model=ElasticNetCV(cv=3,
+                                                l1_ratio=[0.1,0.5,0.99],
+                                                max_iter=2000, random_state=42))
     rf_plus_elastic.fit(X_train, y_train)
-
+    
     return rf, rf_plus_elastic
 
 def get_shap(X, shap_explainer):
@@ -118,10 +112,10 @@ def get_lime(X: np.ndarray, rf):
         
     return lime_values, lime_rankings
 
-def get_lmdi_plus(X, lmdi_plus_explainer, ranking):
+def get_lmdi(X, y, lmdi_plus_explainer, ranking):
     
     # get feature importances
-    lmdi_plus = lmdi_plus_explainer.get_lmdi_plus_scores(X, ranking=ranking)
+    lmdi_plus = lmdi_plus_explainer.get_lmdi_plus_scores(X, y, ranking=ranking)
     
     lmdi_plus_rankings = np.argsort(-np.abs(lmdi_plus), axis = 1)
     
@@ -149,8 +143,7 @@ if __name__ == '__main__':
     pve = args_dict['pve']
     njobs = args_dict['njobs']
     
-    X, y = simulate_data(rho, pve, seed)
-    X_train, X_test, y_train, y_test = split_data(X, y, test_size=0.5, seed=seed)
+    X_train, y_train = simulate_data(rho, pve, seed)
     
     # end time
     end = time.time()
@@ -176,13 +169,8 @@ if __name__ == '__main__':
     
     # obtain shap feature importances
     shap_rf_explainer = shap.TreeExplainer(rf)
-    shap_rf_values, shap_rf_rankings = get_shap(X_test, shap_rf_explainer)
+    shap_rf_values, shap_rf_rankings = get_shap(X_train, shap_rf_explainer)
     
-    # obtain interventional shap feature importances
-    background = shap.sample(X_train, 150, random_state=150)
-    interventional_shap_rf_explainer = shap.TreeExplainer(rf, data=background, feature_perturbation="interventional")
-    interventional_shap_rf_values, interventional_shap_rf_rankings = get_shap(X_test, interventional_shap_rf_explainer)
-
     # end time
     end = time.time()
     
@@ -193,7 +181,7 @@ if __name__ == '__main__':
     start = time.time()
     
     # obtain LIME feature importances
-    lime_rf_values, lime_rf_rankings = get_lime(X_test, rf)
+    lime_rf_values, lime_rf_rankings = get_lime(X_train, rf)
     
     # end time
     end = time.time()
@@ -204,15 +192,15 @@ if __name__ == '__main__':
     # start time
     start = time.time()
     
-    _, lmdi_sutera_values = local_mdi_score(X_train, X_test, model=rf, absolute=False)
+    _, lmdi_sutera_values = local_mdi_score(X_train, X_train, model=rf, absolute=False)
     lmdi_sutera_rankings = np.argsort(-np.abs(lmdi_sutera_values), axis = 1)
     
     # end time
     end = time.time()
     
-    print(f"Progress Message 5/6: LMDI values/rankings obtained.")
+    print(f"Progress Message 5/6: Local MDI values/rankings obtained.")
     print(f"Step #5 took {end-start} seconds.")
-
+    
     # start time
     start = time.time()
                 
@@ -224,26 +212,23 @@ if __name__ == '__main__':
     lfi_rankings = {}
     
     # obtain feature importances
-    lmdi_plus_values, lmdi_plus_rankings = get_lmdi_plus(X_test,
+    lmdi_plus_values, lmdi_plus_rankings = get_lmdi(X_train, y_train,
                                                   lmdi_plus_rf_explainer,
                                                   ranking=True)
+    lfi_values["lmdi_plus"] = lmdi_plus_values
+    lfi_rankings["lmdi_plus"] = lmdi_plus_rankings
+    lfi_rankings["shap"] = shap_rf_rankings
+    lfi_values["shap"] = shap_rf_values
+    lfi_rankings["lime"] = lime_rf_rankings
+    lfi_values["lime"] = lime_rf_values
+    lfi_rankings["lmdi_sutera"] = lmdi_sutera_rankings
+    lfi_values["lmdi_sutera"] = lmdi_sutera_values
     
     # end time
     end = time.time()
     
     print(f"Progress Message 6/6: LMDI+ values/rankings obtained.")
     print(f"Step #6 took {end-start} seconds.")
-    
-    lfi_values["lmdi_plus"] = lmdi_plus_values
-    lfi_rankings["lmdi_plus"] = lmdi_plus_rankings
-    lfi_rankings["shap"] = shap_rf_rankings
-    lfi_values["shap"] = shap_rf_values
-    lfi_rankings["interventional_shap"] = interventional_shap_rf_rankings
-    lfi_values["interventional_shap"] = interventional_shap_rf_values
-    lfi_rankings["lime"] = lime_rf_rankings
-    lfi_values["lime"] = lime_rf_values
-    lfi_rankings["lmdi_sutera"] = lmdi_sutera_rankings
-    lfi_values["lmdi_sutera"] = lmdi_sutera_values
     
     result_dir = oj(os.path.dirname(os.path.realpath(__file__)),
                     f'results/pve{pve}/rho{rho}/seed{seed}')
