@@ -1,6 +1,6 @@
 #!/bin/bash
 
-slurm_script="investigation-rf.sh"
+slurm_script="investigation.sh"
 
 id=361260
 seeds=(0 1 2 3 4)

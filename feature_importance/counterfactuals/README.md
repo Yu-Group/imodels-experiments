@@ -1,8 +1,8 @@
 # Counterfactual Experiments
 
-## Appendix G
+## Appendix H
 
-To reproduce the results in Appendix G of the LMDI+ paper, run the `simulation.ipynb` file.
+To reproduce the results in Appendix H of the LMDI+ paper, run the `simulation.ipynb` file.
 
 ## Section 7
 
