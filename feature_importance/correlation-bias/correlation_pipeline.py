@@ -143,7 +143,7 @@ if __name__ == '__main__':
     pve = args_dict['pve']
     njobs = args_dict['njobs']
     
-    X_train, y_train = simulate_data(rho, pve, seed)
+    X_train, y_train = simulate_data(rho, pve, seed+50)
     
     # end time
     end = time.time()
@@ -157,6 +157,16 @@ if __name__ == '__main__':
     
     # fit the prediction models
     rf, rf_plus_elastic = fit_models(X_train, y_train)
+    
+    # get the regularization amount for rf+ model
+    l1_ratios = [est.l1_ratio_ for est in rf_plus_elastic.estimators_]
+    # write l1_ratios to a csv file
+    l1_ratios_df = pd.DataFrame(l1_ratios, columns=['l1_ratio'])
+    l1_ratios_dir = oj(os.path.dirname(os.path.realpath(__file__)),
+                     f'results/pve{pve}/rho{rho}/seed{seed}/rf/values')
+    if not os.path.exists(l1_ratios_dir):
+        os.makedirs(l1_ratios_dir)
+    l1_ratios_df.to_csv(oj(l1_ratios_dir, 'lmdi_plus_l1_ratios.csv'), index=False)
             
     # end time
     end = time.time()
