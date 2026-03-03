@@ -7,7 +7,7 @@ from simulations_util import partial_linear_lss_model
 # imports from sklearn
 from sklearn.model_selection import train_test_split
 from sklearn.ensemble import RandomForestRegressor
-from sklearn.linear_model import LinearRegression, ElasticNetCV
+from sklearn.linear_model import LinearRegression, ElasticNetCV, ElasticNet
 from local_mdi import local_mdi_score
 
 # timing imports
@@ -65,9 +65,19 @@ def fit_models(X_train, y_train):
     
     # fit rf+
     rf_plus_elastic = RandomForestPlusRegressor(rf_model=rf,
-                                            prediction_model=ElasticNetCV(cv=3,
-                                                l1_ratio=[0.1,0.5,0.99],
-                                                max_iter=2000, random_state=42))
+                                                prediction_model=ElasticNetCV(
+                                                    cv=3,
+                                                    l1_ratio=[0.1,0.5,0.99],
+                                                    alphas=[1.0],
+                                                    max_iter=2000,
+                                                    random_state=42
+                                                ))
+                                                # prediction_model=ElasticNet(
+                                                #     l1_ratio=0.99,
+                                                #     max_iter=2000,
+                                                #     random_state=42,
+                                                # ))
+
     rf_plus_elastic.fit(X_train, y_train)
     
     return rf, rf_plus_elastic
@@ -143,7 +153,7 @@ if __name__ == '__main__':
     pve = args_dict['pve']
     njobs = args_dict['njobs']
     
-    X_train, y_train = simulate_data(rho, pve, seed+50)
+    X_train, y_train = simulate_data(rho, pve, seed)
     
     # end time
     end = time.time()
@@ -158,15 +168,15 @@ if __name__ == '__main__':
     # fit the prediction models
     rf, rf_plus_elastic = fit_models(X_train, y_train)
     
-    # get the regularization amount for rf+ model
-    l1_ratios = [est.l1_ratio_ for est in rf_plus_elastic.estimators_]
-    # write l1_ratios to a csv file
-    l1_ratios_df = pd.DataFrame(l1_ratios, columns=['l1_ratio'])
-    l1_ratios_dir = oj(os.path.dirname(os.path.realpath(__file__)),
-                     f'results/pve{pve}/rho{rho}/seed{seed}/rf/values')
-    if not os.path.exists(l1_ratios_dir):
-        os.makedirs(l1_ratios_dir)
-    l1_ratios_df.to_csv(oj(l1_ratios_dir, 'lmdi_plus_l1_ratios.csv'), index=False)
+    # # get the regularization amount for rf+ model
+    # l1_ratios = [est.l1_ratio_ for est in rf_plus_elastic.estimators_]
+    # # write l1_ratios to a csv file
+    # l1_ratios_df = pd.DataFrame(l1_ratios, columns=['l1_ratio'])
+    # l1_ratios_dir = oj(os.path.dirname(os.path.realpath(__file__)),
+    #                  f'results/pve{pve}/rho{rho}/seed{seed}/rf/values')
+    # if not os.path.exists(l1_ratios_dir):
+    #     os.makedirs(l1_ratios_dir)
+    # l1_ratios_df.to_csv(oj(l1_ratios_dir, 'lmdi_plus_l1_ratios.csv'), index=False)
             
     # end time
     end = time.time()
