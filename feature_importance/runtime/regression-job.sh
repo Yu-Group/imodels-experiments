@@ -1,4 +1,6 @@
 #!/bin/bash
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
 
 classification=0
 

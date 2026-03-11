@@ -25,10 +25,10 @@ def read_data(data_id):
     X = np.loadtxt(oj("data", f"{data_id}/X.csv"), delimiter=",")
     y = np.loadtxt(oj("data", f"{data_id}/y.csv"), delimiter=",")
     
-    # sample 1000 rows of X and y if X has more than 1000 rows
-    if X.shape[0] > 1000:
+    # sample 2000 rows of X and y if X has more than 2000 rows
+    if X.shape[0] > 2000:
         np.random.seed(42)
-        indices = np.random.choice(X.shape[0], 1000, replace=False)
+        indices = np.random.choice(X.shape[0], 2000, replace=False)
         X = X[indices]
         y = y[indices]
 
@@ -249,81 +249,81 @@ if __name__ == "__main__":
     results_df.to_csv(oj(results_dir, "runtime_results.csv"), index=False)
 
     print(f"RF results saved to {oj(results_dir, 'runtime_results.csv')}")
-    print("gb runtime analysis completed successfully.")
+    print("RF runtime analysis completed successfully.")
     
-    gb_start_time = time.time()
+    # gb_start_time = time.time()
     
-    gb_model = fit_gb_model(X, y, is_classification, n_estimators, min_samples_leaf, max_features)
+    # gb_model = fit_gb_model(X, y, is_classification, n_estimators, min_samples_leaf, max_features)
     
-    gb_end_time = time.time()
+    # gb_end_time = time.time()
     
-    gb_fitting_time = gb_end_time - gb_start_time
+    # gb_fitting_time = gb_end_time - gb_start_time
     
-    print(f"Gradient boosting fitting time: {gb_fitting_time:.2f} seconds")
+    # print(f"Gradient boosting fitting time: {gb_fitting_time:.2f} seconds")
 
-    # create elasticnet gb+ model
+    # # create elasticnet gb+ model
     
-    gb_plus_start_time = time.time()
+    # gb_plus_start_time = time.time()
     
-    gb_plus_model = fit_gb_plus_elasticnet_model(X, y, gb_model)
+    # gb_plus_model = fit_gb_plus_elasticnet_model(X, y, gb_model)
     
-    gb_plus_end_time = time.time()
+    # gb_plus_end_time = time.time()
     
-    gb_plus_fitting_time = gb_plus_end_time - gb_plus_start_time
+    # gb_plus_fitting_time = gb_plus_end_time - gb_plus_start_time
     
-    print(f"GB Plus fitting time: {gb_plus_fitting_time:.2f} seconds")
+    # print(f"GB Plus fitting time: {gb_plus_fitting_time:.2f} seconds")
     
-    # create shap explainer
-    shap_gb_explainer_start_time = time.time()
-    shap_gb_explainer = shap.TreeExplainer(gb_model)
-    shap_gb_explainer_end_time = time.time()
-    shap_gb_explainer_time = shap_gb_explainer_end_time - shap_gb_explainer_start_time
-    print(f"SHAP explainer creation time: {shap_gb_explainer_time:.2f} seconds")
+    # # create shap explainer
+    # shap_gb_explainer_start_time = time.time()
+    # shap_gb_explainer = shap.TreeExplainer(gb_model)
+    # shap_gb_explainer_end_time = time.time()
+    # shap_gb_explainer_time = shap_gb_explainer_end_time - shap_gb_explainer_start_time
+    # print(f"SHAP explainer creation time: {shap_gb_explainer_time:.2f} seconds")
     
-    # get shap values
-    shap_gb_values_start_time = time.time()
-    shap_gb_values = get_shap(X, shap_gb_explainer, is_classification=False) # gb is always regression
-    shap_gb_values_end_time = time.time()
-    shap_gb_values_time = shap_gb_values_end_time - shap_gb_values_start_time
-    print(f"SHAP values computation time: {shap_gb_values_time:.2f} seconds")
+    # # get shap values
+    # shap_gb_values_start_time = time.time()
+    # shap_gb_values = get_shap(X, shap_gb_explainer, is_classification=False) # gb is always regression
+    # shap_gb_values_end_time = time.time()
+    # shap_gb_values_time = shap_gb_values_end_time - shap_gb_values_start_time
+    # print(f"SHAP values computation time: {shap_gb_values_time:.2f} seconds")
     
-    # get lime values
-    lime_gb_start_time = time.time()
-    lime_gb_values = get_lime(X, gb_model, is_classification=False) # gb is always regression
-    lime_gb_end_time = time.time()
-    lime_gb_time = lime_gb_end_time - lime_gb_start_time
-    print(f"LIME values computation time: {lime_gb_time:.2f} seconds")
+    # # get lime values
+    # lime_gb_start_time = time.time()
+    # lime_gb_values = get_lime(X, gb_model, is_classification=False) # gb is always regression
+    # lime_gb_end_time = time.time()
+    # lime_gb_time = lime_gb_end_time - lime_gb_start_time
+    # print(f"LIME values computation time: {lime_gb_time:.2f} seconds")
 
-    # get lmdi plus explainer
-    lmdi_plus_gb_explainer_start_time = time.time()
-    lmdi_plus_gb_explainer = LMDIPlus(gb_plus_model, evaluate_on = "all")
-    lmdi_plus_gb_explainer_end_time = time.time()
-    lmdi_plus_gb_explainer_time = lmdi_plus_gb_explainer_end_time - lmdi_plus_gb_explainer_start_time
-    print(f"LMDI+ explainer creation time: {lmdi_plus_gb_explainer_time:.2f} seconds")
+    # # get lmdi plus explainer
+    # lmdi_plus_gb_explainer_start_time = time.time()
+    # lmdi_plus_gb_explainer = LMDIPlus(gb_plus_model, evaluate_on = "all")
+    # lmdi_plus_gb_explainer_end_time = time.time()
+    # lmdi_plus_gb_explainer_time = lmdi_plus_gb_explainer_end_time - lmdi_plus_gb_explainer_start_time
+    # print(f"LMDI+ explainer creation time: {lmdi_plus_gb_explainer_time:.2f} seconds")
     
-    # get lmdi plus values
-    lmdi_plus_gb_start_time = time.time()
-    lmdi_plus_gb_values = get_lmdi(X, lmdi_plus_gb_explainer)
-    lmdi_plus_gb_end_time = time.time()
-    lmdi_plus_gb_values_time = lmdi_plus_gb_end_time - lmdi_plus_gb_start_time
-    print(f"LMDI+ values computation time: {lmdi_plus_gb_values_time:.2f} seconds")
+    # # get lmdi plus values
+    # lmdi_plus_gb_start_time = time.time()
+    # lmdi_plus_gb_values = get_lmdi(X, lmdi_plus_gb_explainer)
+    # lmdi_plus_gb_end_time = time.time()
+    # lmdi_plus_gb_values_time = lmdi_plus_gb_end_time - lmdi_plus_gb_start_time
+    # print(f"LMDI+ values computation time: {lmdi_plus_gb_values_time:.2f} seconds")
     
-    # save results to df
-    results_dir = oj("results", "gb", f"{data_id}/n_estimators_{n_estimators}/min_samples_leaf_{min_samples_leaf}/max_features_{max_features}")
-    os.makedirs(results_dir, exist_ok=True)
-    # make df with data_id and each run time
-    results_df = pd.DataFrame({
-        "data_id": [data_id],
-        "gb_fitting_time": [gb_fitting_time],
-        "gb_plus_fitting_time": [gb_plus_fitting_time],
-        "shap_gb_explainer_time": [shap_gb_explainer_time],
-        "shap_gb_values_time": [shap_gb_values_time],
-        "lime_gb_time": [lime_gb_time],
-        "lmdi_plus_gb_explainer_time": [lmdi_plus_gb_explainer_time],
-        "lmdi_plus_gb_values_time": [lmdi_plus_gb_values_time]
-    })
+    # # save results to df
+    # results_dir = oj("results", "gb", f"{data_id}/n_estimators_{n_estimators}/min_samples_leaf_{min_samples_leaf}/max_features_{max_features}")
+    # os.makedirs(results_dir, exist_ok=True)
+    # # make df with data_id and each run time
+    # results_df = pd.DataFrame({
+    #     "data_id": [data_id],
+    #     "gb_fitting_time": [gb_fitting_time],
+    #     "gb_plus_fitting_time": [gb_plus_fitting_time],
+    #     "shap_gb_explainer_time": [shap_gb_explainer_time],
+    #     "shap_gb_values_time": [shap_gb_values_time],
+    #     "lime_gb_time": [lime_gb_time],
+    #     "lmdi_plus_gb_explainer_time": [lmdi_plus_gb_explainer_time],
+    #     "lmdi_plus_gb_values_time": [lmdi_plus_gb_values_time]
+    # })
     
-    results_df.to_csv(oj(results_dir, "runtime_results.csv"), index=False)
+    # results_df.to_csv(oj(results_dir, "runtime_results.csv"), index=False)
 
-    print(f"gb results saved to {oj(results_dir, 'runtime_results.csv')}")
-    print("gb runtime analysis completed successfully.")
+    # print(f"gb results saved to {oj(results_dir, 'runtime_results.csv')}")
+    # print("gb runtime analysis completed successfully.")

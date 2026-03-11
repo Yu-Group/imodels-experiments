@@ -2,7 +2,9 @@
 
 slurm_script="regression-job.sh"
 
-regression_ids=("361260" "361254" "361259" "361253" "361243" "361242")
+# choose SARCOS, Puma Robot, Wave Energy, and Super Conductivity due to varied
+# feature set sizes
+regression_ids=("361254" "361259" "361253" "361242")
 n_ests=("50" "100" "500" "1000")
 min_samples_leafs=("1" "5" "10")
 max_features=("0.1" "0.33" "1")
