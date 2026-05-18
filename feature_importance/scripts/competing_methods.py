@@ -2,9 +2,7 @@ import os
 import sys
 import pandas as pd
 import numpy as np
-import sklearn.base
 from sklearn.base import RegressorMixin, ClassifierMixin
-from functools import reduce
 
 import shap
 from imodels.importance.rf_plus import RandomForestPlusRegressor, RandomForestPlusClassifier
@@ -228,12 +226,22 @@ def tree_shap(X, y, fit):
     """
     explainer = shap.TreeExplainer(fit)
     shap_values = explainer.shap_values(X, check_additivity=False)
-    if sklearn.base.is_classifier(fit):
-        def add_abs(a, b):
-            return abs(a) + abs(b)
-        results = reduce(add_abs, shap_values)
+
+    if isinstance(shap_values, (list, tuple)):
+        # SHAP < 0.45 returned one array per output/class.
+        shap_values = np.stack(shap_values, axis=-1)
     else:
-        results = abs(shap_values)
+        shap_values = np.asarray(shap_values)
+
+    if shap_values.ndim == 2:
+        results = np.abs(shap_values)
+    elif shap_values.ndim == 3 and shap_values.shape[1] == X.shape[1]:
+        # SHAP >= 0.45 returns multi-output values as
+        # (n_samples, n_features, n_outputs).
+        results = np.abs(shap_values).sum(axis=-1)
+    else:
+        raise ValueError(f"Unexpected TreeSHAP values shape: {shap_values.shape}")
+
     results = results.mean(axis=0)
     results = pd.DataFrame(data=results, columns=['importance'])
     # Use column names from dataframe if possible
