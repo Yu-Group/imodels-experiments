@@ -283,6 +283,50 @@ def tree_mda(X, y, fit, type="oob", n_repeats=10, metric="auto"):
     return results
 
 
+def knockoffs(X, y, fit, fdr=0.1):
+    """
+    Compute knockoff feature statistics using random forest swap-integral
+    importances.
+
+    :param X: design matrix
+    :param y: response
+    :param fit: fitted random forest model of interest. Its RF hyperparameters
+        are reused for the knockoff random forest statistic when available.
+    :param fdr: target false discovery rate for the knockoff filter
+    :return: dataframe - [Var, Importance]
+                         Var: variable name
+                         Importance: knockoff W statistic
+    """
+    try:
+        from knockpy import KnockoffFilter
+    except ImportError as err:
+        raise ImportError(
+            "knockpy is required to run knockoffs(). Install it with "
+            "`pip install knockpy` in the simulation environment."
+        ) from err
+
+    X_arr = np.asarray(X)
+    y_arr = np.asarray(y).ravel()
+    rf_kwargs = fit.get_params() if hasattr(fit, "get_params") else {}
+
+    kfilter = KnockoffFilter(
+        ksampler="gaussian",
+        fstat="randomforest",
+        fstat_kwargs={**rf_kwargs, "feature_importance": "swapint"},
+    )
+    rejections = kfilter.forward(X=X_arr, y=y_arr, fdr=fdr)
+
+    results = pd.DataFrame(data=kfilter.W, columns=['importance'])
+    if isinstance(X, pd.DataFrame):
+        results.index = X.columns
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+    results["rejected"] = rejections.astype(bool)
+    results["threshold"] = kfilter.threshold
+
+    return results
+
+
 def get_num_splits(X, y, fit):
     """
     Gets number of splits per feature in a fitted RF 
