@@ -106,9 +106,61 @@ def tree_mdi_plus(X, y, fit, scoring_fns="auto", return_stability_scores=False, 
             stability_scores = None
         else:
             raise
-    mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_
+    # mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_
     if return_stability_scores:
         mdi_plus_scores = pd.concat([mdi_plus_scores, stability_scores], axis=1)
+
+    return mdi_plus_scores
+
+
+def tree_mdi_plus_p(X, y, fit, pval_mode, scoring_fns="auto", **kwargs):
+    """
+    Wrapper around MDI+ object to get p-values for feature importance scores
+    
+    :param X: ndarray of shape (n_samples, n_features)
+        The covariate matrix. If a pd.DataFrame object is supplied, then
+        the column names are used in the output
+    :param y: ndarray of shape (n_samples, n_targets)
+        The observed responses.
+    :param rf_model: scikit-learn random forest object or None
+        The RF model to be used for interpretation. If None, then a new
+        RandomForestRegressor or RandomForestClassifier is instantiated.
+    :param pval_mode: str
+        The mode for computing p-values. Should be one of "f" or "permute".
+    :param kwargs: additional arguments to pass to
+        RandomForestPlusRegressor or RandomForestPlusClassifier class.
+    :return: dataframe - [Var, Importance]
+                         Var: variable name
+                         Importance: MDI+ score
+    """
+
+    if isinstance(fit, RegressorMixin):
+        RFPlus = RandomForestPlusRegressor
+    elif isinstance(fit, ClassifierMixin):
+        RFPlus = RandomForestPlusClassifier
+    else:
+        raise ValueError("Unknown task.")
+    rf_plus_model = RFPlus(rf_model=fit, **kwargs)
+    rf_plus_model.fit(X, y)
+    try:
+        mdi_plus_scores = rf_plus_model.get_mdi_plus_scores(
+            X=X, y=y, scoring_fns=scoring_fns, pval=pval_mode
+        )
+    except ValueError as e:
+        if str(e) == 'Transformer representation was empty for all trees.':
+            mdi_plus_scores = pd.DataFrame(data=np.ones(X.shape[1]), columns=['importance'])
+            if isinstance(X, pd.DataFrame):
+                mdi_plus_scores.index = X.columns
+            mdi_plus_scores.index.name = 'var'
+            mdi_plus_scores.reset_index(inplace=True)
+        else:
+            raise
+    mdi_plus_scores["prediction_score"] = rf_plus_model.prediction_score_
+    importance_col = "p_na" if pval_mode == "f" else "permute_na"
+    mdi_plus_scores = mdi_plus_scores.rename(
+        columns={"importance": "mdiplus_score"}
+    )
+    mdi_plus_scores["importance"] = mdi_plus_scores[importance_col]
 
     return mdi_plus_scores
 
