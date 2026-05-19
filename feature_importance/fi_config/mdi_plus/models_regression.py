@@ -1,6 +1,14 @@
 from sklearn.ensemble import RandomForestRegressor
 from feature_importance.util import ModelConfig, FIModelConfig
-from feature_importance.scripts.competing_methods import tree_mdi_plus, tree_mdi, tree_mdi_OOB, tree_mda, tree_shap
+from feature_importance.scripts.competing_methods import (
+    tree_mdi_plus,
+    tree_mdi,
+    tree_mdi_OOB,
+    tree_mda,
+    tree_shap,
+    skinny_trees,
+    knockoffs,
+)
 
 
 ESTIMATORS = [
@@ -14,4 +22,6 @@ FI_ESTIMATORS = [
     [FIModelConfig('MDI-oob', tree_mdi_OOB, model_type='tree')],
     [FIModelConfig('MDA', tree_mda, model_type='tree')],
     [FIModelConfig('TreeSHAP', tree_shap, model_type='tree')],
+    [FIModelConfig('SkinnyTrees', skinny_trees, model_type='tree')],
+    [FIModelConfig('Knockoffs', knockoffs, model_type='tree')],
 ]

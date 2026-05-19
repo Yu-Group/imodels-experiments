@@ -5,9 +5,11 @@ import numpy as np
 from sklearn.base import RegressorMixin, ClassifierMixin
 
 import shap
+from knockpy import KnockoffFilter
 from imodels.importance.rf_plus import RandomForestPlusRegressor, RandomForestPlusClassifier
 from feature_importance.scripts.mdi_oob import MDI_OOB
 from feature_importance.scripts.mda import MDA
+from feature_importance.scripts.skinny_trees_util import fit_skinny_trees_regressor
 
 
 def tree_mdi_plus_ensemble(X, y, fit, scoring_fns="auto", **kwargs):
@@ -283,6 +285,49 @@ def tree_mda(X, y, fit, type="oob", n_repeats=10, metric="auto"):
     return results
 
 
+def skinny_trees(X, y, fit, num_trees=50, max_depth=3, epochs=100, batch_size=32,
+                 learning_rate=0.01, kernel_l2=1.0, kernel_constraint=100.0,
+                 anneal=True, temperature=0.01, validation_split=0.0,
+                 patience=None, random_state=27, verbose=0):
+    """
+    Compute feature scores from a sparse SkinnyTrees soft-tree ensemble.
+
+    :param X: design matrix
+    :param y: response
+    :param fit: fitted model of interest; unused, kept for pipeline API
+    :return: dataframe - [Var, Importance]
+                         Var: variable name
+                         Importance: split-weight group norm
+    """
+
+    scores, selected = fit_skinny_trees_regressor(
+        X=X,
+        y=y,
+        num_trees=num_trees,
+        max_depth=max_depth,
+        epochs=epochs,
+        batch_size=batch_size,
+        learning_rate=learning_rate,
+        kernel_l2=kernel_l2,
+        kernel_constraint=kernel_constraint,
+        anneal=anneal,
+        temperature=temperature,
+        validation_split=validation_split,
+        patience=patience,
+        random_state=random_state,
+        verbose=verbose,
+    )
+
+    results = pd.DataFrame(data=scores, columns=['importance'])
+    if isinstance(X, pd.DataFrame):
+        results.index = X.columns
+    results.index.name = 'var'
+    results.reset_index(inplace=True)
+    results["selected"] = selected
+
+    return results
+
+
 def knockoffs(X, y, fit, fdr=0.1):
     """
     Compute knockoff feature statistics using random forest swap-integral
@@ -297,14 +342,7 @@ def knockoffs(X, y, fit, fdr=0.1):
                          Var: variable name
                          Importance: knockoff W statistic
     """
-    try:
-        from knockpy import KnockoffFilter
-    except ImportError as err:
-        raise ImportError(
-            "knockpy is required to run knockoffs(). Install it with "
-            "`pip install knockpy` in the simulation environment."
-        ) from err
-
+    
     X_arr = np.asarray(X)
     y_arr = np.asarray(y).ravel()
     rf_kwargs = fit.get_params() if hasattr(fit, "get_params") else {}
