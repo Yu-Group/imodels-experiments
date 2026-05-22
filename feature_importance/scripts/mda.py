@@ -29,7 +29,8 @@ def MDA(rf, X, y, type = 'oob', n_trials = 10, metric = 'accuracy'):
             permute_std += to_add ** 2
         permute_score /= n_trials
         permute_std /= n_trials
-        permute_std = (permute_std - permute_score ** 2) ** .5 / n_trials ** .5
+        permute_var = max(permute_std - permute_score ** 2, 0.0)
+        permute_std = permute_var ** .5 / n_trials ** .5
         fi_mean[f] = best_score - permute_score
         fi_std[f] = permute_std
     return fi_mean, fi_std
