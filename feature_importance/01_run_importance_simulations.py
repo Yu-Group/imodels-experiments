@@ -80,7 +80,7 @@ def compare_estimators(estimators: List[ModelConfig],
 
             # compute correlation between signal and nonsignal features
             x_cor = np.empty(len(support))
-            x_cor[:] = np.NaN
+            x_cor[:] = np.nan
             x_cor[support == 0] = compute_nsg_feat_corr_w_sig_subspace(X_train[:, support == 1], X_train[:, support == 0])
 
             # loop over fi estimators
@@ -277,7 +277,8 @@ if __name__ == '__main__':
     if args.model:
         ests = list(filter(lambda x: args.model.lower() == x[0].name.lower(), ests))
     if args.fi_model:
-        fi_ests = list(filter(lambda x: args.fi_model.lower() == x[0].name.lower(), fi_ests))
+        fi_model_names = {x.strip().lower() for x in args.fi_model.split(",")}
+        fi_ests = list(filter(lambda x: x[0].name.lower() in fi_model_names, fi_ests))
 
     if len(ests) == 0:
         raise ValueError('No valid estimators', 'sim', args.config, 'models', args.model, 'fi', args.fi_model)
