@@ -125,8 +125,11 @@ def _predict_tree(model, X, joint_contribution=False):
     if len(values.shape) == 0:
         values = np.array([values])
     if isinstance(model, DecisionTreeRegressor):
-        biases = np.full(X.shape[0], values[paths[0][0]])
-        line_shape = X.shape[1]
+        if values.ndim == 2 and values.shape[1] == 1:
+            values = values[:, 0]
+        biases = np.tile(values[paths[0][0]], (X.shape[0], 1)) if values.ndim > 1 \
+            else np.full(X.shape[0], values[paths[0][0]])
+        line_shape = (X.shape[1], values.shape[1]) if values.ndim > 1 else X.shape[1]
     elif isinstance(model, DecisionTreeClassifier):
         # scikit stores category counts, we turn them into probabilities
         normalizer = values.sum(axis=1)[:, np.newaxis]
@@ -179,7 +182,9 @@ def _predict_tree(model, X, joint_contribution=False):
             for i in range(len(path) - 1):
                 contrib = values_list[path[i + 1]] - \
                           values_list[path[i]]
-                contribs[feature_index[path[i]]] += contrib
+                feature_id = feature_index[path[i]]
+                if feature_id >= 0:
+                    contribs[feature_id] += contrib
             unique_contributions[leaf] = contribs
 
         for row, leaf in enumerate(leaves):

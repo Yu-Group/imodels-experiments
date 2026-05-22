@@ -1,4 +1,5 @@
 from sklearn.ensemble._forest import _generate_unsampled_indices, _generate_sample_indices
+from sklearn.base import is_classifier
 from sklearn.metrics import accuracy_score, mean_squared_error
 import numpy as np
 import copy
@@ -10,7 +11,7 @@ def MDA(rf, X, y, type = 'oob', n_trials = 10, metric = 'accuracy'):
         raise ValueError('y must be 2d array (n_samples, 1) if numerical or (n_samples, n_categories).')
 
     y_mda = copy.deepcopy(y)
-    if rf._estimator_type == "classifier" and y.dtype == "object":
+    if is_classifier(rf) and y.dtype == "object":
         y_mda = LabelEncoder().fit(y_mda.ravel()).transform(y_mda.ravel()).reshape(y_mda.shape[0], 1)
 
     n_samples, n_features = X.shape
